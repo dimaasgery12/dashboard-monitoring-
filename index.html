@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
   :root{
     --ink:#14181C;
@@ -273,6 +274,94 @@
     margin-top:12px;
     line-height:1.5;
   }
+
+  /* ---------- LOGIN ---------- */
+  #loginOverlay{
+    position:fixed; inset:0; z-index:200;
+    background:
+      radial-gradient(1100px 420px at 85% -120px, rgba(242,118,46,0.22), transparent 60%),
+      linear-gradient(180deg, var(--ink) 0%, var(--ink-soft) 100%);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  #loginOverlay.hidden{display:none;}
+  .login-card{
+    background:var(--paper-raised);
+    border-radius:14px;
+    width:min(360px, 100%);
+    padding:30px 28px 26px;
+    box-shadow:0 30px 60px -20px rgba(0,0,0,0.5);
+  }
+  .login-card .eyebrow{margin-bottom:4px;}
+  .login-card h1{font-size:22px; margin-bottom:18px;}
+  .login-field{margin-bottom:14px;}
+  .login-field label{
+    display:block; font-size:11.5px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.06em; color:var(--muted); margin-bottom:5px;
+  }
+  .login-field input{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+    font-size:14px; font-family:'Inter',sans-serif; background:var(--paper);
+  }
+  .login-field input:focus{outline:2px solid var(--accent); outline-offset:-1px;}
+  .login-btn{
+    width:100%; padding:11px; border:none; border-radius:8px; background:var(--accent);
+    color:#fff; font-weight:600; font-size:14px; cursor:pointer; margin-top:4px;
+  }
+  .login-btn:hover{background:var(--accent-dark);}
+  .login-btn:disabled{opacity:.6; cursor:default;}
+  .login-error{
+    background:var(--warn-bg); color:var(--warn); font-size:12.5px; padding:9px 11px;
+    border-radius:8px; margin-bottom:14px; display:none; line-height:1.4;
+  }
+  .login-error.show{display:block;}
+  .login-note{font-size:11px; color:var(--muted); margin-top:16px; line-height:1.5;}
+
+  /* ---------- USER BAR / ROLE ---------- */
+  .userbar{
+    display:flex; align-items:center; gap:10px; position:relative; z-index:1;
+    margin-top:18px; flex-wrap:wrap;
+  }
+  .userbar .who{
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#F4F1EA;
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);
+    padding:6px 12px; border-radius:20px;
+  }
+  .userbar .who b{color:var(--accent);}
+  .userbar .role-tag{
+    text-transform:uppercase; font-size:10px; letter-spacing:.06em; font-weight:600;
+    padding:2px 8px; border-radius:10px; background:var(--accent); color:#fff; margin-left:6px;
+  }
+  .userbar button{
+    font-family:'Inter',sans-serif; font-size:12px; font-weight:600; cursor:pointer;
+    padding:7px 14px; border-radius:20px; border:1px solid rgba(255,255,255,0.2);
+    background:transparent; color:#F4F1EA;
+  }
+  .userbar button:hover{border-color:var(--accent); color:var(--accent);}
+
+  /* ---------- MANAGE USERS MODAL ---------- */
+  .users-modal .chart-modal{width:min(560px, 100%);}
+  .users-table{width:100%; border-collapse:collapse; margin-bottom:18px; font-size:13px;}
+  .users-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--muted); padding:6px 8px; border-bottom:1px solid var(--line);
+  }
+  .users-table td{padding:8px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  .users-table select{padding:4px 6px; border-radius:6px; border:1px solid var(--line);}
+  .users-table .del-user{
+    border:none; background:var(--warn-bg); color:var(--warn); border-radius:6px;
+    padding:5px 9px; font-size:12px; cursor:pointer;
+  }
+  .add-user-form{
+    display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px;
+  }
+  .add-user-form input, .add-user-form select{
+    padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;
+  }
+  .add-user-form .full{grid-column:1 / -1;}
+  .users-msg{font-size:12px; margin-top:8px; min-height:16px;}
+  .users-msg.err{color:var(--warn);}
+  .users-msg.ok{color:var(--ok);}
 
   section.panel{
     background:var(--paper-raised);
@@ -574,6 +663,56 @@
 </head>
 <body>
 
+<div id="loginOverlay">
+  <div class="login-card">
+    <div class="eyebrow"><span class="dot" style="background:var(--accent);"></span>Akses Dashboard</div>
+    <h1>Masuk</h1>
+    <div class="login-error" id="loginError"></div>
+    <form id="loginForm">
+      <div class="login-field">
+        <label for="loginId">Email atau Username</label>
+        <input type="text" id="loginId" autocomplete="username" required="">
+      </div>
+      <div class="login-field">
+        <label for="loginPass">Password</label>
+        <input type="password" id="loginPass" autocomplete="current-password" required="">
+      </div>
+      <button type="submit" class="login-btn" id="loginSubmit">Masuk</button>
+    </form>
+    <div class="login-note">Hubungi owner jika belum punya akun. Setiap pengguna diberi peran <b>Owner</b>, <b>Admin</b>, atau <b>Viewer</b> yang menentukan hak akses di dashboard ini.</div>
+  </div>
+</div>
+
+<div class="chart-overlay users-modal" id="usersOverlay">
+  <div class="chart-modal">
+    <div class="chart-modal-head">
+      <div>
+        <h3>Kelola Pengguna</h3>
+        <div class="sub">Tambah, ubah peran, atau cabut akses pengguna</div>
+      </div>
+      <button class="chart-modal-close" id="usersModalClose" aria-label="Tutup">✕</button>
+    </div>
+    <div class="chart-modal-body">
+      <table class="users-table">
+        <thead><tr><th>Username</th><th>Email</th><th>Peran</th><th></th></tr></thead>
+        <tbody id="usersTableBody"><tr><td colspan="4">Memuat…</td></tr></tbody>
+      </table>
+      <div class="up-title" style="margin-bottom:8px;">Tambah Pengguna Baru</div>
+      <form id="addUserForm" class="add-user-form">
+        <input type="text" id="newUsername" placeholder="Username" required="">
+        <input type="email" id="newEmail" placeholder="Email" required="">
+        <input type="password" id="newPassword" placeholder="Password (min. 6 karakter)" minlength="6" required="">
+        <select id="newRole">
+          <option value="admin">Admin</option>
+          <option value="viewer">Viewer</option>
+        </select>
+        <button type="submit" class="btn btn-primary full">+ Tambah Pengguna</button>
+      </form>
+      <div class="users-msg" id="usersMsg"></div>
+    </div>
+  </div>
+</div>
+
 <div class="hero">
   <div class="eyebrow"><span class="dot"></span>Pipeline Rekonsiliasi Data Fulfillment</div>
   <h1>Monitoring Jubelio</h1>
@@ -581,13 +720,19 @@
   (<b>LPH Infinity</b>) dan mutasi transfer internal (<b>TI TO Detail Infinity</b>) menjadi satu tabel kerja — lengkap dengan status
   pencocokan setiap pesanan di sepanjang rantai fulfillment.</p>
 
+  <div class="userbar">
+    <span class="who">Masuk sebagai <b id="whoName">–</b><span class="role-tag" id="whoRole">–</span></span>
+    <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer">👤 Kelola Pengguna</button>
+    <button type="button" id="logoutBtn">Keluar</button>
+  </div>
+
   <div class="pipeline" id="pipeline"><div class="node"><div class="n-label">Sumber 1</div><div class="n-name">JUBELIO</div><div class="n-count">8.486 pesanan</div></div><div class="link"><div class="track"><div class="fill" style="width:69%"></div><div class="arrow"></div></div><div class="pct"><span>69%</span> match · 5.859</div></div><div class="node"><div class="n-label">Sumber 2</div><div class="n-name">LPH INFINITY</div><div class="n-count">5.859 terhubung</div></div><div class="link"><div class="track"><div class="fill" style="width:39%"></div><div class="arrow"></div></div><div class="pct"><span>39%</span> match · 2.298</div></div><div class="node"><div class="n-label">Sumber 3</div><div class="n-name">TI TO DETAIL INFINITY</div><div class="n-count">2.298 terhubung</div></div></div>
 </div>
 
 <main>
   <div class="stats" id="stats"><div class="stat " data-stat="pesanan" title="Klik untuk lihat diagram"><div class="s-label">Total Pesanan</div><div class="s-value">8.486</div><div class="s-sub">5.614 completed</div></div><div class="stat " data-stat="qty" title="Klik untuk lihat diagram"><div class="s-label">Total Qty</div><div class="s-value">8.839</div><div class="s-sub">unit terjual</div></div><div class="stat accent" data-stat="omzet" title="Klik untuk lihat diagram"><div class="s-label">Total Omzet</div><div class="s-value">Rp 2.496.243.096</div><div class="s-sub">seluruh sumber</div></div><div class="stat ok" data-stat="lph" title="Klik untuk lihat diagram"><div class="s-label">Match ke LPH</div><div class="s-value">69%</div><div class="s-sub">5.859 dari 8.486</div></div><div class="stat warn" data-stat="tii" title="Klik untuk lihat diagram"><div class="s-label">MATCH KE TO TI DETAIL</div><div class="s-value">27%</div><div class="s-sub">2.298 dari 8.486</div></div></div>
 
-  <section class="panel upload-panel">
+  <section class="panel upload-panel" id="uploadPanel" data-role-hide="viewer">
     <div class="upload-head">
       <div>
         <div class="up-title">Tambah Data Baru</div>
@@ -597,7 +742,7 @@
       </div>
       <label class="btn btn-primary" for="fileInput">⬆ Pilih File</label>
       <input type="file" id="fileInput" accept=".xlsx,.xls" multiple="" hidden="">
-      <button class="btn btn-ghost" id="clearDataBtn" type="button" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
+      <button class="btn btn-ghost" id="clearDataBtn" type="button" data-role-hide="admin,viewer" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
     </div>
     <div id="dropZone" class="drop-zone">
       Seret &amp; letakkan file .xlsx di sini, atau klik "Pilih File" di atas
@@ -756,6 +901,227 @@
   };
   firebase.initializeApp(firebaseConfig);
   var db = firebase.firestore();
+
+  // ---------- autentikasi & peran (owner / admin / viewer) ----------
+  var OWNER_EMAIL = 'gerry.saputra@bercaretail.com';
+  var OWNER_USERNAME = 'gerry';
+  var OWNER_PASSWORD = '12345678';
+  var currentRole = null;
+  var appStarted = false;
+  var usernameCache = {};
+
+  function resolveEmail(identifier){
+    identifier = String(identifier || '').trim();
+    if(identifier.indexOf('@') !== -1) return Promise.resolve(identifier.toLowerCase());
+    var uname = identifier.toLowerCase();
+    if(uname === OWNER_USERNAME) return Promise.resolve(OWNER_EMAIL);
+    if(usernameCache[uname]) return Promise.resolve(usernameCache[uname]);
+    return db.collection('usernames').doc(uname).get().then(function(snap){
+      if(snap.exists && snap.data().email){
+        usernameCache[uname] = snap.data().email;
+        return snap.data().email;
+      }
+      return null;
+    });
+  }
+
+  function showLoginError(msg){
+    var el = document.getElementById('loginError');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+  function hideLoginError(){
+    document.getElementById('loginError').classList.remove('show');
+  }
+
+  function doLogin(identifier, password){
+    return resolveEmail(identifier).then(function(email){
+      if(!email){ return Promise.reject({code:'custom/not-found'}); }
+      return firebase.auth().signInWithEmailAndPassword(email, password)['catch'](function(err){
+        // bootstrap otomatis: kalau akun owner belum pernah dibuat di Firebase Auth, buat sekali di sini
+        if((err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials') &&
+            email === OWNER_EMAIL && password === OWNER_PASSWORD){
+          return firebase.auth().createUserWithEmailAndPassword(email, password).then(function(cred){
+            return db.collection('users').doc(cred.user.uid).set({
+              email: OWNER_EMAIL, username: OWNER_USERNAME, role: 'owner', createdAt: Date.now()
+            }).then(function(){
+              return db.collection('usernames').doc(OWNER_USERNAME).set({email: OWNER_EMAIL});
+            }).then(function(){ return cred; });
+          });
+        }
+        throw err;
+      });
+    });
+  }
+
+  function applyRole(username, role){
+    currentRole = role;
+    document.getElementById('whoName').textContent = username;
+    document.getElementById('whoRole').textContent = role === 'owner' ? 'Owner' : (role === 'admin' ? 'Admin' : 'Viewer');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-role-hide]'), function(el){
+      var hideFor = el.getAttribute('data-role-hide').split(',');
+      el.style.display = hideFor.indexOf(role) !== -1 ? 'none' : '';
+    });
+  }
+
+  function startAppIfNeeded(){
+    document.getElementById('loginOverlay').classList.add('hidden');
+    if(!appStarted){
+      appStarted = true;
+      init();
+    }
+  }
+
+  firebase.auth().onAuthStateChanged(function(user){
+    if(!user){
+      currentRole = null;
+      document.getElementById('loginOverlay').classList.remove('hidden');
+      return;
+    }
+    db.collection('users').doc(user.uid).get().then(function(snap){
+      if(snap.exists){
+        var d = snap.data();
+        applyRole(d.username || user.email, d.role);
+        startAppIfNeeded();
+      } else if(user.email === OWNER_EMAIL){
+        db.collection('users').doc(user.uid).set({
+          email: OWNER_EMAIL, username: OWNER_USERNAME, role: 'owner', createdAt: Date.now()
+        }).then(function(){
+          return db.collection('usernames').doc(OWNER_USERNAME).set({email: OWNER_EMAIL});
+        }).then(function(){
+          applyRole(OWNER_USERNAME, 'owner');
+          startAppIfNeeded();
+        });
+      } else {
+        showLoginError('Akun ini belum memiliki peran akses. Hubungi owner untuk didaftarkan.');
+        firebase.auth().signOut();
+      }
+    });
+  });
+
+  document.getElementById('loginForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    hideLoginError();
+    var btn = document.getElementById('loginSubmit');
+    btn.disabled = true; btn.textContent = 'Memeriksa…';
+    var id = document.getElementById('loginId').value;
+    var pass = document.getElementById('loginPass').value;
+    doLogin(id, pass)['catch'](function(err){
+      console.error('Login error:', err);
+      var code = err && err.code;
+      var msg = 'Email/username atau password salah.';
+      if(code === 'auth/too-many-requests') msg = 'Terlalu banyak percobaan gagal. Coba lagi beberapa saat lagi.';
+      else if(code === 'auth/operation-not-allowed') msg = 'Metode login Email/Password belum diaktifkan di Firebase Console (Authentication → Sign-in method → Email/Password → Enable).';
+      else if(code === 'auth/unauthorized-domain') msg = 'Domain ini belum diizinkan di Firebase Console (Authentication → Settings → Authorized domains).';
+      else if(code === 'auth/network-request-failed') msg = 'Gagal terhubung ke server Firebase. Periksa koneksi internet Anda.';
+      else if(code === 'custom/not-found') msg = 'Username tidak ditemukan.';
+      else if(code) msg = 'Gagal masuk (' + code + '). Coba lagi atau hubungi owner.';
+      showLoginError(msg);
+    })['finally'](function(){
+      btn.disabled = false; btn.textContent = 'Masuk';
+    });
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', function(){
+    firebase.auth().signOut();
+  });
+
+  // ---------- kelola pengguna (khusus owner) ----------
+  function loadUsersList(){
+    var body = document.getElementById('usersTableBody');
+    body.innerHTML = '<tr><td colspan="4">Memuat…</td></tr>';
+    db.collection('users').get().then(function(qs){
+      if(qs.empty){ body.innerHTML = '<tr><td colspan="4">Belum ada pengguna.</td></tr>'; return; }
+      var rows = [];
+      qs.forEach(function(doc){
+        var d = doc.data();
+        var isOwnerRow = d.role === 'owner';
+        rows.push(
+          '<tr data-uid="' + doc.id + '">' +
+            '<td>' + (d.username || '-') + '</td>' +
+            '<td>' + (d.email || '-') + '</td>' +
+            '<td>' + (isOwnerRow ? 'Owner' :
+              '<select class="role-select">' +
+                '<option value="admin"' + (d.role==='admin'?' selected':'') + '>Admin</option>' +
+                '<option value="viewer"' + (d.role==='viewer'?' selected':'') + '>Viewer</option>' +
+              '</select>') +
+            '</td>' +
+            '<td>' + (isOwnerRow ? '' : '<button type="button" class="del-user">Cabut Akses</button>') + '</td>' +
+          '</tr>'
+        );
+      });
+      body.innerHTML = rows.join('');
+      Array.prototype.forEach.call(body.querySelectorAll('.role-select'), function(sel){
+        sel.addEventListener('change', function(){
+          var uid = this.closest('tr').getAttribute('data-uid');
+          db.collection('users').doc(uid).update({role: this.value}).then(function(){
+            document.getElementById('usersMsg').className = 'users-msg ok';
+            document.getElementById('usersMsg').textContent = 'Peran pengguna diperbarui.';
+          });
+        });
+      });
+      Array.prototype.forEach.call(body.querySelectorAll('.del-user'), function(btn){
+        btn.addEventListener('click', function(){
+          var tr = this.closest('tr');
+          var uid = tr.getAttribute('data-uid');
+          if(!window.confirm('Cabut akses pengguna ini? Pengguna tidak akan bisa masuk lagi ke dashboard.')) return;
+          db.collection('users').doc(uid).delete().then(function(){
+            tr.remove();
+            document.getElementById('usersMsg').className = 'users-msg ok';
+            document.getElementById('usersMsg').textContent = 'Akses pengguna dicabut.';
+          });
+        });
+      });
+    })['catch'](function(err){
+      body.innerHTML = '<tr><td colspan="4">Gagal memuat: ' + err.message + '</td></tr>';
+    });
+  }
+
+  document.getElementById('manageUsersBtn').addEventListener('click', function(){
+    document.getElementById('usersOverlay').classList.add('open');
+    document.getElementById('usersMsg').textContent = '';
+    loadUsersList();
+  });
+  document.getElementById('usersModalClose').addEventListener('click', function(){
+    document.getElementById('usersOverlay').classList.remove('open');
+  });
+  document.getElementById('usersOverlay').addEventListener('click', function(e){
+    if(e.target === this) this.classList.remove('open');
+  });
+
+  document.getElementById('addUserForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var msgEl = document.getElementById('usersMsg');
+    msgEl.className = 'users-msg'; msgEl.textContent = 'Membuat akun…';
+    var username = document.getElementById('newUsername').value.trim().toLowerCase();
+    var email = document.getElementById('newEmail').value.trim().toLowerCase();
+    var password = document.getElementById('newPassword').value;
+    var role = document.getElementById('newRole').value;
+
+    // pakai instance Firebase kedua supaya owner tidak ikut ter-logout saat akun baru dibuat
+    var secondaryName = 'Secondary_' + Date.now();
+    var secondaryApp = firebase.initializeApp(firebaseConfig, secondaryName);
+    var secondaryAuth = secondaryApp.auth();
+
+    secondaryAuth.createUserWithEmailAndPassword(email, password).then(function(cred){
+      return db.collection('users').doc(cred.user.uid).set({
+        email: email, username: username, role: role, createdAt: Date.now()
+      }).then(function(){
+        return db.collection('usernames').doc(username).set({email: email});
+      });
+    }).then(function(){
+      msgEl.className = 'users-msg ok';
+      msgEl.textContent = 'Pengguna ' + username + ' berhasil dibuat.';
+      document.getElementById('addUserForm').reset();
+      loadUsersList();
+    })['catch'](function(err){
+      msgEl.className = 'users-msg err';
+      msgEl.textContent = 'Gagal membuat pengguna: ' + err.message;
+    })['finally'](function(){
+      secondaryAuth.signOut()['catch'](function(){});
+      secondaryApp['delete']()['catch'](function(){});
+    });
+  });
   var CHUNK_SIZE = 1000;
   var lastChunkCount = 0;
   var saveTimer = null;
@@ -1676,7 +2042,8 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  // init() sekarang dipanggil oleh startAppIfNeeded() setelah login berhasil (lihat bagian autentikasi di atas),
+  // bukan otomatis saat halaman dimuat — supaya data tidak dimuat/ditampilkan sebelum pengguna login.
 })();
 
 </script>
