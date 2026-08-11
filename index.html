@@ -541,8 +541,7 @@
     background:#FFF4EC;
     color:var(--accent-dark);
   }
-  .upload-log{padding:0 20px 18px; display:flex; flex-direction:column; gap:6px;}
-  .upload-log:empty{padding:0;}
+  .upload-log{display:none;}
   .log-item{
     display:flex; align-items:center; gap:10px;
     font-size:12.5px;
@@ -598,6 +597,7 @@
       </div>
       <label class="btn btn-primary" for="fileInput">⬆ Pilih File</label>
       <input type="file" id="fileInput" accept=".xlsx,.xls" multiple="" hidden="">
+      <button class="btn btn-ghost" id="clearDataBtn" type="button" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
     </div>
     <div id="dropZone" class="drop-zone">
       Seret &amp; letakkan file .xlsx di sini, atau klik "Pilih File" di atas
@@ -1625,6 +1625,21 @@
 
     document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
     document.getElementById('downloadHtmlBtn').addEventListener('click', downloadHtml);
+
+    document.getElementById('clearDataBtn').addEventListener('click', function(){
+      var sure = window.confirm('Yakin ingin menghapus SEMUA data (Jubelio, LPH, TII) dari dashboard ini? Data akan terhapus juga dari cloud dan tidak bisa dikembalikan, kecuali kamu upload ulang filenya.');
+      if(!sure) return;
+      jubelioRows = [];
+      lphLookup = {};
+      tiiLookupC = {};
+      tiiLookupE = {};
+      refreshAll();
+      logMsg('warn', '🗑', 'Semua data dihapus dari dashboard ini.');
+      if(saveTimer) clearTimeout(saveTimer);
+      saveToCloud().then(function(){
+        window.alert('Semua data berhasil dihapus. Silakan upload file baru untuk mulai lagi.');
+      });
+    });
 
     // upload
     var fileInput = document.getElementById('fileInput');
