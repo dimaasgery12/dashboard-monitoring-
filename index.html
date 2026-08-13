@@ -411,7 +411,7 @@
     align-items:center;
     padding:16px 18px;
     border-bottom:1px solid var(--line);
-    background:#FBFAF7;
+    background:#0E120E;
   }
   .toolbar input[type=text]{
     flex:1 1 220px;
@@ -421,14 +421,15 @@
     border-radius:7px;
     font-size:13.5px;
     font-family:'Inter',sans-serif;
-    background:#fff;
+    background:var(--paper-raised);
+    color:var(--ink);
   }
   .toolbar select{
     padding:9px 10px;
     border:1px solid var(--line);
     border-radius:7px;
     font-size:13px;
-    background:#fff;
+    background:var(--paper-raised);
     font-family:'Inter',sans-serif;
     color:var(--ink);
   }
@@ -444,8 +445,9 @@
     border-radius:6px;
     font-size:12.5px;
     font-family:'Inter',sans-serif;
-    background:#fff;
+    background:var(--paper-raised);
     color:var(--ink);
+    color-scheme: dark;
   }
   .toolbar .spacer{flex:1 1 auto;}
 
@@ -455,7 +457,7 @@
     padding:9px 12px;
     border:1px solid var(--line);
     border-radius:7px;
-    background:#fff;
+    background:var(--paper-raised);
     font-size:13px;
     font-family:'Inter',sans-serif;
     color:var(--ink);
@@ -466,7 +468,7 @@
     white-space:nowrap;
   }
   .msel-btn:hover{border-color:var(--accent);}
-  .msel.open .msel-btn{border-color:var(--accent); color:var(--accent-dark); background:#FFF8F2;}
+  .msel.open .msel-btn{border-color:var(--accent); color:var(--accent); background:#16211A;}
   .msel-btn .count{
     background:var(--accent);
     color:#fff;
@@ -483,10 +485,10 @@
     top:calc(100% + 6px);
     left:0;
     width:250px;
-    background:#fff;
+    background:var(--paper-raised);
     border:1px solid var(--line);
     border-radius:10px;
-    box-shadow:0 18px 34px -14px rgba(20,24,28,0.4);
+    box-shadow:0 18px 34px -14px rgba(0,0,0,0.6);
     z-index:30;
     padding:10px;
   }
@@ -617,12 +619,12 @@
     font-size:12.5px;
     color:var(--muted);
     flex-wrap:wrap;
-    background:#FBFAF7;
+    background:#0E120E;
   }
   .pager .spacer{flex:1 1 auto;}
   .pager button{
     border:1px solid var(--line);
-    background:#fff;
+    background:var(--paper-raised);
     border-radius:6px;
     padding:6px 10px;
     cursor:pointer;
@@ -656,13 +658,13 @@
     text-align:center;
     font-size:12.5px;
     color:var(--muted);
-    background:#FBFAF7;
+    background:#0E120E;
     transition:border-color .15s, background .15s, color .15s;
   }
   .drop-zone.drag{
     border-color:var(--accent);
-    background:#FFF4EC;
-    color:var(--accent-dark);
+    background:#16211A;
+    color:var(--accent);
   }
   .upload-log{display:none;}
   .log-item{
