@@ -551,9 +551,9 @@
     white-space:nowrap;
     vertical-align:top;
   }
-  tbody tr:hover{background:#FBF6EF;}
-  tbody tr:nth-child(even){background:#FCFBF8;}
-  tbody tr:nth-child(even):hover{background:#FBF6EF;}
+  #viewMonitoring tbody tr:hover{background:#FBF6EF;}
+  #viewMonitoring tbody tr:nth-child(even){background:#FCFBF8;}
+  #viewMonitoring tbody tr:nth-child(even):hover{background:#FBF6EF;}
   .col-name{white-space:normal; min-width:220px; max-width:320px;}
   .badge{
     display:inline-block;
@@ -720,6 +720,11 @@
     .glow-cyan { box-shadow: 0 0 15px rgba(242, 118, 46, 0.22); }
     .glow-purple { box-shadow: 0 0 15px rgba(30, 158, 107, 0.22); }
     .glow-amber { box-shadow: 0 0 15px rgba(214, 164, 25, 0.22); }
+
+    /* Pastikan baris tabel jadwal selalu gelap, tidak ada baris putih */
+    .jadwal-theme tbody tr { background: transparent; }
+    .jadwal-theme tbody tr:nth-child(even) { background: rgba(255,255,255,0.015); }
+    .jadwal-theme tbody tr:hover { background: rgba(148,163,184,0.06); }
 
     /* Tab navigasi di hero gabungan */
     .view-tabs { display:flex; gap:8px; margin: 4px 0 22px; position:relative; z-index:1; flex-wrap:wrap; }
@@ -2234,66 +2239,59 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            
-            <!-- LEFT AREA: Schedule Grid Matrix -->
-            <div class="xl:col-span-2 space-y-6">
-                
-                <!-- Weekly Grid Scheduler -->
-                <div class="glass-card rounded-2xl shadow-2xl overflow-hidden border border-slate-800">
-                    <div class="p-5 border-b border-slate-800 bg-slate-900/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                        <div>
-                            <h2 class="font-bold text-lg text-white flex items-center gap-2">
-                                <i class="fas fa-calendar-alt text-cyan-400"></i> Matriks Jadwal Mingguan (<span id="teamMemberCountLabel">4</span> Orang)
-                            </h2>
-                            <p class="text-xs text-slate-400 mt-1">Klik kotak jadwal untuk mengubah Shift & Lokasi (GPN / CIKINI).</p>
-                        </div>
-                    </div>
+        <div class="space-y-6">
 
-                    <div class="overflow-x-auto custom-scroll">
-                        <table class="w-full text-left border-collapse min-w-[850px]">
-                            <thead>
-                                <tr class="bg-slate-900/60 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-800">
-                                    <th class="px-6 py-4 w-60">Nama & Peran Tim</th>
-                                    <th class="px-2 py-4 text-center">Sen</th>
-                                    <th class="px-2 py-4 text-center">Sel</th>
-                                    <th class="px-2 py-4 text-center">Rab</th>
-                                    <th class="px-2 py-4 text-center">Kam</th>
-                                    <th class="px-2 py-4 text-center">Jum</th>
-                                    <th class="px-2 py-4 text-center bg-rose-950/10 text-rose-400">Sab</th>
-                                    <th class="px-2 py-4 text-center bg-rose-950/10 text-rose-400">Min</th>
-                                </tr>
-                            </thead>
-                            <tbody id="shiftTableBody" class="divide-y divide-slate-800/60 text-sm">
-                                <!-- Populated dynamically by JavaScript -->
-                            </tbody>
-                        </table>
+            <!-- Weekly Grid Scheduler -->
+            <div class="glass-card rounded-2xl shadow-2xl overflow-hidden border border-slate-800">
+                <div class="p-5 border-b border-slate-800 bg-slate-900/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="font-bold text-lg text-white flex items-center gap-2">
+                            <i class="fas fa-calendar-alt text-cyan-400"></i> Matriks Jadwal Mingguan (<span id="teamMemberCountLabel">4</span> Orang)
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">Klik kotak jadwal untuk mengubah Shift & Lokasi (GPN / CIKINI).</p>
                     </div>
                 </div>
 
+                <div class="overflow-x-auto custom-scroll">
+                    <table class="w-full text-left border-collapse min-w-[850px]">
+                        <thead>
+                            <tr class="bg-slate-900/60 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-800">
+                                <th class="px-6 py-4 w-60">Nama & Peran Tim</th>
+                                <th class="px-2 py-4 text-center">Sen</th>
+                                <th class="px-2 py-4 text-center">Sel</th>
+                                <th class="px-2 py-4 text-center">Rab</th>
+                                <th class="px-2 py-4 text-center">Kam</th>
+                                <th class="px-2 py-4 text-center">Jum</th>
+                                <th class="px-2 py-4 text-center bg-rose-950/10 text-rose-400">Sab</th>
+                                <th class="px-2 py-4 text-center bg-rose-950/10 text-rose-400">Min</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shiftTableBody" class="divide-y divide-slate-800/60 text-sm">
+                            <!-- Populated dynamically by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <!-- RIGHT AREA: Tasks Board -->
-            <div class="space-y-6">
-                <div class="glass-card rounded-2xl shadow-2xl border border-slate-800 flex flex-col h-[580px] overflow-hidden">
-                    <div class="p-5 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between">
-                        <div>
-                            <h2 class="font-bold text-base text-white flex items-center gap-2">
-                                <i class="fas fa-tasks text-amber-400"></i> Distribusi Rencana Tugas
-                            </h2>
-                        </div>
-                        <button onclick="openAddTaskModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-3 py-1 text-xs font-bold flex items-center gap-1.5 shadow-md btn-press">
-                            <i class="fas fa-plus"></i> Tugas
-                        </button>
+            <!-- Tasks Board (below the schedule table) -->
+            <div class="glass-card rounded-2xl shadow-2xl border border-slate-800 flex flex-col overflow-hidden">
+                <div class="p-5 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between">
+                    <div>
+                        <h2 class="font-bold text-base text-white flex items-center gap-2">
+                            <i class="fas fa-tasks text-amber-400"></i> Distribusi Rencana Tugas
+                        </h2>
                     </div>
+                    <button onclick="openAddTaskModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-3 py-1 text-xs font-bold flex items-center gap-1.5 shadow-md btn-press">
+                        <i class="fas fa-plus"></i> Tugas
+                    </button>
+                </div>
 
-                    <div class="px-5 py-3 bg-slate-950/30 border-b border-slate-800/80 flex flex-wrap gap-1.5 items-center" id="memberFiltersContainer">
-                        <!-- Populated via JS dynamically -->
-                    </div>
+                <div class="px-5 py-3 bg-slate-950/30 border-b border-slate-800/80 flex flex-wrap gap-1.5 items-center" id="memberFiltersContainer">
+                    <!-- Populated via JS dynamically -->
+                </div>
 
-                    <div class="p-5 overflow-y-auto flex-1 custom-scroll space-y-3" id="taskItemsContainer">
-                        <!-- Populated dynamically by JS -->
-                    </div>
+                <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[520px] overflow-y-auto custom-scroll" id="taskItemsContainer">
+                    <!-- Populated dynamically by JS -->
                 </div>
             </div>
         </div>
