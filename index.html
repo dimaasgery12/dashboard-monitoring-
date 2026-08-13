@@ -1991,17 +1991,17 @@
     el.prepend(div);
   }
 
-  function existingJubelioKeys(){
-    var set = {};
-    jubelioRows.forEach(function(r){
-      set[trimKey(r['No Invoice']) + '|' + trimKey(r['SKU']) + '|' + trimKey(r['No Pesanan'])] = true;
+  function existingJubelioIndex(){
+    var map = {};
+    jubelioRows.forEach(function(r, idx){
+      map[trimKey(r['No Invoice']) + '|' + trimKey(r['SKU']) + '|' + trimKey(r['No Pesanan'])] = idx;
     });
-    return set;
+    return map;
   }
 
   function mergeJubelioSheet(json, fileName){
-    var existing = existingJubelioKeys();
-    var added = 0, skipped = 0;
+    var index = existingJubelioIndex();
+    var added = 0, updated = 0, unchanged = 0;
     json.forEach(function(row){
       var rec = {};
       JUBELIO_COLS.forEach(function(c){
@@ -2010,12 +2010,30 @@
         rec[c] = (v === undefined || v === '') ? null : v;
       });
       var key = trimKey(rec['No Invoice']) + '|' + trimKey(rec['SKU']) + '|' + trimKey(rec['No Pesanan']);
-      if(existing[key]){ skipped++; return; }
-      existing[key] = true;
+      var existingIdx = index[key];
+      if(existingIdx !== undefined){
+        var oldRow = jubelioRows[existingIdx];
+        var changed = false;
+        JUBELIO_COLS.forEach(function(c){
+          if(trimKey(oldRow[c]) !== trimKey(rec[c])){ changed = true; }
+        });
+        if(changed){
+          jubelioRows[existingIdx] = rec;
+          updated++;
+        } else {
+          unchanged++;
+        }
+        return;
+      }
+      index[key] = jubelioRows.length;
       jubelioRows.push(rec);
       added++;
     });
-    logMsg('ok', '✓', '<b>' + fileName + '</b> dikenali sebagai <b>Jubelio</b> — ' + added + ' baris baru ditambahkan' + (skipped ? ', ' + skipped + ' duplikat dilewati' : '') + '.');
+    var parts = [];
+    parts.push(added + ' baris baru ditambahkan');
+    if(updated) parts.push(updated + ' baris diperbarui (termasuk perubahan status)');
+    if(unchanged) parts.push(unchanged + ' baris tidak berubah');
+    logMsg('ok', '✓', '<b>' + fileName + '</b> dikenali sebagai <b>Jubelio</b> — ' + parts.join(', ') + '.');
   }
 
   function mergeLphSheet(json, fileName){
