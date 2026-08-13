@@ -660,6 +660,79 @@
     .stats{margin-top:-30px;}
   }
 </style>
+
+<!-- ===== Aset & tema untuk view Jadwal & Tugas Tim (digabung dari dashboard_jadwal.html) ===== -->
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<script>
+    // Palet warna dipetakan ulang agar mengikuti tema Dashboard Monitoring
+    // (ink/paper/accent oranye) tanpa perlu menulis ulang setiap kelas Tailwind.
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: {
+                    sans: ['Inter', 'sans-serif'],
+                    display: ['Oswald', 'sans-serif'],
+                    mono: ['IBM Plex Mono', 'monospace'],
+                },
+                colors: {
+                    slate: {
+                        100: '#EDEFF1', 200: '#DDE1E4', 300: '#C3C9CE',
+                        400: '#9AA3AB', 500: '#7C8790', 600: '#59636C',
+                        700: '#3C454D', 800: '#2F373E', 850: '#242B31',
+                        900: '#1B2126', 950: '#14181C'
+                    },
+                    cyan:   { 300:'#F7C09A', 400:'#F2954F', 450:'#F2762E', 500:'#F2762E', 600:'#C85A1B' },
+                    indigo: { 400:'#F2954F', 500:'#F2762E', 600:'#C85A1B' },
+                    purple: { 300:'#8FDCB9', 400:'#34B583', 450:'#1E9E6B', 500:'#1E9E6B', 600:'#177C54' },
+                    emerald:{ 400:'#34B583', 500:'#1E9E6B', 600:'#177C54' },
+                    amber:  { 300:'#EFCB78', 400:'#D6A419', 450:'#D6A419', 500:'#D6A419', 600:'#B3860E' },
+                    rose:   { 300:'#F3A8A2', 400:'#E1685F', 450:'#D64545', 500:'#D64545', 600:'#B23333', 950:'#3A1210' }
+                }
+            }
+        }
+    }
+</script>
+<style>
+    .jadwal-theme {
+        font-family: 'Inter', sans-serif;
+        background-color: #14181C;
+        color: #f1f5f9;
+    }
+    .jadwal-theme h1, .jadwal-theme h2, .jadwal-theme h3 {
+        font-family: 'Oswald', sans-serif;
+    }
+
+    .custom-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #14181C; border-radius: 8px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background-color: #2F373E; border-radius: 8px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: #3C454D; }
+
+    .glass-card {
+        background: rgba(38, 44, 51, 0.65);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .shift-cell { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+    .shift-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(242, 118, 46, 0.18); }
+    .btn-press { transition: all 0.1s ease-in-out; }
+    .btn-press:active { transform: scale(0.97); }
+    .glow-cyan { box-shadow: 0 0 15px rgba(242, 118, 46, 0.22); }
+    .glow-purple { box-shadow: 0 0 15px rgba(30, 158, 107, 0.22); }
+    .glow-amber { box-shadow: 0 0 15px rgba(214, 164, 25, 0.22); }
+
+    /* Tab navigasi di hero gabungan */
+    .view-tabs { display:flex; gap:8px; margin: 4px 0 22px; position:relative; z-index:1; flex-wrap:wrap; }
+    .view-tab {
+        font-family:'IBM Plex Mono',monospace;
+        font-size:11.5px; letter-spacing:.05em; text-transform:uppercase;
+        background:rgba(255,255,255,0.045); border:1px solid rgba(255,255,255,0.14);
+        color:#C9C4B8; padding:9px 16px; border-radius:8px; cursor:pointer;
+        transition:all .15s ease;
+    }
+    .view-tab:hover { border-color:var(--accent); color:#F4F1EA; }
+    .view-tab.active { background:var(--accent); border-color:var(--accent); color:#1a0f08; font-weight:600; }
+</style>
 </head>
 <body>
 
@@ -679,7 +752,7 @@
       </div>
       <button type="submit" class="login-btn" id="loginSubmit">Masuk</button>
     </form>
-    <div class="login-note">Hubungi owner jika belum punya akun. Setiap pengguna diberi peran <b>Owner</b>, <b>Admin</b>, atau <b>Viewer</b> yang menentukan hak akses di dashboard ini.</div>
+    <div class="login-note">Hubungi owner jika belum punya akun. Setiap pengguna diberi peran <b>Owner</b>, <b>Super Admin</b>, <b>Admin</b>, atau <b>Viewer</b> yang menentukan hak akses di dashboard ini.</div>
   </div>
 </div>
 
@@ -703,6 +776,7 @@
         <input type="email" id="newEmail" placeholder="Email" required="">
         <input type="password" id="newPassword" placeholder="Password (min. 6 karakter)" minlength="6" required="">
         <select id="newRole">
+          <option value="superadmin">Super Admin</option>
           <option value="admin">Admin</option>
           <option value="viewer">Viewer</option>
         </select>
@@ -726,10 +800,15 @@
     <button type="button" id="logoutBtn">Keluar</button>
   </div>
 
+  <div class="view-tabs">
+    <button type="button" class="view-tab active" id="tabMonitoringBtn" onclick="switchAppView('monitoring')">📊 Monitoring Rekonsiliasi</button>
+    <button type="button" class="view-tab" id="tabJadwalBtn" onclick="switchAppView('jadwal')">🗓 Jadwal &amp; Tugas Tim</button>
+  </div>
+
   <div class="pipeline" id="pipeline"><div class="node"><div class="n-label">Sumber 1</div><div class="n-name">JUBELIO</div><div class="n-count">8.486 pesanan</div></div><div class="link"><div class="track"><div class="fill" style="width:69%"></div><div class="arrow"></div></div><div class="pct"><span>69%</span> match · 5.859</div></div><div class="node"><div class="n-label">Sumber 2</div><div class="n-name">LPH INFINITY</div><div class="n-count">5.859 terhubung</div></div><div class="link"><div class="track"><div class="fill" style="width:39%"></div><div class="arrow"></div></div><div class="pct"><span>39%</span> match · 2.298</div></div><div class="node"><div class="n-label">Sumber 3</div><div class="n-name">TI TO DETAIL INFINITY</div><div class="n-count">2.298 terhubung</div></div></div>
 </div>
 
-<main>
+<main id="viewMonitoring">
   <div class="stats" id="stats"><div class="stat " data-stat="pesanan" title="Klik untuk lihat diagram"><div class="s-label">Total Pesanan</div><div class="s-value">8.486</div><div class="s-sub">5.614 completed</div></div><div class="stat " data-stat="qty" title="Klik untuk lihat diagram"><div class="s-label">Total Qty</div><div class="s-value">8.839</div><div class="s-sub">unit terjual</div></div><div class="stat accent" data-stat="omzet" title="Klik untuk lihat diagram"><div class="s-label">Total Omzet</div><div class="s-value">Rp 2.496.243.096</div><div class="s-sub">seluruh sumber</div></div><div class="stat ok" data-stat="lph" title="Klik untuk lihat diagram"><div class="s-label">Match ke LPH</div><div class="s-value">69%</div><div class="s-sub">5.859 dari 8.486</div></div><div class="stat warn" data-stat="tii" title="Klik untuk lihat diagram"><div class="s-label">MATCH KE TO TI DETAIL</div><div class="s-value">27%</div><div class="s-sub">2.298 dari 8.486</div></div></div>
 
   <section class="panel upload-panel" id="uploadPanel" data-role-hide="viewer">
@@ -742,7 +821,7 @@
       </div>
       <label class="btn btn-primary" for="fileInput">⬆ Pilih File</label>
       <input type="file" id="fileInput" accept=".xlsx,.xls" multiple="" hidden="">
-      <button class="btn btn-ghost" id="clearDataBtn" type="button" data-role-hide="admin,viewer" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
+      <button class="btn btn-ghost" id="clearDataBtn" type="button" data-role-hide="admin,viewer,superadmin" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
     </div>
     <div id="dropZone" class="drop-zone">
       Seret &amp; letakkan file .xlsx di sini, atau klik "Pilih File" di atas
@@ -957,7 +1036,7 @@
   function applyRole(username, role){
     currentRole = role;
     document.getElementById('whoName').textContent = username;
-    document.getElementById('whoRole').textContent = role === 'owner' ? 'Owner' : (role === 'admin' ? 'Admin' : 'Viewer');
+    document.getElementById('whoRole').textContent = role === 'owner' ? 'Owner' : (role === 'superadmin' ? 'Super Admin' : (role === 'admin' ? 'Admin' : 'Viewer'));
     Array.prototype.forEach.call(document.querySelectorAll('[data-role-hide]'), function(el){
       var hideFor = el.getAttribute('data-role-hide').split(',');
       el.style.display = hideFor.indexOf(role) !== -1 ? 'none' : '';
@@ -1042,6 +1121,7 @@
             '<td>' + (d.email || '-') + '</td>' +
             '<td>' + (isOwnerRow ? 'Owner' :
               '<select class="role-select">' +
+                '<option value="superadmin"' + (d.role==='superadmin'?' selected':'') + '>Super Admin</option>' +
                 '<option value="admin"' + (d.role==='admin'?' selected':'') + '>Admin</option>' +
                 '<option value="viewer"' + (d.role==='viewer'?' selected':'') + '>Viewer</option>' +
               '</select>') +
@@ -1993,6 +2073,7 @@
     document.getElementById('downloadHtmlBtn').addEventListener('click', downloadHtml);
 
     document.getElementById('clearDataBtn').addEventListener('click', function(){
+      if(currentRole !== 'owner'){ window.alert('Hanya Owner yang bisa menghapus semua data.'); return; }
       var sure = window.confirm('Yakin ingin menghapus SEMUA data (Jubelio, LPH, TII) dari dashboard ini? Data akan terhapus juga dari cloud dan tidak bisa dikembalikan, kecuali kamu upload ulang filenya.');
       if(!sure) return;
       jubelioRows = [];
@@ -2049,4 +2130,910 @@
 </script>
 
 
+<div id="viewJadwal" class="jadwal-theme min-h-screen pb-16 overflow-x-hidden" style="display:none;">
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+        
+        <!-- Header Section with Actions -->
+        <header class="glass-card rounded-2xl p-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-cyan-500 via-amber-500 to-purple-500"></div>
+            
+            <div class="flex items-center gap-4 w-full xl:w-auto justify-between xl:justify-start">
+                <div class="flex items-center gap-4">
+                    <div class="bg-gradient-to-tr from-cyan-600 to-cyan-500 p-3.5 rounded-xl border border-white/10 shadow-lg shadow-cyan-500/15">
+                        <i class="fas fa-network-wired text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white flex flex-wrap items-center gap-2">
+                            Dashboard Shift Tim 
+                            <span class="text-[10px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-bold">+ Lokasi GPN & CIKINI</span>
+                        </h1>
+                        <p class="text-slate-400 text-xs sm:text-sm mt-0.5">Kelola jadwal shift, penugasan, dan lokasi penempatan (GPN/CIKINI).</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Collaborative Action Buttons & Auth -->
+            <div class="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
+                <div id="authContainer" class="flex gap-2">
+                    <!-- Auth Buttons Rendered via JS -->
+                </div>
+                
+                <div class="h-6 w-px bg-slate-800 mx-1 hidden sm:block"></div>
+
+                <button onclick="openShareModal()" class="flex-1 sm:flex-initial bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 btn-press">
+                    <i class="fas fa-share-nodes"></i> Bagikan
+                </button>
+                <button onclick="openEditTeamModal()" class="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 btn-press">
+                    <i class="fas fa-users-gear"></i> Tim & Shift
+                </button>
+                <button onclick="resetToDefaultData()" class="bg-slate-900/80 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 rounded-xl p-2 text-xs font-bold border border-slate-800 flex items-center justify-center btn-press h-8 w-8" title="Reset Semua Data">
+                    <i class="fas fa-trash-arrow-up"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5"><i class="fas fa-calendar-day text-cyan-400"></i> Status Untuk Hari:</span>
+            <div class="flex flex-wrap gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800/60" id="dayTabsContainer">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Shift 1 Info Card -->
+            <div class="glass-card rounded-xl p-4 flex items-center justify-between border-l-4 border-l-cyan-500 hover:bg-slate-900/40 transition-colors">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400 glow-cyan">
+                        <i class="fas fa-sun text-lg"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Shift 1 (09:00 - 17:00)</span>
+                        <h4 class="text-base font-extrabold text-white" id="shift1TodayCount">0 Anggota</h4>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shift 2 Info Card -->
+            <div class="glass-card rounded-xl p-4 flex items-center justify-between border-l-4 border-l-purple-500 hover:bg-slate-900/40 transition-colors">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 glow-purple">
+                        <i class="fas fa-moon text-lg"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Shift 2 (13:00 - 21:00)</span>
+                        <h4 class="text-base font-extrabold text-white" id="shift2TodayCount">0 Anggota</h4>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shift Backup Info Card -->
+            <div class="glass-card rounded-xl p-4 flex items-center justify-between border-l-4 border-l-amber-500 hover:bg-slate-900/40 transition-colors">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 glow-amber">
+                        <i class="fas fa-shield-halved text-lg"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Shift Backup</span>
+                        <h4 class="text-base font-extrabold text-white" id="backupTodayCount">0 Anggota</h4>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location Summary Card -->
+            <div class="glass-card rounded-xl p-4 flex items-center justify-between border-l-4 border-l-indigo-500 hover:bg-slate-900/40 transition-colors">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                        <i class="fas fa-map-location-dot text-lg"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Distribusi Lokasi</span>
+                        <h4 class="text-xs font-extrabold text-white mt-0.5" id="locationTodayCount">GPN: 0 | CIKINI: 0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            
+            <!-- LEFT AREA: Schedule Grid Matrix -->
+            <div class="xl:col-span-2 space-y-6">
+                
+                <!-- Weekly Grid Scheduler -->
+                <div class="glass-card rounded-2xl shadow-2xl overflow-hidden border border-slate-800">
+                    <div class="p-5 border-b border-slate-800 bg-slate-900/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                            <h2 class="font-bold text-lg text-white flex items-center gap-2">
+                                <i class="fas fa-calendar-alt text-cyan-400"></i> Matriks Jadwal Mingguan (<span id="teamMemberCountLabel">4</span> Orang)
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-1">Klik kotak jadwal untuk mengubah Shift & Lokasi (GPN / CIKINI).</p>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto custom-scroll">
+                        <table class="w-full text-left border-collapse min-w-[850px]">
+                            <thead>
+                                <tr class="bg-slate-900/60 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-800">
+                                    <th class="px-6 py-4 w-60">Nama & Peran Tim</th>
+                                    <th class="px-2 py-4 text-center">Sen</th>
+                                    <th class="px-2 py-4 text-center">Sel</th>
+                                    <th class="px-2 py-4 text-center">Rab</th>
+                                    <th class="px-2 py-4 text-center">Kam</th>
+                                    <th class="px-2 py-4 text-center">Jum</th>
+                                    <th class="px-2 py-4 text-center bg-rose-950/10 text-rose-400">Sab</th>
+                                    <th class="px-2 py-4 text-center bg-rose-950/10 text-rose-400">Min</th>
+                                </tr>
+                            </thead>
+                            <tbody id="shiftTableBody" class="divide-y divide-slate-800/60 text-sm">
+                                <!-- Populated dynamically by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- RIGHT AREA: Tasks Board -->
+            <div class="space-y-6">
+                <div class="glass-card rounded-2xl shadow-2xl border border-slate-800 flex flex-col h-[580px] overflow-hidden">
+                    <div class="p-5 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between">
+                        <div>
+                            <h2 class="font-bold text-base text-white flex items-center gap-2">
+                                <i class="fas fa-tasks text-amber-400"></i> Distribusi Rencana Tugas
+                            </h2>
+                        </div>
+                        <button onclick="openAddTaskModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-3 py-1 text-xs font-bold flex items-center gap-1.5 shadow-md btn-press">
+                            <i class="fas fa-plus"></i> Tugas
+                        </button>
+                    </div>
+
+                    <div class="px-5 py-3 bg-slate-950/30 border-b border-slate-800/80 flex flex-wrap gap-1.5 items-center" id="memberFiltersContainer">
+                        <!-- Populated via JS dynamically -->
+                    </div>
+
+                    <div class="p-5 overflow-y-auto flex-1 custom-scroll space-y-3" id="taskItemsContainer">
+                        <!-- Populated dynamically by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Setup / Change PIN -->
+    <div id="pinSetupModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all duration-300 relative">
+            <div class="bg-slate-800/40 p-5 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fas fa-shield-halved text-amber-400"></i> Pengaturan PIN Keamanan
+                </h3>
+                <button onclick="closePinSetupModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition-colors">
+                    <i class="fas fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-[11px] text-slate-400 mb-2">PIN digunakan untuk mencegah anggota tim mengubah konfigurasi jadwal secara tidak sengaja.</p>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Masukkan PIN Baru (Min. 4 Digit)</label>
+                    <input type="password" id="newPinInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-center tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="••••">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Konfirmasi PIN Baru</label>
+                    <input type="password" id="confirmPinInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-center tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="••••">
+                </div>
+                <div class="pt-4 flex justify-between items-center gap-3 border-t border-slate-800 mt-2">
+                    <button id="removePinBtn" onclick="removeSecurityPin()" class="hidden text-[10px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-wider btn-press">Hapus PIN</button>
+                    <div class="flex gap-2 ml-auto">
+                        <button onclick="closePinSetupModal()" class="px-4 py-2 rounded-xl border border-slate-800 text-slate-300 font-bold text-xs btn-press">Batal</button>
+                        <button onclick="saveSecurityPin()" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs btn-press">Simpan PIN</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Enter PIN to Unlock -->
+    <div id="pinEntryModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all duration-300 text-center relative">
+            <div class="p-8">
+                <div class="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 border border-rose-500/20">
+                    <i class="fas fa-lock"></i>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-1">Dashboard Terkunci</h3>
+                <p class="text-xs text-slate-400 mb-6">Masukkan PIN untuk mendapatkan akses edit.</p>
+                <input type="password" id="enterPinInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white text-center tracking-[0.5em] text-xl focus:outline-none focus:ring-2 focus:ring-rose-500 mb-4" placeholder="••••">
+                <div class="flex gap-3">
+                    <button onclick="closePinEntryModal()" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-800 text-slate-300 font-bold text-xs btn-press">Batal</button>
+                    <button onclick="verifyAndUnlock()" class="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-rose-500/20 btn-press">Buka Kunci</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Add Task -->
+    <div id="addTaskModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[40] p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all duration-300">
+            <div class="bg-slate-800/40 p-5 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-calendar-plus text-indigo-400"></i> Alokasikan Tugas Berbasis Jam</h3>
+                <button onclick="closeAddTaskModal()" class="text-slate-400 hover:text-white p-2 rounded-lg transition-colors"><i class="fas fa-xmark text-lg"></i></button>
+            </div>
+            <form id="taskSubmissionForm" onsubmit="submitNewTask(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Nama Pekerjaan</label>
+                    <input type="text" id="taskTitleInput" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" placeholder="Contoh: Packing pesanan">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Delegasikan Ke</label>
+                    <select id="taskAssigneeInput" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm"></select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Hari Pengerjaan</label>
+                    <select id="taskDayInput" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm">
+                        <option value="0">Senin</option><option value="1">Selasa</option><option value="2">Rabu</option><option value="3">Kamis</option><option value="4">Jumat</option><option value="5">Sabtu</option><option value="6">Minggu</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Jam Mulai</label>
+                        <select id="taskStartHourInput" required onchange="adjustEndHourOptions()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm"></select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Jam Selesai</label>
+                        <select id="taskEndHourInput" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm"></select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tema Warna Visual</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <label class="cursor-pointer"><input type="radio" name="taskColorInput" value="cyan" checked class="sr-only peer"><div class="peer-checked:border-2 peer-checked:border-cyan-400 bg-cyan-500 py-2 rounded-lg text-center text-xs font-bold text-white shadow-md">Cyan</div></label>
+                        <label class="cursor-pointer"><input type="radio" name="taskColorInput" value="purple" class="sr-only peer"><div class="peer-checked:border-2 peer-checked:border-purple-450 bg-purple-500 py-2 rounded-lg text-center text-xs font-bold text-white shadow-md">Purple</div></label>
+                        <label class="cursor-pointer"><input type="radio" name="taskColorInput" value="amber" class="sr-only peer"><div class="peer-checked:border-2 peer-checked:border-amber-450 bg-amber-500 py-2 rounded-lg text-center text-xs font-bold text-slate-950 shadow-md">Amber</div></label>
+                        <label class="cursor-pointer"><input type="radio" name="taskColorInput" value="rose" class="sr-only peer"><div class="peer-checked:border-2 peer-checked:border-rose-450 bg-rose-500 py-2 rounded-lg text-center text-xs font-bold text-white shadow-md">Rose</div></label>
+                    </div>
+                </div>
+                <div class="pt-4 flex justify-end gap-3 border-t border-slate-800">
+                    <button type="button" onclick="closeAddTaskModal()" class="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-300 font-bold text-xs btn-press">Batal</button>
+                    <button type="submit" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold text-xs btn-press">Daftarkan Tugas</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Edit Task -->
+    <div id="editTaskModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[40] p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all duration-300">
+            <div class="bg-slate-800/40 p-5 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-pen-to-square text-cyan-400"></i> Edit Rencana Tugas</h3>
+                <button onclick="closeEditTaskModal()" class="text-slate-400 hover:text-white p-2 rounded-lg transition-colors"><i class="fas fa-xmark text-lg"></i></button>
+            </div>
+            <form id="editTaskForm" onsubmit="submitEditTask(event)" class="p-6 space-y-4">
+                <input type="hidden" id="editTaskIdInput">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Nama Pekerjaan</label>
+                    <input type="text" id="editTaskTitleInput" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Delegasikan Ke</label>
+                    <select id="editTaskAssigneeInput" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm"></select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Hari Pengerjaan</label>
+                    <select id="editTaskDayInput" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm">
+                        <option value="0">Senin</option><option value="1">Selasa</option><option value="2">Rabu</option><option value="3">Kamis</option><option value="4">Jumat</option><option value="5">Sabtu</option><option value="6">Minggu</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Jam Mulai</label>
+                        <select id="editTaskStartHourInput" required onchange="adjustEditEndHourOptions()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm"></select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Jam Selesai</label>
+                        <select id="editTaskEndHourInput" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm"></select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tema Warna Visual</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <label class="cursor-pointer"><input type="radio" name="editTaskColorInput" value="cyan" class="sr-only peer"><div class="peer-checked:border-2 peer-checked:border-cyan-400 bg-cyan-500 py-2 rounded-lg text-center text-xs font-bold text-white shadow-md">Cyan</div></label>
+                        <label class="cursor-pointer"><input type="radio" name="editTaskColorInput" value="purple" class="sr-only peer"><div class="peer-checked:border-2 peer-checked:border-purple-450 bg-purple-500 py-2 rounded-lg text-center text-xs font-bold text-white shadow-md">Purple</div></label>
+                        <label class="cursor-pointer"><input type="radio" name="editTaskColorInput" value="amber" class="sr-only peer"><div class="peer-checked:border-2 peer-checked:border-amber-450 bg-amber-500 py-2 rounded-lg text-center text-xs font-bold text-slate-950 shadow-md">Amber</div></label>
+                        <label class="cursor-pointer"><input type="radio" name="editTaskColorInput" value="rose" class="sr-only peer"><div class="peer-checked:border-2 peer-checked:border-rose-450 bg-rose-500 py-2 rounded-lg text-center text-xs font-bold text-white shadow-md">Rose</div></label>
+                    </div>
+                </div>
+                <div class="pt-4 flex justify-end gap-3 border-t border-slate-800">
+                    <button type="button" onclick="closeEditTaskModal()" class="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-300 font-bold text-xs btn-press">Batal</button>
+                    <button type="submit" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold text-xs btn-press">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Edit Team & Share -->
+    <div id="editTeamModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[40] p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden transform transition-all duration-300">
+            <div class="bg-slate-800/40 p-5 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-user-gear text-cyan-400"></i> Sesuaikan Identitas & Shift Anggota</h3>
+                <button onclick="closeEditTeamModal()" class="text-slate-400 hover:text-white p-2 rounded-lg transition-colors"><i class="fas fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-6 max-h-[450px] overflow-y-auto custom-scroll space-y-4" id="teamEditFieldsContainer"></div>
+            <div class="px-6 pb-6 pt-2">
+                <button onclick="addNewMember()" class="w-full border border-dashed border-slate-700 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-500/5 rounded-xl py-3 text-xs font-bold transition-all btn-press flex items-center justify-center gap-2">
+                    <i class="fas fa-plus"></i> Tambah Anggota Baru
+                </button>
+            </div>
+            <div class="p-6 bg-slate-950/40 border-t border-slate-800 flex justify-end gap-3">
+                <button onclick="closeEditTeamModal()" class="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-300 font-bold text-xs btn-press">Batal</button>
+                <button onclick="saveTeamProfileChanges()" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-extrabold text-xs btn-press">Simpan Perubahan</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="shareModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[40] p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all duration-300">
+            <div class="bg-slate-800/40 p-5 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-share-nodes text-indigo-400"></i> Bagikan Jadwal Dengan Tim</h3>
+                <button onclick="closeShareModal()" class="text-slate-400 hover:text-white p-2 rounded-lg transition-colors"><i class="fas fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-6 space-y-5">
+                <div class="border-t border-slate-800 pt-4 space-y-3">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ekspor / Impor JSON (Data akan menimpa yang lama)</label>
+                    <div class="flex gap-2">
+                        <button onclick="downloadJsonFile()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 py-2.5 rounded-xl text-xs font-bold btn-press"><i class="fas fa-download"></i> Unduh File JSON</button>
+                        <label class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 py-2.5 rounded-xl text-xs font-bold btn-press cursor-pointer text-center"><i class="fas fa-upload"></i> Unggah File JSON<input type="file" id="importJsonFileInput" accept=".json" onchange="importJsonFile(event)" class="hidden"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification (Universal) -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 transform translate-y-24 opacity-0 transition-all duration-300 bg-slate-900 border border-slate-800 text-white px-5 py-3.5 rounded-xl shadow-2xl flex items-center gap-3.5 z-[60] pointer-events-none max-w-md">
+        <div id="toastIconBlock" class="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400"><i class="fas fa-circle-check"></i></div>
+        <div>
+            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest" id="toastHeader">NOTIFIKASI</p>
+            <p id="toastBodyText" class="text-xs font-bold text-slate-200">Memuat...</p>
+        </div>
+    </div>
+
+    <script>
+        // Data Defaults dengan objek shift terstruktur (type & location)
+        const defaultTeamData = [
+            { 
+                id: 1, 
+                name: "Geri", 
+                role: "Admin Logistik", 
+                avatar: "https://ui-avatars.com/api/?name=Geri&background=0e7490&color=cffafe&bold=true", 
+                schedule: [
+                    { type: "Shift 1", location: "GPN" }, 
+                    { type: "Shift 1", location: "CIKINI" }, 
+                    { type: "Backup", location: "GPN" }, 
+                    { type: "Shift 1", location: "CIKINI" }, 
+                    { type: "Shift 2", location: "GPN" }, 
+                    { type: "Off", location: "-" }, 
+                    { type: "Off", location: "-" }
+                ] 
+            },
+            { 
+                id: 2, 
+                name: "Toni", 
+                role: "Admin Keuangan", 
+                avatar: "https://ui-avatars.com/api/?name=Toni&background=6d28d9&color=f3e8ff&bold=true", 
+                schedule: [
+                    { type: "Shift 2", location: "CIKINI" }, 
+                    { type: "Backup", location: "CIKINI" }, 
+                    { type: "Shift 1", location: "GPN" }, 
+                    { type: "Shift 2", location: "GPN" }, 
+                    { type: "Shift 1", location: "CIKINI" }, 
+                    { type: "Off", location: "-" }, 
+                    { type: "Off", location: "-" }
+                ] 
+            }
+        ];
+        
+        const defaultTasks = [
+            { id: 1001, memberId: 1, name: "Stock opname berkas", day: 0, startHour: 9, endHour: 11, color: "cyan" }
+        ];
+
+        // Core State
+        let teamData = [];
+        let tasks = [];
+        let activeSelectedDay = 0; 
+        let activeFilterMember = "all";
+
+        // Auth State (PIN)
+        let systemPIN = localStorage.getItem('coll_shift_pin') || null;
+        let isLocked = systemPIN !== null;
+
+        const daysMap = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+        
+        // Siklus rotasi shift dan lokasi secara berurutan saat sel diklik
+        const shiftAndLocationCycle = [
+            { type: "Shift 1", location: "GPN" },
+            { type: "Shift 1", location: "CIKINI" },
+            { type: "Shift 2", location: "GPN" },
+            { type: "Shift 2", location: "CIKINI" },
+            { type: "Backup", location: "GPN" },
+            { type: "Backup", location: "CIKINI" },
+            { type: "Off", location: "-" }
+        ];
+        
+        const shiftUIConfig = {
+            "Shift 1": { bg: "bg-cyan-500/10", text: "text-cyan-400", border: "border-cyan-500/30", icon: "fa-sun" },
+            "Shift 2": { bg: "bg-purple-500/10", text: "text-purple-400", border: "border-purple-500/30", icon: "fa-moon" },
+            "Backup": { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/30", icon: "fa-shield-halved" },
+            "Off": { bg: "bg-slate-800", text: "text-slate-400", border: "border-slate-700/70", icon: "fa-mug-hot" }
+        };
+
+        const taskThemes = {
+            "cyan": { bg: "bg-cyan-500", text: "text-slate-950", border: "border-cyan-450", badge: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" },
+            "purple": { bg: "bg-purple-500", text: "text-white", border: "border-purple-450", badge: "bg-purple-500/20 text-purple-300 border-purple-500/30" },
+            "amber": { bg: "bg-amber-500", text: "text-slate-950", border: "border-amber-450", badge: "bg-amber-500/20 text-amber-300 border-amber-500/30" },
+            "rose": { bg: "bg-rose-500", text: "text-white", border: "border-rose-450", badge: "bg-rose-500/20 text-rose-300 border-rose-500/30" }
+        };
+
+        // --- AUTH & GUARD LOGIC ---
+        function renderAuthUI() {
+            const container = document.getElementById('authContainer');
+            if (!systemPIN) {
+                container.innerHTML = `<button onclick="openPinSetupModal()" class="bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"><i class="fas fa-lock-open"></i> Set PIN</button>`;
+            } else if (isLocked) {
+                container.innerHTML = `<button onclick="openPinEntryModal()" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-lg shadow-rose-500/20 flex items-center gap-1.5"><i class="fas fa-lock"></i> Terkunci</button>`;
+            } else {
+                container.innerHTML = `
+                    <button onclick="lockDashboard()" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"><i class="fas fa-unlock"></i> Kunci</button>
+                    <button onclick="openPinSetupModal()" class="bg-slate-800 text-slate-400 hover:text-white border border-slate-700 hover:bg-slate-700 px-2 py-1.5 rounded-lg text-xs font-bold transition-all" title="Ubah PIN"><i class="fas fa-gear"></i></button>
+                `;
+            }
+        }
+
+        function checkAuth() {
+            if (isLocked) {
+                displaySystemToast("Akses Ditolak", "Dashboard terkunci! Masukkan PIN untuk mengedit.", "error");
+                openPinEntryModal();
+                return false;
+            }
+            return true;
+        }
+
+        function lockDashboard() {
+            isLocked = true;
+            renderAuthUI();
+            displaySystemToast("Terkunci", "Dashboard telah dikunci kembali.", "success");
+        }
+
+        window.openPinSetupModal = function() {
+            document.getElementById('newPinInput').value = '';
+            document.getElementById('confirmPinInput').value = '';
+            document.getElementById('removePinBtn').style.display = systemPIN ? 'block' : 'none';
+            document.getElementById('pinSetupModal').classList.remove('hidden');
+        }
+        window.closePinSetupModal = function() { document.getElementById('pinSetupModal').classList.add('hidden'); }
+        
+        window.saveSecurityPin = function() {
+            const pin1 = document.getElementById('newPinInput').value;
+            const pin2 = document.getElementById('confirmPinInput').value;
+            if(pin1.length < 4) { displaySystemToast("Gagal", "PIN minimal terdiri dari 4 karakter.", "error"); return; }
+            if(pin1 !== pin2) { displaySystemToast("Gagal", "Konfirmasi PIN tidak cocok.", "error"); return; }
+            systemPIN = pin1;
+            localStorage.setItem('coll_shift_pin', systemPIN);
+            isLocked = false;
+            renderAuthUI();
+            closePinSetupModal();
+            displaySystemToast("Berhasil", "PIN keamanan baru berhasil disimpan.", "success");
+        }
+
+        window.removeSecurityPin = function() {
+            systemPIN = null;
+            isLocked = false;
+            localStorage.removeItem('coll_shift_pin');
+            renderAuthUI();
+            closePinSetupModal();
+            displaySystemToast("PIN Dihapus", "Proteksi keamanan dimatikan.", "info");
+        }
+
+        window.openPinEntryModal = function() {
+            document.getElementById('enterPinInput').value = '';
+            document.getElementById('pinEntryModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('enterPinInput').focus(), 100);
+        }
+        window.closePinEntryModal = function() { document.getElementById('pinEntryModal').classList.add('hidden'); }
+        
+        window.verifyAndUnlock = function() {
+            const input = document.getElementById('enterPinInput').value;
+            if(input === systemPIN) {
+                isLocked = false;
+                renderAuthUI();
+                closePinEntryModal();
+                displaySystemToast("Terbuka", "Kunci terbuka, mode Edit diaktifkan.", "success");
+            } else {
+                displaySystemToast("Gagal", "PIN yang Anda masukkan salah.", "error");
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('coll_shift_teamData', JSON.stringify(teamData));
+            localStorage.setItem('coll_shift_tasks', JSON.stringify(tasks));
+        }
+
+        function loadState() {
+            const localTeam = localStorage.getItem('coll_shift_teamData');
+            const localTasks = localStorage.getItem('coll_shift_tasks');
+            if (localTeam && localTasks) {
+                teamData = JSON.parse(localTeam);
+                tasks = JSON.parse(localTasks);
+            } else {
+                teamData = JSON.parse(JSON.stringify(defaultTeamData));
+                tasks = JSON.parse(JSON.stringify(defaultTasks));
+            }
+            
+            // Migrasi otomatis data lama jika format schedule berupa string murni
+            teamData.forEach(member => {
+                member.schedule = member.schedule.map(item => {
+                    if (typeof item === 'string') {
+                        return { type: item, location: item === 'Off' ? '-' : 'GPN' };
+                    }
+                    return item;
+                });
+            });
+        }
+
+        window.resetToDefaultData = function() {
+            if(!checkAuth()) return;
+            localStorage.removeItem('coll_shift_teamData');
+            localStorage.removeItem('coll_shift_tasks');
+            teamData = JSON.parse(JSON.stringify(defaultTeamData));
+            tasks = JSON.parse(JSON.stringify(defaultTasks));
+            saveToLocalStorage();
+            refreshAllViews();
+            displaySystemToast("Reset Berhasil", "Data dikembalikan ke default.", "info");
+        }
+
+        function refreshAllViews() {
+            renderAuthUI();
+            renderWeeklyShiftTable();
+            renderDaySelectorTabs();
+            renderMemberFilters();
+            renderSidebarTaskList();
+            updateStatCards();
+        }
+
+        function renderWeeklyShiftTable() {
+            const tableBody = document.getElementById('shiftTableBody');
+            tableBody.innerHTML = '';
+            document.getElementById('teamMemberCountLabel').innerText = teamData.length;
+
+            teamData.forEach((member, memberIdx) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-900/40 group";
+                let rowHtml = `<td class="px-6 py-4"><div class="flex items-center gap-3"><img src="${member.avatar}" class="w-10 h-10 rounded-xl border border-slate-800 shrink-0"><div><h4 class="font-bold text-white text-sm group-hover:text-cyan-400">${member.name}</h4><p class="text-[11px] text-slate-500">${member.role}</p></div></div></td>`;
+
+                member.schedule.forEach((shiftObj, dayIdx) => {
+                    const status = shiftObj.type;
+                    const location = shiftObj.location;
+                    const ui = shiftUIConfig[status] || shiftUIConfig["Off"];
+                    
+                    let locBadge = "";
+                    if(location !== "-") {
+                        const locColor = location === "GPN" ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" : "bg-purple-500/20 text-purple-300 border-purple-500/30";
+                        locBadge = `<span class="text-[8px] px-1.5 py-0.2 rounded border ${locColor} font-extrabold mt-0.5">${location}</span>`;
+                    }
+
+                    rowHtml += `<td class="px-2 py-4 text-center">
+                        <button onclick="cycleMemberShift(${memberIdx}, ${dayIdx})" class="shift-cell mx-auto w-20 py-1.5 flex flex-col items-center rounded-lg border ${ui.bg} ${ui.text} ${ui.border} shadow-sm btn-press">
+                            <span class="font-bold text-[9px] uppercase leading-none">${status}</span>
+                            ${locBadge}
+                        </button>
+                    </td>`;
+                });
+                tr.innerHTML = rowHtml;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        window.cycleMemberShift = function(memberIdx, dayIdx) {
+            if(!checkAuth()) return;
+            const currentShift = teamData[memberIdx].schedule[dayIdx];
+            
+            // Cari index saat ini di dalam siklus kombinasi shift & lokasi
+            let currentIndex = shiftAndLocationCycle.findIndex(s => s.type === currentShift.type && s.location === currentShift.location);
+            let nextIndex = (currentIndex + 1) % shiftAndLocationCycle.length;
+            
+            teamData[memberIdx].schedule[dayIdx] = { ...shiftAndLocationCycle[nextIndex] };
+            
+            saveToLocalStorage();
+            renderWeeklyShiftTable();
+            renderSidebarTaskList();
+            updateStatCards();
+        };
+
+        function renderMemberFilters() {
+            const container = document.getElementById('memberFiltersContainer');
+            let filterHtml = `<span class="text-[10px] text-slate-500 font-extrabold uppercase mr-1">Filter:</span>
+                <button onclick="filterTasksByMember('all')" id="filterBtn_all" class="text-[11px] px-2.5 py-1 rounded bg-indigo-600 text-white font-bold transition-all">Semua</button>`;
+            teamData.forEach(m => {
+                filterHtml += `<button onclick="filterTasksByMember(${m.id})" id="filterBtn_${m.id}" class="text-[11px] px-2.5 py-1 rounded bg-slate-850 text-slate-400 font-bold hover:bg-slate-800 transition-all">${m.name}</button>`;
+            });
+            container.innerHTML = filterHtml;
+            filterTasksByMember(activeFilterMember);
+        }
+
+        window.filterTasksByMember = function(id) {
+            activeFilterMember = id;
+            document.querySelectorAll('#memberFiltersContainer button').forEach(b => {
+                if(b.id === `filterBtn_${id}`) b.className = "text-[11px] px-2.5 py-1 rounded bg-indigo-600 text-white font-bold";
+                else b.className = "text-[11px] px-2.5 py-1 rounded bg-slate-850 text-slate-400 font-bold hover:bg-slate-800";
+            });
+            renderSidebarTaskList();
+        }
+
+        function renderSidebarTaskList() {
+            const container = document.getElementById('taskItemsContainer');
+            container.innerHTML = '';
+            const filteredTasks = activeFilterMember === 'all' ? tasks : tasks.filter(t => t.memberId === parseInt(activeFilterMember));
+
+            filteredTasks.sort((a,b) => a.day - b.day || a.startHour - b.startHour).forEach((task) => {
+                const assignee = teamData.find(m => m.id === task.memberId);
+                if(!assignee) return;
+                
+                const cardDiv = document.createElement('div');
+                cardDiv.className = `p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 flex flex-col gap-2 group`;
+                cardDiv.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs font-bold text-slate-100 truncate">${task.name}</span>
+                        <div class="flex gap-1 shrink-0">
+                            <button onclick="openEditTaskModal(${task.id})" class="text-slate-600 hover:text-cyan-400 p-1"><i class="fas fa-pen text-xs"></i></button>
+                            <button onclick="removeTaskFromQueue(${task.id})" class="text-slate-600 hover:text-rose-400 p-1"><i class="fas fa-trash-can text-xs"></i></button>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center mt-1 pt-2 border-t border-slate-950">
+                        <div class="flex items-center gap-1.5"><img src="${assignee.avatar}" class="w-5 h-5 rounded-md"><span class="text-[10px] text-slate-300">${assignee.name}</span></div>
+                        <span class="text-[9px] font-bold px-2 py-0.5 rounded border ${taskThemes[task.color].badge}">${daysMap[task.day]} (${task.startHour}.00-${task.endHour}.00)</span>
+                    </div>
+                `;
+                container.appendChild(cardDiv);
+            });
+        }
+
+        function renderDaySelectorTabs() {
+            const container = document.getElementById('dayTabsContainer');
+            container.innerHTML = '';
+            daysMap.forEach((day, idx) => {
+                const btn = document.createElement('button');
+                btn.onclick = () => { activeSelectedDay = idx; renderDaySelectorTabs(); updateStatCards(); };
+                btn.className = activeSelectedDay === idx 
+                    ? "text-[11px] font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white"
+                    : "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 hover:bg-slate-900";
+                btn.innerText = day;
+                container.appendChild(btn);
+            });
+        }
+
+        window.openAddTaskModal = function() {
+            if(!checkAuth()) return;
+            document.getElementById('addTaskModal').classList.remove('hidden');
+        };
+        window.closeAddTaskModal = function() { document.getElementById('addTaskModal').classList.add('hidden'); };
+
+        window.submitNewTask = function(e) {
+            e.preventDefault();
+            const start = parseInt(document.getElementById('taskStartHourInput').value);
+            const end = parseInt(document.getElementById('taskEndHourInput').value);
+            tasks.push({
+                id: Date.now(),
+                memberId: parseInt(document.getElementById('taskAssigneeInput').value),
+                name: document.getElementById('taskTitleInput').value.trim(),
+                day: parseInt(document.getElementById('taskDayInput').value),
+                startHour: start, endHour: end,
+                color: document.querySelector('input[name="taskColorInput"]:checked').value
+            });
+            saveToLocalStorage();
+            refreshAllViews();
+            closeAddTaskModal();
+            document.getElementById('taskSubmissionForm').reset();
+            displaySystemToast("Sukses", "Tugas baru ditambahkan.", "success");
+        };
+
+        window.openEditTaskModal = function(taskId) {
+            if(!checkAuth()) return;
+            const task = tasks.find(t => t.id === taskId);
+            if(!task) return;
+            document.getElementById('editTaskIdInput').value = task.id;
+            document.getElementById('editTaskTitleInput').value = task.name;
+            document.getElementById('editTaskAssigneeInput').value = task.memberId;
+            document.getElementById('editTaskDayInput').value = task.day;
+            document.getElementById('editTaskStartHourInput').value = task.startHour;
+            adjustEditEndHourOptions();
+            document.getElementById('editTaskEndHourInput').value = task.endHour;
+            document.querySelector(`input[name="editTaskColorInput"][value="${task.color}"]`).checked = true;
+            document.getElementById('editTaskModal').classList.remove('hidden');
+        };
+        window.closeEditTaskModal = function() { document.getElementById('editTaskModal').classList.add('hidden'); };
+
+        window.submitEditTask = function(e) {
+            e.preventDefault();
+            const taskId = parseInt(document.getElementById('editTaskIdInput').value);
+            const idx = tasks.findIndex(t => t.id === taskId);
+            if(idx > -1) {
+                tasks[idx].name = document.getElementById('editTaskTitleInput').value;
+                tasks[idx].memberId = parseInt(document.getElementById('editTaskAssigneeInput').value);
+                tasks[idx].day = parseInt(document.getElementById('editTaskDayInput').value);
+                tasks[idx].startHour = parseInt(document.getElementById('editTaskStartHourInput').value);
+                tasks[idx].endHour = parseInt(document.getElementById('editTaskEndHourInput').value);
+                tasks[idx].color = document.querySelector('input[name="editTaskColorInput"]:checked').value;
+                saveToLocalStorage();
+                refreshAllViews();
+                closeEditTaskModal();
+            }
+        };
+
+        window.removeTaskFromQueue = function(id) {
+            if(!checkAuth()) return;
+            tasks = tasks.filter(t => t.id !== id);
+            saveToLocalStorage();
+            refreshAllViews();
+            displaySystemToast("Dihapus", "Tugas berhasil dihapus.", "success");
+        };
+
+        window.openEditTeamModal = function() {
+            if(!checkAuth()) return;
+            populateEditTeamFields();
+            document.getElementById('editTeamModal').classList.remove('hidden');
+        };
+        window.closeEditTeamModal = function() { document.getElementById('editTeamModal').classList.add('hidden'); };
+
+        function populateEditTeamFields() {
+            const container = document.getElementById('teamEditFieldsContainer');
+            container.innerHTML = '';
+            teamData.forEach((member) => {
+                container.innerHTML += `<div class="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3 relative">
+                    <button onclick="removeMember(${member.id})" class="absolute top-4 right-4 text-slate-600 hover:text-rose-400 p-1"><i class="fas fa-trash-can"></i></button>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block text-[9px] text-slate-500 mb-1">Nama</label><input type="text" id="editM_${member.id}_name" value="${member.name}" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"></div>
+                        <div><label class="block text-[9px] text-slate-500 mb-1">Peran</label><input type="text" id="editM_${member.id}_role" value="${member.role}" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"></div>
+                    </div></div>`;
+            });
+        }
+        
+        window.addNewMember = function() {
+            const newId = teamData.length ? Math.max(...teamData.map(m => m.id)) + 1 : 1;
+            teamData.push({ 
+                id: newId, 
+                name: "Baru", 
+                role: "Staff", 
+                avatar: `https://ui-avatars.com/api/?name=Baru&background=0e7490&color=cffafe`, 
+                schedule: Array(7).fill({ type: "Off", location: "-" }) 
+            });
+            populateEditTeamFields();
+        };
+        
+        window.removeMember = function(id) {
+            if(teamData.length <= 1) return displaySystemToast("Gagal", "Minimal 1 anggota.", "error");
+            teamData = teamData.filter(m => m.id !== id);
+            tasks = tasks.filter(t => t.memberId !== id);
+            populateEditTeamFields();
+        };
+
+        window.saveTeamProfileChanges = function() {
+            teamData.forEach(member => {
+                member.name = document.getElementById(`editM_${member.id}_name`).value;
+                member.role = document.getElementById(`editM_${member.id}_role`).value;
+                member.avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=0e7490&color=cffafe`;
+            });
+            saveToLocalStorage();
+            populateAssigneeSelects();
+            refreshAllViews();
+            closeEditTeamModal();
+            displaySystemToast("Sukses", "Profil tim tersimpan.", "success");
+        };
+
+        function updateStatCards() {
+            const todaySchedules = teamData.map(m => m.schedule[activeSelectedDay]);
+            document.getElementById('shift1TodayCount').innerText = `${todaySchedules.filter(s => s.type==='Shift 1').length} Anggota`;
+            document.getElementById('shift2TodayCount').innerText = `${todaySchedules.filter(s => s.type==='Shift 2').length} Anggota`;
+            document.getElementById('backupTodayCount').innerText = `${todaySchedules.filter(s => s.type==='Backup').length} Anggota`;
+            
+            const gpnCount = todaySchedules.filter(s => s.location==='GPN').length;
+            const cikiniCount = todaySchedules.filter(s => s.location==='CIKINI').length;
+            document.getElementById('locationTodayCount').innerText = `GPN: ${gpnCount} | CIKINI: ${cikiniCount}`;
+        }
+        
+        function populateAssigneeSelects() {
+            const adds = document.getElementById('taskAssigneeInput');
+            const edits = document.getElementById('editTaskAssigneeInput');
+            adds.innerHTML = ''; edits.innerHTML = '';
+            teamData.forEach(m => {
+                const opt = `<option value="${m.id}">${m.name}</option>`;
+                adds.innerHTML += opt; edits.innerHTML += opt;
+            });
+        }
+        
+        function initHourOptionRanges() {
+            let html = '';
+            for(let h=8; h<=21; h++) html += `<option value="${h}">${h < 10 ? '0'+h : h}.00</option>`;
+            document.getElementById('taskStartHourInput').innerHTML = html;
+            document.getElementById('editTaskStartHourInput').innerHTML = html;
+            adjustEndHourOptions();
+        }
+        
+        window.adjustEndHourOptions = function() {
+            const st = parseInt(document.getElementById('taskStartHourInput').value);
+            let html = '';
+            for(let h=st+1; h<=22; h++) html += `<option value="${h}">${h < 10 ? '0'+h : h}.00</option>`;
+            document.getElementById('taskEndHourInput').innerHTML = html;
+        };
+        window.adjustEditEndHourOptions = function() {
+            const st = parseInt(document.getElementById('editTaskStartHourInput').value);
+            let html = '';
+            for(let h=st+1; h<=22; h++) html += `<option value="${h}">${h < 10 ? '0'+h : h}.00</option>`;
+            document.getElementById('editTaskEndHourInput').innerHTML = html;
+        };
+
+        window.openShareModal = function() { document.getElementById('shareModal').classList.remove('hidden'); }
+        window.closeShareModal = function() { document.getElementById('shareModal').classList.add('hidden'); }
+        window.downloadJsonFile = function() {
+            const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({teamData, tasks}));
+            const a = document.createElement('a'); a.href = data; a.download = "data_lokasi_shift.json"; document.body.appendChild(a); a.click(); a.remove();
+        }
+        window.importJsonFile = function(e) {
+            if(!checkAuth()) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const obj = JSON.parse(evt.target.result);
+                    if(obj.teamData && obj.tasks) {
+                        teamData = obj.teamData; tasks = obj.tasks;
+                        loadState(); // Re-validate migration
+                        saveToLocalStorage(); refreshAllViews(); populateAssigneeSelects(); closeShareModal();
+                    }
+                } catch(e) {}
+            };
+            reader.readAsText(e.target.files[0]);
+        }
+
+        let toastTracker;
+        window.displaySystemToast = function(title, text, style) {
+            const t = document.getElementById('toastNotification');
+            document.getElementById('toastHeader').innerText = title;
+            document.getElementById('toastBodyText').innerText = text;
+            const icon = document.getElementById('toastIconBlock');
+            if(style==='error') { icon.className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center"; icon.innerHTML='<i class="fas fa-triangle-exclamation"></i>'; }
+            else if(style==='info') { icon.className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center"; icon.innerHTML='<i class="fas fa-info"></i>'; }
+            else { icon.className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center"; icon.innerHTML='<i class="fas fa-check"></i>'; }
+
+            t.classList.remove('translate-y-24', 'opacity-0');
+            clearTimeout(toastTracker);
+            toastTracker = setTimeout(() => t.classList.add('translate-y-24', 'opacity-0'), 3000);
+        }
+
+        window.onload = function() {
+            loadState();
+            populateAssigneeSelects();
+            initHourOptionRanges();
+            refreshAllViews();
+        };
+    </script>
+</div>
+
+<script>
+function switchAppView(view){
+  var mon = document.getElementById('viewMonitoring');
+  var pipe = document.getElementById('pipeline');
+  var jad = document.getElementById('viewJadwal');
+  var bMon = document.getElementById('tabMonitoringBtn');
+  var bJad = document.getElementById('tabJadwalBtn');
+  if(view === 'jadwal'){
+    mon.style.display = 'none';
+    pipe.style.display = 'none';
+    jad.style.display = 'block';
+    bJad.classList.add('active');
+    bMon.classList.remove('active');
+  } else {
+    mon.style.display = '';
+    pipe.style.display = '';
+    jad.style.display = 'none';
+    bMon.classList.add('active');
+    bJad.classList.remove('active');
+  }
+}
+</script>
 </body></html>
