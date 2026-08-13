@@ -759,9 +759,17 @@
     }
     .view-tab:hover { border-color:var(--accent); color:#F4F1EA; }
     .view-tab.active { background:var(--accent); border-color:var(--accent); color:#1a0f08; font-weight:600; }
+    .watermark-overlay{
+        position:fixed; inset:0; z-index:9999; pointer-events:none;
+        opacity:0.055;
+        background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='220'><text x='0' y='110' font-size='26' font-family='Oswald,sans-serif' font-weight='700' fill='%23ffffff' transform='rotate(-28 160 110)'>League_World</text></svg>");
+        background-repeat:repeat;
+    }
 </style>
 </head>
 <body>
+
+<div class="watermark-overlay" aria-hidden="true"></div>
 
 <div id="loginOverlay">
   <div class="login-card">
@@ -1076,6 +1084,8 @@
       var hideFor = el.getAttribute('data-role-hide').split(',');
       el.style.display = hideFor.indexOf(role) !== -1 ? 'none' : '';
     });
+    // Refresh UI akses di halaman Jadwal (peran admin/super admin) begitu peran diketahui
+    if(typeof refreshAllViews === 'function'){ try{ refreshAllViews(); }catch(e){} }
   }
 
   function startAppIfNeeded(){
@@ -2205,9 +2215,6 @@
                 
                 <div class="h-6 w-px bg-slate-800 mx-1 hidden sm:block"></div>
 
-                <button onclick="openShareModal()" class="flex-1 sm:flex-initial bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 btn-press">
-                    <i class="fas fa-share-nodes"></i> Bagikan
-                </button>
                 <button onclick="openShiftTypeModal()" class="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 btn-press">
                     <i class="fas fa-list-check"></i> Jenis Shift
                 </button>
@@ -2289,56 +2296,6 @@
 
                 <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[520px] overflow-y-auto custom-scroll" id="taskItemsContainer">
                     <!-- Populated dynamically by JS -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Setup / Change PIN -->
-    <div id="pinSetupModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all duration-300 relative">
-            <div class="bg-slate-800/40 p-5 border-b border-slate-800 flex justify-between items-center">
-                <h3 class="text-base font-bold text-white flex items-center gap-2">
-                    <i class="fas fa-shield-halved text-amber-400"></i> Pengaturan PIN Keamanan
-                </h3>
-                <button onclick="closePinSetupModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition-colors">
-                    <i class="fas fa-xmark text-lg"></i>
-                </button>
-            </div>
-            <div class="p-6 space-y-4">
-                <p class="text-[11px] text-slate-400 mb-2">PIN digunakan untuk mencegah anggota tim mengubah konfigurasi jadwal secara tidak sengaja.</p>
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Masukkan PIN Baru (Min. 4 Digit)</label>
-                    <input type="password" id="newPinInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-center tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="••••">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Konfirmasi PIN Baru</label>
-                    <input type="password" id="confirmPinInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-center tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="••••">
-                </div>
-                <div class="pt-4 flex justify-between items-center gap-3 border-t border-slate-800 mt-2">
-                    <button id="removePinBtn" onclick="removeSecurityPin()" class="hidden text-[10px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-wider btn-press">Hapus PIN</button>
-                    <div class="flex gap-2 ml-auto">
-                        <button onclick="closePinSetupModal()" class="px-4 py-2 rounded-xl border border-slate-800 text-slate-300 font-bold text-xs btn-press">Batal</button>
-                        <button onclick="saveSecurityPin()" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs btn-press">Simpan PIN</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Enter PIN to Unlock -->
-    <div id="pinEntryModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all duration-300 text-center relative">
-            <div class="p-8">
-                <div class="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 border border-rose-500/20">
-                    <i class="fas fa-lock"></i>
-                </div>
-                <h3 class="text-lg font-bold text-white mb-1">Dashboard Terkunci</h3>
-                <p class="text-xs text-slate-400 mb-6">Masukkan PIN untuk mendapatkan akses edit.</p>
-                <input type="password" id="enterPinInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white text-center tracking-[0.5em] text-xl focus:outline-none focus:ring-2 focus:ring-rose-500 mb-4" placeholder="••••">
-                <div class="flex gap-3">
-                    <button onclick="closePinEntryModal()" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-800 text-slate-300 font-bold text-xs btn-press">Batal</button>
-                    <button onclick="verifyAndUnlock()" class="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-rose-500/20 btn-press">Buka Kunci</button>
                 </div>
             </div>
         </div>
@@ -2484,24 +2441,6 @@
         </div>
     </div>
 
-    <div id="shareModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[40] p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all duration-300">
-            <div class="bg-slate-800/40 p-5 border-b border-slate-800 flex justify-between items-center">
-                <h3 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-share-nodes text-indigo-400"></i> Bagikan Jadwal Dengan Tim</h3>
-                <button onclick="closeShareModal()" class="text-slate-400 hover:text-white p-2 rounded-lg transition-colors"><i class="fas fa-xmark text-lg"></i></button>
-            </div>
-            <div class="p-6 space-y-5">
-                <div class="border-t border-slate-800 pt-4 space-y-3">
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ekspor / Impor JSON (Data akan menimpa yang lama)</label>
-                    <div class="flex gap-2">
-                        <button onclick="downloadJsonFile()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 py-2.5 rounded-xl text-xs font-bold btn-press"><i class="fas fa-download"></i> Unduh File JSON</button>
-                        <label class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 py-2.5 rounded-xl text-xs font-bold btn-press cursor-pointer text-center"><i class="fas fa-upload"></i> Unggah File JSON<input type="file" id="importJsonFileInput" accept=".json" onchange="importJsonFile(event)" class="hidden"></label>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Toast Notification (Universal) -->
     <div id="toastNotification" class="fixed bottom-6 right-6 transform translate-y-24 opacity-0 transition-all duration-300 bg-slate-900 border border-slate-800 text-white px-5 py-3.5 rounded-xl shadow-2xl flex items-center gap-3.5 z-[60] pointer-events-none max-w-md">
         <div id="toastIconBlock" class="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400"><i class="fas fa-circle-check"></i></div>
@@ -2559,9 +2498,13 @@
         // Mode Jadwal: 'current' = Minggu Ini (aktif), 'next' = Draft Minggu Depan
         let scheduleMode = 'current';
 
-        // Auth State (PIN)
-        let systemPIN = localStorage.getItem('coll_shift_pin') || null;
-        let isLocked = systemPIN !== null;
+        // Auth State — memakai peran login dashboard utama (owner/superadmin/admin/viewer)
+        var JADWAL_ROLE_RANK = { viewer: 0, admin: 1, superadmin: 2, owner: 3 };
+        function hasRole(minRole) {
+            minRole = minRole || 'admin';
+            var myRank = JADWAL_ROLE_RANK.hasOwnProperty(currentRole) ? JADWAL_ROLE_RANK[currentRole] : -1;
+            return myRank >= JADWAL_ROLE_RANK[minRole];
+        }
 
         const daysMap = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
         const LOCATIONS = ["GPN", "CIKINI"];
@@ -2608,83 +2551,21 @@
             "rose": { bg: "bg-rose-500", text: "text-white", border: "border-rose-450", badge: "bg-rose-500/20 text-rose-300 border-rose-500/30" }
         };
 
-        // --- AUTH & GUARD LOGIC ---
+        // --- AUTH & GUARD LOGIC (memakai peran login dashboard: owner/superadmin/admin/viewer) ---
         function renderAuthUI() {
             const container = document.getElementById('authContainer');
-            if (!systemPIN) {
-                container.innerHTML = `<button onclick="openPinSetupModal()" class="bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"><i class="fas fa-lock-open"></i> Set PIN</button>`;
-            } else if (isLocked) {
-                container.innerHTML = `<button onclick="openPinEntryModal()" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-lg shadow-rose-500/20 flex items-center gap-1.5"><i class="fas fa-lock"></i> Terkunci</button>`;
-            } else {
-                container.innerHTML = `
-                    <button onclick="lockDashboard()" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"><i class="fas fa-unlock"></i> Kunci</button>
-                    <button onclick="openPinSetupModal()" class="bg-slate-800 text-slate-400 hover:text-white border border-slate-700 hover:bg-slate-700 px-2 py-1.5 rounded-lg text-xs font-bold transition-all" title="Ubah PIN"><i class="fas fa-gear"></i></button>
-                `;
-            }
+            if (!container) return;
+            var roleLabel = currentRole === 'owner' ? 'Owner' : (currentRole === 'superadmin' ? 'Super Admin' : (currentRole === 'admin' ? 'Admin' : 'Viewer'));
+            var canEditJadwal = hasRole('admin');
+            container.innerHTML = `<span class="${canEditJadwal ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-900/70 text-slate-400 border-slate-800'} border px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5" title="Peran akses Anda saat ini"><i class="fas ${canEditJadwal ? 'fa-user-shield' : 'fa-eye'}"></i> ${roleLabel}</span>`;
         }
 
-        function checkAuth() {
-            if (isLocked) {
-                displaySystemToast("Akses Ditolak", "Dashboard terkunci! Masukkan PIN untuk mengedit.", "error");
-                openPinEntryModal();
-                return false;
-            }
-            return true;
-        }
-
-        function lockDashboard() {
-            isLocked = true;
-            renderAuthUI();
-            displaySystemToast("Terkunci", "Dashboard telah dikunci kembali.", "success");
-        }
-
-        window.openPinSetupModal = function() {
-            document.getElementById('newPinInput').value = '';
-            document.getElementById('confirmPinInput').value = '';
-            document.getElementById('removePinBtn').style.display = systemPIN ? 'block' : 'none';
-            document.getElementById('pinSetupModal').classList.remove('hidden');
-        }
-        window.closePinSetupModal = function() { document.getElementById('pinSetupModal').classList.add('hidden'); }
-        
-        window.saveSecurityPin = function() {
-            const pin1 = document.getElementById('newPinInput').value;
-            const pin2 = document.getElementById('confirmPinInput').value;
-            if(pin1.length < 4) { displaySystemToast("Gagal", "PIN minimal terdiri dari 4 karakter.", "error"); return; }
-            if(pin1 !== pin2) { displaySystemToast("Gagal", "Konfirmasi PIN tidak cocok.", "error"); return; }
-            systemPIN = pin1;
-            localStorage.setItem('coll_shift_pin', systemPIN);
-            isLocked = false;
-            renderAuthUI();
-            closePinSetupModal();
-            displaySystemToast("Berhasil", "PIN keamanan baru berhasil disimpan.", "success");
-        }
-
-        window.removeSecurityPin = function() {
-            systemPIN = null;
-            isLocked = false;
-            localStorage.removeItem('coll_shift_pin');
-            renderAuthUI();
-            closePinSetupModal();
-            displaySystemToast("PIN Dihapus", "Proteksi keamanan dimatikan.", "info");
-        }
-
-        window.openPinEntryModal = function() {
-            document.getElementById('enterPinInput').value = '';
-            document.getElementById('pinEntryModal').classList.remove('hidden');
-            setTimeout(() => document.getElementById('enterPinInput').focus(), 100);
-        }
-        window.closePinEntryModal = function() { document.getElementById('pinEntryModal').classList.add('hidden'); }
-        
-        window.verifyAndUnlock = function() {
-            const input = document.getElementById('enterPinInput').value;
-            if(input === systemPIN) {
-                isLocked = false;
-                renderAuthUI();
-                closePinEntryModal();
-                displaySystemToast("Terbuka", "Kunci terbuka, mode Edit diaktifkan.", "success");
-            } else {
-                displaySystemToast("Gagal", "PIN yang Anda masukkan salah.", "error");
-            }
+        function checkAuth(minRole) {
+            minRole = minRole || 'admin';
+            if (hasRole(minRole)) return true;
+            var roleLabel = minRole === 'superadmin' ? 'Super Admin' : 'Admin';
+            displaySystemToast("Akses Ditolak", "Fitur ini hanya bisa digunakan oleh peran " + roleLabel + " ke atas.", "error");
+            return false;
         }
 
         function saveToLocalStorage() {
@@ -2764,6 +2645,7 @@
                         <button onclick="applyNextWeekAsCurrent()" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl px-3.5 py-2 text-xs font-bold btn-press flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"><i class="fas fa-check"></i> Gunakan Jadwal Ini</button>
                     </div>`;
             } else {
+                const canDraft = hasRole('superadmin');
                 el.innerHTML = `
                     <div class="flex items-center gap-2.5">
                         <div class="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400"><i class="fas fa-calendar-check"></i></div>
@@ -2773,15 +2655,17 @@
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2">
+                        ${canDraft ? `
                         <button onclick="startNextWeekDraft()" class="bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl px-3.5 py-2 text-xs font-bold btn-press flex items-center gap-1.5 shadow-lg shadow-cyan-500/20">
                             <i class="fas fa-calendar-plus"></i> ${hasDraft ? 'Lanjutkan Draft Minggu Depan' : 'Buat Jadwal Minggu Depan'}
-                        </button>
+                        </button>` : `
+                        <span class="text-[10px] text-slate-500 font-bold flex items-center gap-1.5 px-1"><i class="fas fa-lock"></i> Draf Minggu Depan hanya untuk Super Admin ke atas</span>`}
                     </div>`;
             }
         }
 
         window.startNextWeekDraft = function() {
-            if(!checkAuth()) return;
+            if(!checkAuth('superadmin')) return;
             // Simpan dulu perubahan yang ada pada Jadwal Minggu Ini
             saveToLocalStorage();
 
@@ -2815,7 +2699,7 @@
         };
 
         window.applyNextWeekAsCurrent = function() {
-            if(!checkAuth()) return;
+            if(!checkAuth('superadmin')) return;
             if(!confirm("Terapkan draft ini sebagai Jadwal Minggu Ini yang aktif? Jadwal minggu ini yang lama akan digantikan.")) return;
             localStorage.setItem('coll_shift_teamData', JSON.stringify(teamData));
             localStorage.setItem('coll_shift_tasks', JSON.stringify(tasks));
@@ -2891,7 +2775,7 @@
         }
 
         window.updateMemberShift = function(memberIdx, dayIdx, value) {
-            if(!checkAuth()) { renderWeeklyShiftTable(); return; }
+            if(!checkAuth('admin')) { renderWeeklyShiftTable(); return; }
             const [type, location] = value.split('|');
             teamData[memberIdx].schedule[dayIdx] = { type, location };
 
@@ -2904,7 +2788,7 @@
         // ---------- Kelola Jenis Shift (dropdown, edit, tambah, hapus) ----------
 
         window.openShiftTypeModal = function() {
-            if(!checkAuth()) return;
+            if(!checkAuth('admin')) return;
             shiftTypeDraft = JSON.parse(JSON.stringify(shiftTypeDefs));
             renderShiftTypeFields();
             document.getElementById('shiftTypeModal').classList.remove('hidden');
@@ -3060,7 +2944,7 @@
         }
 
         window.openAddTaskModal = function() {
-            if(!checkAuth()) return;
+            if(!checkAuth('admin')) return;
             document.getElementById('addTaskModal').classList.remove('hidden');
         };
         window.closeAddTaskModal = function() { document.getElementById('addTaskModal').classList.add('hidden'); };
@@ -3085,7 +2969,7 @@
         };
 
         window.openEditTaskModal = function(taskId) {
-            if(!checkAuth()) return;
+            if(!checkAuth('admin')) return;
             const task = tasks.find(t => t.id === taskId);
             if(!task) return;
             document.getElementById('editTaskIdInput').value = task.id;
@@ -3118,7 +3002,7 @@
         };
 
         window.removeTaskFromQueue = function(id) {
-            if(!checkAuth()) return;
+            if(!checkAuth('admin')) return;
             tasks = tasks.filter(t => t.id !== id);
             saveToLocalStorage();
             refreshAllViews();
@@ -3126,7 +3010,7 @@
         };
 
         window.openEditTeamModal = function() {
-            if(!checkAuth()) return;
+            if(!checkAuth('admin')) return;
             populateEditTeamFields();
             document.getElementById('editTeamModal').classList.remove('hidden');
         };
@@ -3146,6 +3030,7 @@
         }
         
         window.addNewMember = function() {
+            if(!checkAuth('superadmin')) return;
             const newId = teamData.length ? Math.max(...teamData.map(m => m.id)) + 1 : 1;
             teamData.push({ 
                 id: newId, 
@@ -3246,29 +3131,6 @@
             for(let h=st+1; h<=22; h++) html += `<option value="${h}">${h < 10 ? '0'+h : h}.00</option>`;
             document.getElementById('editTaskEndHourInput').innerHTML = html;
         };
-
-        window.openShareModal = function() { document.getElementById('shareModal').classList.remove('hidden'); }
-        window.closeShareModal = function() { document.getElementById('shareModal').classList.add('hidden'); }
-        window.downloadJsonFile = function() {
-            const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({teamData, tasks, shiftTypeDefs}));
-            const a = document.createElement('a'); a.href = data; a.download = "data_lokasi_shift.json"; document.body.appendChild(a); a.click(); a.remove();
-        }
-        window.importJsonFile = function(e) {
-            if(!checkAuth()) return;
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                try {
-                    const obj = JSON.parse(evt.target.result);
-                    if(obj.teamData && obj.tasks) {
-                        teamData = obj.teamData; tasks = obj.tasks;
-                        if(obj.shiftTypeDefs) { shiftTypeDefs = obj.shiftTypeDefs; saveShiftTypesToStorage(); }
-                        loadState(); // Re-validate migration
-                        saveToLocalStorage(); refreshAllViews(); populateAssigneeSelects(); closeShareModal();
-                    }
-                } catch(e) {}
-            };
-            reader.readAsText(e.target.files[0]);
-        }
 
         let toastTracker;
         window.displaySystemToast = function(title, text, style) {
