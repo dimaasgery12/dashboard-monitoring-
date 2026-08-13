@@ -12,20 +12,20 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
   :root{
-    --ink:#14181C;
-    --ink-soft:#262C33;
-    --paper:#F6F5F1;
-    --paper-raised:#FFFFFF;
-    --line:#E2DFD6;
-    --accent:#F2762E;
-    --accent-dark:#C85A1B;
-    --ok:#1E9E6B;
-    --ok-bg:#E4F5EC;
+    --ink:#EAF3EC;
+    --ink-soft:#CFE0D4;
+    --paper:#0A0D0B;
+    --paper-raised:#12160F;
+    --line:#233028;
+    --accent:#3FBF63;
+    --accent-dark:#1F7A34;
+    --ok:#3FBF63;
+    --ok-bg:#12301D;
     --warn:#D64545;
-    --warn-bg:#FBE7E5;
-    --muted:#6B7280;
+    --warn-bg:#3A1414;
+    --muted:#8AA091;
     --amber:#D6A419;
-    --amber-bg:#FBF1DA;
+    --amber-bg:#332608;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -42,8 +42,8 @@
   /* ---------- HERO ---------- */
   .hero{
     background:
-      radial-gradient(1100px 420px at 85% -120px, rgba(242,118,46,0.22), transparent 60%),
-      linear-gradient(180deg, var(--ink) 0%, var(--ink-soft) 100%);
+      radial-gradient(1100px 420px at 85% -120px, rgba(63,191,99,0.22), transparent 60%),
+      linear-gradient(180deg, #0B120C 0%, #16211A 100%);
     color:#F4F1EA;
     padding:38px 40px 30px;
     position:relative;
@@ -72,9 +72,20 @@
     font-weight:600;
     text-transform:uppercase;
     letter-spacing:.01em;
-    font-size:clamp(28px, 3.6vw, 42px);
+    font-size:clamp(38px, 6vw, 64px);
     margin:0 0 8px;
     line-height:1.05;
+  }
+  .hero-logo{
+    position:absolute;
+    top:18px;
+    right:40px;
+    z-index:2;
+    height:44px;
+    width:auto;
+    background:#fff;
+    padding:6px 10px;
+    border-radius:8px;
   }
   .hero-sub{
     max-width:680px;
@@ -87,11 +98,12 @@
 
   .hero-topline{
     display:flex;
-    justify-content:space-between;
+    justify-content:flex-end;
     align-items:center;
     flex-wrap:wrap;
     gap:10px 16px;
     margin-bottom:10px;
+    padding-right:120px;
   }
   .hero-topline .eyebrow{margin-bottom:0;}
   .hero-clock{
@@ -301,8 +313,8 @@
   #loginOverlay{
     position:fixed; inset:0; z-index:200;
     background:
-      radial-gradient(1100px 420px at 85% -120px, rgba(242,118,46,0.22), transparent 60%),
-      linear-gradient(180deg, var(--ink) 0%, var(--ink-soft) 100%);
+      radial-gradient(1100px 420px at 85% -120px, rgba(63,191,99,0.22), transparent 60%),
+      linear-gradient(180deg, #0B120C 0%, #16211A 100%);
     display:flex; align-items:center; justify-content:center;
     padding:20px;
   }
@@ -704,8 +716,8 @@
                         700: '#3C454D', 800: '#2F373E', 850: '#242B31',
                         900: '#1B2126', 950: '#14181C'
                     },
-                    cyan:   { 300:'#F7C09A', 400:'#F2954F', 450:'#F2762E', 500:'#F2762E', 600:'#C85A1B' },
-                    indigo: { 400:'#F2954F', 500:'#F2762E', 600:'#C85A1B' },
+                    cyan:   { 300:'#A6E6B8', 400:'#5FCB7E', 450:'#3FBF63', 500:'#3FBF63', 600:'#1F7A34' },
+                    indigo: { 400:'#5FCB7E', 500:'#3FBF63', 600:'#1F7A34' },
                     purple: { 300:'#8FDCB9', 400:'#34B583', 450:'#1E9E6B', 500:'#1E9E6B', 600:'#177C54' },
                     emerald:{ 400:'#34B583', 500:'#1E9E6B', 600:'#177C54' },
                     amber:  { 300:'#EFCB78', 400:'#D6A419', 450:'#D6A419', 500:'#D6A419', 600:'#B3860E' },
@@ -823,8 +835,8 @@
 </div>
 
 <div class="hero">
+  <img src="logo_league.webp" alt="League" class="hero-logo">
   <div class="hero-topline">
-    <div class="eyebrow"><span class="dot"></span>Pipeline Rekonsiliasi Data Fulfillment</div>
     <div class="hero-clock mono">
       <i class="fas fa-clock" style="color:var(--accent);"></i>
       <span id="heroClockDate">–</span>
@@ -1503,7 +1515,7 @@
       var barH = niceMax ? (val/niceMax)*chartH : 0;
       var x = padding.left + slot*idx + (slot-barW)/2;
       var y = padding.top + chartH - barH;
-      ctx.fillStyle = opts.color || '#F2762E';
+      ctx.fillStyle = opts.color || '#3FBF63';
       roundRectTop(ctx, x, y, barW, barH, 4);
       ctx.fill();
 
@@ -1617,7 +1629,7 @@
       titleEl.textContent = labelMap[kind] + ' per Bulan';
       noteEl.textContent = 'Dihitung dari kolom Tanggal (Jubelio), dikelompokkan per bulan, sesuai baris yang sedang tampil di filter.';
       drawBarChart(canvas, grouped.keys, data, {
-        color:'#F2762E',
+        color:'#3FBF63',
         formatY: kind === 'omzet' ? fmtMoney : null
       });
     } else if(kind === 'lph' || kind === 'tii'){
