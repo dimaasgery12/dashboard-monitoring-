@@ -85,6 +85,28 @@
   }
   .hero-sub b{color:#F4F1EA; font-weight:600;}
 
+  .hero-topline{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px 16px;
+    margin-bottom:10px;
+  }
+  .hero-topline .eyebrow{margin-bottom:0;}
+  .hero-clock{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:#C9C4B8;
+    letter-spacing:.02em;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    white-space:nowrap;
+  }
+  .hero-clock .hero-clock-sep{color:var(--accent);}
+  .hero-clock .hero-clock-time{color:#F4F1EA; font-weight:600;}
+
   /* pipeline */
   .pipeline{
     display:flex;
@@ -713,8 +735,8 @@
         backdrop-filter: blur(16px);
         border: 1px solid rgba(255, 255, 255, 0.06);
     }
-    .shift-cell { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-    .shift-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(242, 118, 46, 0.18); }
+    .shift-cell, .shift-cell-select { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+    .shift-cell:hover, .shift-cell-select:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(242, 118, 46, 0.18); }
     .btn-press { transition: all 0.1s ease-in-out; }
     .btn-press:active { transform: scale(0.97); }
     .glow-cyan { box-shadow: 0 0 15px rgba(242, 118, 46, 0.22); }
@@ -793,7 +815,15 @@
 </div>
 
 <div class="hero">
-  <div class="eyebrow"><span class="dot"></span>Pipeline Rekonsiliasi Data Fulfillment</div>
+  <div class="hero-topline">
+    <div class="eyebrow"><span class="dot"></span>Pipeline Rekonsiliasi Data Fulfillment</div>
+    <div class="hero-clock mono">
+      <i class="fas fa-clock" style="color:var(--accent);"></i>
+      <span id="heroClockDate">–</span>
+      <span class="hero-clock-sep">·</span>
+      <span class="hero-clock-time" id="heroClockTime">–</span>
+    </div>
+  </div>
   <h1>Monitoring Jubelio</h1>
   <p class="hero-sub">Menggabungkan data pesanan marketplace (<b>Jubelio</b>) dengan bukti serah barang gudang
   (<b>LPH Infinity</b>) dan mutasi transfer internal (<b>TI TO Detail Infinity</b>) menjadi satu tabel kerja — lengkap dengan status
@@ -2157,6 +2187,15 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Live Clock -->
+            <div class="flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2">
+                <i class="fas fa-clock text-cyan-400"></i>
+                <div class="leading-tight">
+                    <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider" id="jadwalClockDate">–</div>
+                    <div class="text-sm font-mono font-bold text-white" id="jadwalClockTime">–</div>
+                </div>
+            </div>
             
             <!-- Collaborative Action Buttons & Auth -->
             <div class="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
@@ -2169,6 +2208,9 @@
                 <button onclick="openShareModal()" class="flex-1 sm:flex-initial bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 btn-press">
                     <i class="fas fa-share-nodes"></i> Bagikan
                 </button>
+                <button onclick="openShiftTypeModal()" class="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 btn-press">
+                    <i class="fas fa-list-check"></i> Jenis Shift
+                </button>
                 <button onclick="openEditTeamModal()" class="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 btn-press">
                     <i class="fas fa-users-gear"></i> Tim & Shift
                 </button>
@@ -2178,6 +2220,11 @@
             </div>
         </header>
 
+        <!-- Week Mode Banner: Minggu Ini vs Draft Minggu Depan -->
+        <div id="weekModeBanner" class="glass-card rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 border border-slate-800">
+            <!-- Populated dynamically -->
+        </div>
+
         <div class="flex flex-wrap items-center gap-3">
             <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5"><i class="fas fa-calendar-day text-cyan-400"></i> Status Untuk Hari:</span>
             <div class="flex flex-wrap gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800/60" id="dayTabsContainer">
@@ -2185,58 +2232,8 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Shift 1 Info Card -->
-            <div class="glass-card rounded-xl p-4 flex items-center justify-between border-l-4 border-l-cyan-500 hover:bg-slate-900/40 transition-colors">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400 glow-cyan">
-                        <i class="fas fa-sun text-lg"></i>
-                    </div>
-                    <div>
-                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Shift 1 (09:00 - 17:00)</span>
-                        <h4 class="text-base font-extrabold text-white" id="shift1TodayCount">0 Anggota</h4>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Shift 2 Info Card -->
-            <div class="glass-card rounded-xl p-4 flex items-center justify-between border-l-4 border-l-purple-500 hover:bg-slate-900/40 transition-colors">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 glow-purple">
-                        <i class="fas fa-moon text-lg"></i>
-                    </div>
-                    <div>
-                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Shift 2 (13:00 - 21:00)</span>
-                        <h4 class="text-base font-extrabold text-white" id="shift2TodayCount">0 Anggota</h4>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Shift Backup Info Card -->
-            <div class="glass-card rounded-xl p-4 flex items-center justify-between border-l-4 border-l-amber-500 hover:bg-slate-900/40 transition-colors">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 glow-amber">
-                        <i class="fas fa-shield-halved text-lg"></i>
-                    </div>
-                    <div>
-                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Shift Backup</span>
-                        <h4 class="text-base font-extrabold text-white" id="backupTodayCount">0 Anggota</h4>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Location Summary Card -->
-            <div class="glass-card rounded-xl p-4 flex items-center justify-between border-l-4 border-l-indigo-500 hover:bg-slate-900/40 transition-colors">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                        <i class="fas fa-map-location-dot text-lg"></i>
-                    </div>
-                    <div>
-                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Distribusi Lokasi</span>
-                        <h4 class="text-xs font-extrabold text-white mt-0.5" id="locationTodayCount">GPN: 0 | CIKINI: 0</h4>
-                    </div>
-                </div>
-            </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="shiftStatCardsContainer">
+            <!-- Kartu ringkasan per Jenis Shift dirender dinamis oleh JS -->
         </div>
 
         <div class="space-y-6">
@@ -2466,6 +2463,27 @@
         </div>
     </div>
 
+    <!-- Modal Kelola Jenis Shift -->
+    <div id="shiftTypeModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[40] p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all duration-300">
+            <div class="bg-slate-800/40 p-5 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-list-check text-cyan-400"></i> Kelola Jenis Shift</h3>
+                <button onclick="closeShiftTypeModal()" class="text-slate-400 hover:text-white p-2 rounded-lg transition-colors"><i class="fas fa-xmark text-lg"></i></button>
+            </div>
+            <p class="text-xs text-slate-400 px-6 pt-4">Ubah nama, ganti warna, hapus, atau tambah jenis shift. Perubahan berlaku di dropdown jadwal &amp; kartu ringkasan. "Off" (libur) selalu tersedia dan tidak bisa dihapus.</p>
+            <div class="p-6 max-h-[420px] overflow-y-auto custom-scroll space-y-3" id="shiftTypeFieldsContainer"></div>
+            <div class="px-6 pb-6 pt-2">
+                <button onclick="addNewShiftType()" class="w-full border border-dashed border-slate-700 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-500/5 rounded-xl py-3 text-xs font-bold transition-all btn-press flex items-center justify-center gap-2">
+                    <i class="fas fa-plus"></i> Tambah Jenis Shift
+                </button>
+            </div>
+            <div class="p-6 bg-slate-950/40 border-t border-slate-800 flex justify-end gap-3">
+                <button onclick="closeShiftTypeModal()" class="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-300 font-bold text-xs btn-press">Batal</button>
+                <button onclick="saveShiftTypeChanges()" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-extrabold text-xs btn-press">Simpan Perubahan</button>
+            </div>
+        </div>
+    </div>
+
     <div id="shareModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[40] p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all duration-300">
             <div class="bg-slate-800/40 p-5 border-b border-slate-800 flex justify-between items-center">
@@ -2538,29 +2556,50 @@
         let activeSelectedDay = 0; 
         let activeFilterMember = "all";
 
+        // Mode Jadwal: 'current' = Minggu Ini (aktif), 'next' = Draft Minggu Depan
+        let scheduleMode = 'current';
+
         // Auth State (PIN)
         let systemPIN = localStorage.getItem('coll_shift_pin') || null;
         let isLocked = systemPIN !== null;
 
         const daysMap = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
-        
-        // Siklus rotasi shift dan lokasi secara berurutan saat sel diklik
-        const shiftAndLocationCycle = [
-            { type: "Shift 1", location: "GPN" },
-            { type: "Shift 1", location: "CIKINI" },
-            { type: "Shift 2", location: "GPN" },
-            { type: "Shift 2", location: "CIKINI" },
-            { type: "Backup", location: "GPN" },
-            { type: "Backup", location: "CIKINI" },
-            { type: "Off", location: "-" }
-        ];
-        
-        const shiftUIConfig = {
-            "Shift 1": { bg: "bg-cyan-500/10", text: "text-cyan-400", border: "border-cyan-500/30", icon: "fa-sun" },
-            "Shift 2": { bg: "bg-purple-500/10", text: "text-purple-400", border: "border-purple-500/30", icon: "fa-moon" },
-            "Backup": { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/30", icon: "fa-shield-halved" },
-            "Off": { bg: "bg-slate-800", text: "text-slate-400", border: "border-slate-700/70", icon: "fa-mug-hot" }
+        const LOCATIONS = ["GPN", "CIKINI"];
+
+        // Palet warna yang bisa dipilih untuk tiap Jenis Shift kustom
+        const shiftColorPalette = {
+            cyan:    { bg: "bg-cyan-500/10",    text: "text-cyan-400",    border: "border-cyan-500/30",    dot: "bg-cyan-500",    icon: "fa-sun" },
+            purple:  { bg: "bg-purple-500/10",  text: "text-purple-400",  border: "border-purple-500/30",  dot: "bg-purple-500",  icon: "fa-moon" },
+            amber:   { bg: "bg-amber-500/10",   text: "text-amber-400",   border: "border-amber-500/30",   dot: "bg-amber-500",   icon: "fa-shield-halved" },
+            rose:    { bg: "bg-rose-500/10",    text: "text-rose-400",    border: "border-rose-500/30",    dot: "bg-rose-500",    icon: "fa-fire" },
+            emerald: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/30", dot: "bg-emerald-500", icon: "fa-leaf" },
+            indigo:  { bg: "bg-indigo-500/10",  text: "text-indigo-400",  border: "border-indigo-500/30",  dot: "bg-indigo-500",  icon: "fa-star" }
         };
+        const shiftColorNames = Object.keys(shiftColorPalette);
+
+        // "Off" (libur) selalu ada secara tetap dan tidak termasuk daftar yang bisa dihapus/diedit
+        const OFF_UI = { bg: "bg-slate-800", text: "text-slate-400", border: "border-slate-700/70", icon: "fa-mug-hot" };
+
+        // Daftar default Jenis Shift (bisa diubah/ditambah/dihapus lewat modal "Jenis Shift")
+        const defaultShiftTypeDefs = [
+            { name: "Shift 1", color: "cyan" },
+            { name: "Shift 2", color: "purple" },
+            { name: "Backup", color: "amber" }
+        ];
+
+        let shiftTypeDefs = [];      // Jenis shift aktif yang dipakai dashboard
+        let shiftTypeDraft = [];     // Salinan sementara saat diedit di modal
+
+        function getShiftUIConfig(name) {
+            if (name === "Off" || !name) return OFF_UI;
+            const def = shiftTypeDefs.find(s => s.name === name);
+            if (!def) return OFF_UI; // fallback jika jenis shift sudah dihapus
+            return shiftColorPalette[def.color] || shiftColorPalette.cyan;
+        }
+
+        function saveShiftTypesToStorage() {
+            localStorage.setItem('coll_shift_types', JSON.stringify(shiftTypeDefs));
+        }
 
         const taskThemes = {
             "cyan": { bg: "bg-cyan-500", text: "text-slate-950", border: "border-cyan-450", badge: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" },
@@ -2649,11 +2688,29 @@
         }
 
         function saveToLocalStorage() {
-            localStorage.setItem('coll_shift_teamData', JSON.stringify(teamData));
-            localStorage.setItem('coll_shift_tasks', JSON.stringify(tasks));
+            // Saat mode 'next' (draft minggu depan), simpan ke key draft terpisah
+            // agar data Jadwal Minggu Ini yang aktif tidak ikut tertimpa.
+            const teamKey = scheduleMode === 'next' ? 'coll_shift_teamData_next' : 'coll_shift_teamData';
+            const tasksKey = scheduleMode === 'next' ? 'coll_shift_tasks_next' : 'coll_shift_tasks';
+            localStorage.setItem(teamKey, JSON.stringify(teamData));
+            localStorage.setItem(tasksKey, JSON.stringify(tasks));
+        }
+
+        function migrateScheduleFormat(team) {
+            // Migrasi otomatis data lama jika format schedule berupa string murni
+            team.forEach(member => {
+                member.schedule = member.schedule.map(item => {
+                    if (typeof item === 'string') {
+                        return { type: item, location: item === 'Off' ? '-' : 'GPN' };
+                    }
+                    return item;
+                });
+            });
+            return team;
         }
 
         function loadState() {
+            scheduleMode = 'current';
             const localTeam = localStorage.getItem('coll_shift_teamData');
             const localTasks = localStorage.getItem('coll_shift_tasks');
             if (localTeam && localTasks) {
@@ -2663,36 +2720,148 @@
                 teamData = JSON.parse(JSON.stringify(defaultTeamData));
                 tasks = JSON.parse(JSON.stringify(defaultTasks));
             }
-            
-            // Migrasi otomatis data lama jika format schedule berupa string murni
-            teamData.forEach(member => {
-                member.schedule = member.schedule.map(item => {
-                    if (typeof item === 'string') {
-                        return { type: item, location: item === 'Off' ? '-' : 'GPN' };
-                    }
-                    return item;
-                });
-            });
+
+            migrateScheduleFormat(teamData);
+
+            const localShiftTypes = localStorage.getItem('coll_shift_types');
+            shiftTypeDefs = localShiftTypes ? JSON.parse(localShiftTypes) : JSON.parse(JSON.stringify(defaultShiftTypeDefs));
         }
+
+        // ---------- Fitur Jadwal Minggu Depan ----------
+
+        function getWeekMonday(offsetWeeks) {
+            const now = new Date();
+            const day = now.getDay(); // 0 = Minggu ... 6 = Sabtu
+            const diffToMonday = day === 0 ? -6 : 1 - day;
+            const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday + (offsetWeeks * 7));
+            return monday;
+        }
+
+        function formatWeekRangeID(mondayDate) {
+            const sunday = new Date(mondayDate);
+            sunday.setDate(mondayDate.getDate() + 6);
+            const optsShort = { day: 'numeric', month: 'short' };
+            const optsFull = { day: 'numeric', month: 'short', year: 'numeric' };
+            return `${mondayDate.toLocaleDateString('id-ID', optsShort)} – ${sunday.toLocaleDateString('id-ID', optsFull)}`;
+        }
+
+        function renderWeekModeBanner() {
+            const el = document.getElementById('weekModeBanner');
+            if(!el) return;
+            const hasDraft = localStorage.getItem('coll_shift_teamData_next') !== null;
+
+            if (scheduleMode === 'next') {
+                el.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400"><i class="fas fa-pen-to-square"></i></div>
+                        <div>
+                            <span class="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">Mode Draft Aktif</span>
+                            <h4 class="text-sm font-extrabold text-white">Menyusun Jadwal Minggu Depan (${formatWeekRangeID(getWeekMonday(1))})</h4>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="exitNextWeekDraft()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold border border-slate-700 btn-press flex items-center gap-1.5"><i class="fas fa-arrow-left"></i> Kembali ke Minggu Ini</button>
+                        <button onclick="applyNextWeekAsCurrent()" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl px-3.5 py-2 text-xs font-bold btn-press flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"><i class="fas fa-check"></i> Gunakan Jadwal Ini</button>
+                    </div>`;
+            } else {
+                el.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400"><i class="fas fa-calendar-check"></i></div>
+                        <div>
+                            <span class="text-[10px] text-cyan-400 font-bold uppercase tracking-wider block">Aktif Ditampilkan</span>
+                            <h4 class="text-sm font-extrabold text-white">Jadwal Minggu Ini (${formatWeekRangeID(getWeekMonday(0))})</h4>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="startNextWeekDraft()" class="bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl px-3.5 py-2 text-xs font-bold btn-press flex items-center gap-1.5 shadow-lg shadow-cyan-500/20">
+                            <i class="fas fa-calendar-plus"></i> ${hasDraft ? 'Lanjutkan Draft Minggu Depan' : 'Buat Jadwal Minggu Depan'}
+                        </button>
+                    </div>`;
+            }
+        }
+
+        window.startNextWeekDraft = function() {
+            if(!checkAuth()) return;
+            // Simpan dulu perubahan yang ada pada Jadwal Minggu Ini
+            saveToLocalStorage();
+
+            const draftTeam = localStorage.getItem('coll_shift_teamData_next');
+            const draftTasks = localStorage.getItem('coll_shift_tasks_next');
+
+            scheduleMode = 'next';
+
+            if (draftTeam && draftTasks) {
+                teamData = migrateScheduleFormat(JSON.parse(draftTeam));
+                tasks = JSON.parse(draftTasks);
+            } else {
+                // Mulai draft minggu depan dari salinan Jadwal Minggu Ini sebagai titik awal
+                teamData = JSON.parse(JSON.stringify(teamData));
+                tasks = JSON.parse(JSON.stringify(tasks));
+                saveToLocalStorage();
+            }
+
+            populateAssigneeSelects();
+            refreshAllViews();
+            displaySystemToast("Mode Draft Aktif", "Anda sedang menyusun Jadwal Minggu Depan. Perubahan tidak memengaruhi Jadwal Minggu Ini.", "info");
+        };
+
+        window.exitNextWeekDraft = function() {
+            saveToLocalStorage(); // simpan progres draft (mode masih 'next')
+            scheduleMode = 'current';
+            teamData = migrateScheduleFormat(JSON.parse(localStorage.getItem('coll_shift_teamData') || '[]'));
+            tasks = JSON.parse(localStorage.getItem('coll_shift_tasks') || '[]');
+            populateAssigneeSelects();
+            refreshAllViews();
+        };
+
+        window.applyNextWeekAsCurrent = function() {
+            if(!checkAuth()) return;
+            if(!confirm("Terapkan draft ini sebagai Jadwal Minggu Ini yang aktif? Jadwal minggu ini yang lama akan digantikan.")) return;
+            localStorage.setItem('coll_shift_teamData', JSON.stringify(teamData));
+            localStorage.setItem('coll_shift_tasks', JSON.stringify(tasks));
+            localStorage.removeItem('coll_shift_teamData_next');
+            localStorage.removeItem('coll_shift_tasks_next');
+            scheduleMode = 'current';
+            refreshAllViews();
+            displaySystemToast("Diterapkan", "Jadwal ini sekarang aktif sebagai Jadwal Minggu Ini.", "success");
+        };
 
         window.resetToDefaultData = function() {
             if(!checkAuth()) return;
             localStorage.removeItem('coll_shift_teamData');
             localStorage.removeItem('coll_shift_tasks');
+            localStorage.removeItem('coll_shift_teamData_next');
+            localStorage.removeItem('coll_shift_tasks_next');
+            localStorage.removeItem('coll_shift_types');
+            scheduleMode = 'current';
             teamData = JSON.parse(JSON.stringify(defaultTeamData));
             tasks = JSON.parse(JSON.stringify(defaultTasks));
+            shiftTypeDefs = JSON.parse(JSON.stringify(defaultShiftTypeDefs));
             saveToLocalStorage();
+            saveShiftTypesToStorage();
             refreshAllViews();
             displaySystemToast("Reset Berhasil", "Data dikembalikan ke default.", "info");
         }
 
         function refreshAllViews() {
             renderAuthUI();
+            renderWeekModeBanner();
             renderWeeklyShiftTable();
             renderDaySelectorTabs();
             renderMemberFilters();
             renderSidebarTaskList();
             updateStatCards();
+        }
+
+        function buildShiftCellOptionsHtml(selectedType, selectedLocation) {
+            let html = `<option value="Off|-" ${selectedType === 'Off' ? 'selected' : ''}>Off</option>`;
+            shiftTypeDefs.forEach(def => {
+                LOCATIONS.forEach(loc => {
+                    const isSelected = selectedType === def.name && selectedLocation === loc;
+                    html += `<option value="${def.name}|${loc}" ${isSelected ? 'selected' : ''}>${def.name} · ${loc}</option>`;
+                });
+            });
+            return html;
         }
 
         function renderWeeklyShiftTable() {
@@ -2708,19 +2877,12 @@
                 member.schedule.forEach((shiftObj, dayIdx) => {
                     const status = shiftObj.type;
                     const location = shiftObj.location;
-                    const ui = shiftUIConfig[status] || shiftUIConfig["Off"];
-                    
-                    let locBadge = "";
-                    if(location !== "-") {
-                        const locColor = location === "GPN" ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" : "bg-purple-500/20 text-purple-300 border-purple-500/30";
-                        locBadge = `<span class="text-[8px] px-1.5 py-0.2 rounded border ${locColor} font-extrabold mt-0.5">${location}</span>`;
-                    }
+                    const ui = getShiftUIConfig(status);
 
                     rowHtml += `<td class="px-2 py-4 text-center">
-                        <button onclick="cycleMemberShift(${memberIdx}, ${dayIdx})" class="shift-cell mx-auto w-20 py-1.5 flex flex-col items-center rounded-lg border ${ui.bg} ${ui.text} ${ui.border} shadow-sm btn-press">
-                            <span class="font-bold text-[9px] uppercase leading-none">${status}</span>
-                            ${locBadge}
-                        </button>
+                        <select onchange="updateMemberShift(${memberIdx}, ${dayIdx}, this.value)" class="shift-cell-select mx-auto w-24 py-1.5 text-center font-bold text-[9px] uppercase rounded-lg border ${ui.bg} ${ui.text} ${ui.border} shadow-sm btn-press cursor-pointer focus:outline-none focus:ring-1 focus:ring-cyan-500">
+                            ${buildShiftCellOptionsHtml(status, location)}
+                        </select>
                     </td>`;
                 });
                 tr.innerHTML = rowHtml;
@@ -2728,20 +2890,111 @@
             });
         }
 
-        window.cycleMemberShift = function(memberIdx, dayIdx) {
-            if(!checkAuth()) return;
-            const currentShift = teamData[memberIdx].schedule[dayIdx];
-            
-            // Cari index saat ini di dalam siklus kombinasi shift & lokasi
-            let currentIndex = shiftAndLocationCycle.findIndex(s => s.type === currentShift.type && s.location === currentShift.location);
-            let nextIndex = (currentIndex + 1) % shiftAndLocationCycle.length;
-            
-            teamData[memberIdx].schedule[dayIdx] = { ...shiftAndLocationCycle[nextIndex] };
-            
+        window.updateMemberShift = function(memberIdx, dayIdx, value) {
+            if(!checkAuth()) { renderWeeklyShiftTable(); return; }
+            const [type, location] = value.split('|');
+            teamData[memberIdx].schedule[dayIdx] = { type, location };
+
             saveToLocalStorage();
             renderWeeklyShiftTable();
             renderSidebarTaskList();
             updateStatCards();
+        };
+
+        // ---------- Kelola Jenis Shift (dropdown, edit, tambah, hapus) ----------
+
+        window.openShiftTypeModal = function() {
+            if(!checkAuth()) return;
+            shiftTypeDraft = JSON.parse(JSON.stringify(shiftTypeDefs));
+            renderShiftTypeFields();
+            document.getElementById('shiftTypeModal').classList.remove('hidden');
+        };
+        window.closeShiftTypeModal = function() { document.getElementById('shiftTypeModal').classList.add('hidden'); };
+
+        function renderShiftTypeFields() {
+            const container = document.getElementById('shiftTypeFieldsContainer');
+            container.innerHTML = '';
+
+            if (shiftTypeDraft.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">Belum ada Jenis Shift kustom. Tambahkan minimal satu di bawah ini.</p>`;
+            }
+
+            shiftTypeDraft.forEach((def, idx) => {
+                const swatches = shiftColorNames.map(colorName => {
+                    const c = shiftColorPalette[colorName];
+                    const isActive = def.color === colorName;
+                    return `<button type="button" onclick="setShiftTypeDraftColor(${idx}, '${colorName}')" class="w-6 h-6 rounded-full ${c.dot} ${isActive ? 'ring-2 ring-offset-2 ring-offset-slate-900 ring-white' : 'opacity-60 hover:opacity-100'} transition-all"></button>`;
+                }).join('');
+
+                container.innerHTML += `<div class="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3 relative">
+                    <button onclick="removeShiftTypeDraft(${idx})" class="absolute top-4 right-4 text-slate-600 hover:text-rose-400 p-1"><i class="fas fa-trash-can"></i></button>
+                    <div>
+                        <label class="block text-[9px] text-slate-500 mb-1">Nama Jenis Shift</label>
+                        <input type="text" oninput="renameShiftTypeDraft(${idx}, this.value)" value="${def.name}" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white pr-8">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] text-slate-500 mb-1.5">Warna</label>
+                        <div class="flex gap-2">${swatches}</div>
+                    </div>
+                </div>`;
+            });
+        }
+
+        window.setShiftTypeDraftColor = function(idx, colorName) {
+            shiftTypeDraft[idx].color = colorName;
+            renderShiftTypeFields();
+        };
+
+        window.renameShiftTypeDraft = function(idx, value) {
+            shiftTypeDraft[idx].name = value;
+        };
+
+        window.addNewShiftType = function() {
+            const usedColors = shiftTypeDraft.map(d => d.color);
+            const nextColor = shiftColorNames.find(c => !usedColors.includes(c)) || shiftColorNames[0];
+            shiftTypeDraft.push({ name: "Shift Baru", color: nextColor });
+            renderShiftTypeFields();
+        };
+
+        window.removeShiftTypeDraft = function(idx) {
+            const removedName = shiftTypeDraft[idx].name;
+            const stillUsed = teamData.some(m => m.schedule.some(s => s.type === removedName));
+            if (stillUsed && !confirm(`Jenis shift "${removedName}" masih dipakai di jadwal. Menghapusnya akan mengubah sel yang memakainya menjadi "Off". Lanjutkan?`)) {
+                return;
+            }
+            shiftTypeDraft.splice(idx, 1);
+            renderShiftTypeFields();
+        };
+
+        window.saveShiftTypeChanges = function() {
+            const cleaned = shiftTypeDraft
+                .map(d => ({ name: d.name.trim(), color: d.color }))
+                .filter(d => d.name.length > 0 && d.name !== "Off");
+
+            const names = cleaned.map(d => d.name);
+            const hasDuplicate = names.some((n, i) => names.indexOf(n) !== i);
+            if (hasDuplicate) {
+                displaySystemToast("Gagal", "Nama Jenis Shift tidak boleh sama/duplikat.", "error");
+                return;
+            }
+
+            // Sel jadwal yang jenis shift-nya sudah dihapus otomatis diubah jadi "Off"
+            const validNames = new Set(names);
+            teamData.forEach(member => {
+                member.schedule = member.schedule.map(s => {
+                    if (s.type !== "Off" && !validNames.has(s.type)) {
+                        return { type: "Off", location: "-" };
+                    }
+                    return s;
+                });
+            });
+
+            shiftTypeDefs = cleaned;
+            saveShiftTypesToStorage();
+            saveToLocalStorage();
+            refreshAllViews();
+            closeShiftTypeModal();
+            displaySystemToast("Tersimpan", "Daftar Jenis Shift berhasil diperbarui.", "success");
         };
 
         function renderMemberFilters() {
@@ -2926,13 +3179,41 @@
 
         function updateStatCards() {
             const todaySchedules = teamData.map(m => m.schedule[activeSelectedDay]);
-            document.getElementById('shift1TodayCount').innerText = `${todaySchedules.filter(s => s.type==='Shift 1').length} Anggota`;
-            document.getElementById('shift2TodayCount').innerText = `${todaySchedules.filter(s => s.type==='Shift 2').length} Anggota`;
-            document.getElementById('backupTodayCount').innerText = `${todaySchedules.filter(s => s.type==='Backup').length} Anggota`;
-            
-            const gpnCount = todaySchedules.filter(s => s.location==='GPN').length;
-            const cikiniCount = todaySchedules.filter(s => s.location==='CIKINI').length;
-            document.getElementById('locationTodayCount').innerText = `GPN: ${gpnCount} | CIKINI: ${cikiniCount}`;
+            const container = document.getElementById('shiftStatCardsContainer');
+            if (container) {
+                let html = '';
+                shiftTypeDefs.forEach(def => {
+                    const ui = getShiftUIConfig(def.name);
+                    const count = todaySchedules.filter(s => s.type === def.name).length;
+                    html += `<div class="glass-card rounded-xl p-4 flex items-center justify-between border-l-4 ${ui.border.replace('/30','')} hover:bg-slate-900/40 transition-colors">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg ${ui.bg} flex items-center justify-center ${ui.text}">
+                                <i class="fas ${ui.icon} text-lg"></i>
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">${def.name}</span>
+                                <h4 class="text-base font-extrabold text-white">${count} Anggota</h4>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+
+                const gpnCount = todaySchedules.filter(s => s.location === 'GPN').length;
+                const cikiniCount = todaySchedules.filter(s => s.location === 'CIKINI').length;
+                html += `<div class="glass-card rounded-xl p-4 flex items-center justify-between border-l-4 border-l-indigo-500 hover:bg-slate-900/40 transition-colors">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                            <i class="fas fa-map-location-dot text-lg"></i>
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Distribusi Lokasi</span>
+                            <h4 class="text-xs font-extrabold text-white mt-0.5">GPN: ${gpnCount} | CIKINI: ${cikiniCount}</h4>
+                        </div>
+                    </div>
+                </div>`;
+
+                container.innerHTML = html;
+            }
         }
         
         function populateAssigneeSelects() {
@@ -2969,7 +3250,7 @@
         window.openShareModal = function() { document.getElementById('shareModal').classList.remove('hidden'); }
         window.closeShareModal = function() { document.getElementById('shareModal').classList.add('hidden'); }
         window.downloadJsonFile = function() {
-            const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({teamData, tasks}));
+            const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({teamData, tasks, shiftTypeDefs}));
             const a = document.createElement('a'); a.href = data; a.download = "data_lokasi_shift.json"; document.body.appendChild(a); a.click(); a.remove();
         }
         window.importJsonFile = function(e) {
@@ -2980,6 +3261,7 @@
                     const obj = JSON.parse(evt.target.result);
                     if(obj.teamData && obj.tasks) {
                         teamData = obj.teamData; tasks = obj.tasks;
+                        if(obj.shiftTypeDefs) { shiftTypeDefs = obj.shiftTypeDefs; saveShiftTypesToStorage(); }
                         loadState(); // Re-validate migration
                         saveToLocalStorage(); refreshAllViews(); populateAssigneeSelects(); closeShareModal();
                     }
@@ -3033,5 +3315,22 @@ function switchAppView(view){
     bJad.classList.remove('active');
   }
 }
+
+// ---------- Jam & tanggal live (WIB) untuk seluruh dashboard ----------
+function updateLiveClocks(){
+  var now = new Date();
+  var dateStr = now.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  var timeStr = now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) + ' WIB';
+  ['heroClockDate','jadwalClockDate'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.textContent = dateStr;
+  });
+  ['heroClockTime','jadwalClockTime'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.textContent = timeStr;
+  });
+}
+updateLiveClocks();
+setInterval(updateLiveClocks, 1000);
 </script>
 </body></html>
