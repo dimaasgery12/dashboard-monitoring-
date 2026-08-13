@@ -1028,7 +1028,7 @@
   var OWNER_EMAIL = 'gerry.saputra@bercaretail.com';
   var OWNER_USERNAME = 'gerry';
   var OWNER_PASSWORD = '12345678';
-  var currentRole = null;
+  window.currentRole = null;
   var appStarted = false;
   var usernameCache = {};
 
@@ -1077,7 +1077,7 @@
   }
 
   function applyRole(username, role){
-    currentRole = role;
+    window.currentRole = role;
     document.getElementById('whoName').textContent = username;
     document.getElementById('whoRole').textContent = role === 'owner' ? 'Owner' : (role === 'superadmin' ? 'Super Admin' : (role === 'admin' ? 'Admin' : 'Viewer'));
     Array.prototype.forEach.call(document.querySelectorAll('[data-role-hide]'), function(el){
@@ -1098,7 +1098,7 @@
 
   firebase.auth().onAuthStateChanged(function(user){
     if(!user){
-      currentRole = null;
+      window.currentRole = null;
       document.getElementById('loginOverlay').classList.remove('hidden');
       return;
     }
