@@ -2,7 +2,7 @@
 <html lang="id"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- build: recover-existing-auth-user -->
+<!-- build: team-readonly-jadwal -->
 <title>Monitoring Jubelio — Jubelio × LPH Infinity × TI TO Detail Infinity</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -906,7 +906,7 @@
 
   <div class="view-tabs">
     <button type="button" class="view-tab active" id="tabMonitoringBtn" onclick="switchAppView('monitoring')">📊 Monitoring Rekonsiliasi</button>
-    <button type="button" class="view-tab" id="tabJadwalBtn" data-role-hide="viewer,toko" onclick="switchAppView('jadwal')">🗓 Jadwal &amp; Tugas Tim</button>
+    <button type="button" class="view-tab" id="tabJadwalBtn" data-role-hide="toko" onclick="switchAppView('jadwal')">🗓 Jadwal &amp; Tugas Tim</button>
   </div>
 
   <div class="pipeline" id="pipeline"><div class="node"><div class="n-label">Sumber 1</div><div class="n-name">JUBELIO</div><div class="n-count">8.486 pesanan</div></div><div class="link"><div class="track"><div class="fill" style="width:69%"></div><div class="arrow"></div></div><div class="pct"><span>69%</span> match · 5.859</div></div><div class="node"><div class="n-label">Sumber 2</div><div class="n-name">LPH INFINITY</div><div class="n-count">5.859 terhubung</div></div><div class="link"><div class="track"><div class="fill" style="width:39%"></div><div class="arrow"></div></div><div class="pct"><span>39%</span> match · 2.298</div></div><div class="node"><div class="n-label">Sumber 3</div><div class="n-name">TI TO DETAIL INFINITY</div><div class="n-count">2.298 terhubung</div></div></div>
@@ -1148,8 +1148,8 @@
       var hideFor = el.getAttribute('data-role-hide').split(',');
       el.style.display = hideFor.indexOf(role) !== -1 ? 'none' : '';
     });
-    // Peran Team & Toko hanya boleh melihat Monitoring — paksa kembali ke tab Monitoring kalau sedang di halaman Jadwal
-    if((role === 'viewer' || role === 'toko') && typeof switchAppView === 'function'){ try{ switchAppView('monitoring'); }catch(e){} }
+    // Peran Toko hanya boleh melihat Monitoring. Team boleh melihat Jadwal (read-only).
+    if(role === 'toko' && typeof switchAppView === 'function'){ try{ switchAppView('monitoring'); }catch(e){} }
     // Mulai sinkronisasi jadwal ke Firestore setelah peran diketahui (sudah login)
     if(typeof window.startJadwalSync === 'function'){ try{ window.startJadwalSync(); }catch(e){ console.error(e); } }
     // Refresh UI akses di halaman Jadwal (peran admin/super admin) begitu peran diketahui
@@ -2337,13 +2337,13 @@
                 
                 <div class="h-6 w-px bg-slate-800 mx-1 hidden sm:block"></div>
 
-                <button onclick="openShiftTypeModal()" class="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 btn-press">
+                <button id="btnShiftType" onclick="openShiftTypeModal()" class="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 btn-press">
                     <i class="fas fa-list-check"></i> Jenis Shift
                 </button>
-                <button onclick="openEditTeamModal()" class="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 btn-press">
+                <button id="btnEditTeam" onclick="openEditTeamModal()" class="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 btn-press">
                     <i class="fas fa-users-gear"></i> Tim & Shift
                 </button>
-                <button onclick="resetToDefaultData()" class="bg-slate-900/80 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 rounded-xl p-2 text-xs font-bold border border-slate-800 flex items-center justify-center btn-press h-8 w-8" title="Reset Semua Data">
+                <button id="btnResetJadwal" onclick="resetToDefaultData()" class="bg-slate-900/80 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 rounded-xl p-2 text-xs font-bold border border-slate-800 flex items-center justify-center btn-press h-8 w-8" title="Reset Semua Data">
                     <i class="fas fa-trash-arrow-up"></i>
                 </button>
             </div>
@@ -2374,7 +2374,7 @@
                         <h2 class="font-bold text-lg text-white flex items-center gap-2">
                             <i class="fas fa-calendar-alt text-cyan-400"></i> Matriks Jadwal Mingguan (<span id="teamMemberCountLabel">4</span> Orang)
                         </h2>
-                        <p class="text-xs text-slate-400 mt-1">Klik kotak jadwal untuk mengubah Shift & Lokasi (GPN / CIKINI).</p>
+                        <p class="text-xs text-slate-400 mt-1" id="shiftTableHint">Klik kotak jadwal untuk mengubah Shift &amp; Lokasi (GPN / CIKINI).</p>
                     </div>
                 </div>
 
@@ -2407,7 +2407,7 @@
                             <i class="fas fa-tasks text-amber-400"></i> Distribusi Rencana Tugas
                         </h2>
                     </div>
-                    <button onclick="openAddTaskModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-3 py-1 text-xs font-bold flex items-center gap-1.5 shadow-md btn-press">
+                    <button id="btnAddTask" onclick="openAddTaskModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-3 py-1 text-xs font-bold flex items-center gap-1.5 shadow-md btn-press">
                         <i class="fas fa-plus"></i> Tugas
                     </button>
                 </div>
@@ -2692,7 +2692,7 @@
             if (!container) return;
             var roleLabel = currentRole === 'owner' ? 'Owner' : (currentRole === 'superadmin' ? 'Super Admin' : (currentRole === 'admin' ? 'Admin' : (currentRole === 'toko' ? 'Toko' : 'Team')));
             var canEditJadwal = hasRole('admin');
-            container.innerHTML = `<span class="${canEditJadwal ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-900/70 text-slate-400 border-slate-800'} border px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5" title="Peran akses Anda saat ini"><i class="fas ${canEditJadwal ? 'fa-user-shield' : 'fa-eye'}"></i> ${roleLabel}</span>`;
+            container.innerHTML = `<span class="${canEditJadwal ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-900/70 text-slate-400 border-slate-800'} border px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5" title="Peran akses Anda saat ini"><i class="fas ${canEditJadwal ? 'fa-user-shield' : 'fa-eye'}"></i> ${roleLabel}${canEditJadwal ? '' : ' · Lihat saja'}</span>`;
         }
 
         function checkAuth(minRole) {
@@ -2923,8 +2923,24 @@
             displaySystemToast("Reset Berhasil", "Data dikembalikan ke default.", "info");
         }
 
+        // Menyembunyikan seluruh kontrol pengubah data untuk peran read-only (Team)
+        function applyJadwalPermissions() {
+            const canEdit = hasRole('admin');
+            ['btnShiftType', 'btnEditTeam', 'btnResetJadwal', 'btnAddTask'].forEach(function(id){
+                const el = document.getElementById(id);
+                if (el) el.style.display = canEdit ? '' : 'none';
+            });
+            const hint = document.getElementById('shiftTableHint');
+            if (hint) {
+                hint.innerHTML = canEdit
+                    ? 'Klik kotak jadwal untuk mengubah Shift &amp; Lokasi (GPN / CIKINI).'
+                    : '<i class="fas fa-eye"></i> Mode lihat saja — jadwal hanya bisa diubah oleh Admin ke atas.';
+            }
+        }
+
         function refreshAllViews() {
             renderAuthUI();
+            applyJadwalPermissions();
             renderWeekModeBanner();
             renderWeeklyShiftTable();
             renderDaySelectorTabs();
@@ -2945,6 +2961,7 @@
         }
 
         function renderWeeklyShiftTable() {
+            const canEditJadwal = hasRole('admin');
             const tableBody = document.getElementById('shiftTableBody');
             tableBody.innerHTML = '';
             document.getElementById('teamMemberCountLabel').innerText = teamData.length;
@@ -2959,11 +2976,19 @@
                     const location = shiftObj.location;
                     const ui = getShiftUIConfig(status);
 
-                    rowHtml += `<td class="px-2 py-4 text-center">
-                        <select onchange="updateMemberShift(${memberIdx}, ${dayIdx}, this.value)" class="shift-cell-select mx-auto w-24 py-1.5 text-center font-bold text-[9px] uppercase rounded-lg border ${ui.bg} ${ui.text} ${ui.border} shadow-sm btn-press cursor-pointer focus:outline-none focus:ring-1 focus:ring-cyan-500">
-                            ${buildShiftCellOptionsHtml(status, location)}
-                        </select>
-                    </td>`;
+                    if (canEditJadwal) {
+                        rowHtml += `<td class="px-2 py-4 text-center">
+                            <select onchange="updateMemberShift(${memberIdx}, ${dayIdx}, this.value)" class="shift-cell-select mx-auto w-24 py-1.5 text-center font-bold text-[9px] uppercase rounded-lg border ${ui.bg} ${ui.text} ${ui.border} shadow-sm btn-press cursor-pointer focus:outline-none focus:ring-1 focus:ring-cyan-500">
+                                ${buildShiftCellOptionsHtml(status, location)}
+                            </select>
+                        </td>`;
+                    } else {
+                        // Read-only (peran Team): tampilkan sebagai label, bukan dropdown
+                        const label = status === 'Off' ? 'Off' : `${status} · ${location}`;
+                        rowHtml += `<td class="px-2 py-4 text-center">
+                            <span class="mx-auto w-24 py-1.5 block text-center font-bold text-[9px] uppercase rounded-lg border ${ui.bg} ${ui.text} ${ui.border}">${label}</span>
+                        </td>`;
+                    }
                 });
                 tr.innerHTML = rowHtml;
                 tableBody.appendChild(tr);
@@ -3106,14 +3131,15 @@
                 const assignee = teamData.find(m => m.id === task.memberId);
                 if(!assignee) return;
                 
+                const canEditJadwal = hasRole('admin');
                 const cardDiv = document.createElement('div');
                 cardDiv.className = `p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 flex flex-col gap-2 group`;
                 cardDiv.innerHTML = `
                     <div class="flex justify-between items-start">
                         <span class="text-xs font-bold text-slate-100 truncate">${task.name}</span>
-                        <div class="flex gap-1 shrink-0">
+                        <div class="flex gap-1 shrink-0">${canEditJadwal ? `
                             <button onclick="openEditTaskModal(${task.id})" class="text-slate-600 hover:text-cyan-400 p-1"><i class="fas fa-pen text-xs"></i></button>
-                            <button onclick="removeTaskFromQueue(${task.id})" class="text-slate-600 hover:text-rose-400 p-1"><i class="fas fa-trash-can text-xs"></i></button>
+                            <button onclick="removeTaskFromQueue(${task.id})" class="text-slate-600 hover:text-rose-400 p-1"><i class="fas fa-trash-can text-xs"></i></button>` : ''}
                         </div>
                     </div>
                     <div class="flex justify-between items-center mt-1 pt-2 border-t border-slate-950">
@@ -3365,8 +3391,8 @@ function switchAppView(view){
   var jad = document.getElementById('viewJadwal');
   var bMon = document.getElementById('tabMonitoringBtn');
   var bJad = document.getElementById('tabJadwalBtn');
-  // Peran Team & Toko hanya boleh melihat Monitoring, tidak boleh membuka halaman Jadwal sama sekali
-  if(view === 'jadwal' && (window.currentRole === 'viewer' || window.currentRole === 'toko')){
+  // Peran Toko tidak boleh membuka halaman Jadwal. Team boleh membuka, tapi read-only.
+  if(view === 'jadwal' && window.currentRole === 'toko'){
     view = 'monitoring';
   }
   if(view === 'jadwal'){
