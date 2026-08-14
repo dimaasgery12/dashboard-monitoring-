@@ -2530,6 +2530,12 @@
         // Mode Jadwal: 'current' = Minggu Ini (aktif), 'next' = Draft Minggu Depan
         let scheduleMode = 'current';
 
+        // ---------- Cache lokal dari data Firestore (untuk sinkron lintas device) ----------
+        let fsCurrent = { teamData: null, tasks: null };
+        let fsNext = { teamData: null, tasks: null };
+        let fsNextExists = false;
+        let fsReady = { current: false, meta: false };
+
         // Auth State — memakai peran login dashboard utama (owner/superadmin/admin/viewer)
         var JADWAL_ROLE_RANK = { viewer: 0, admin: 1, superadmin: 2, owner: 3 };
         function hasRole(minRole) {
@@ -2573,7 +2579,10 @@
         }
 
         function saveShiftTypesToStorage() {
-            localStorage.setItem('coll_shift_types', JSON.stringify(shiftTypeDefs));
+            db.collection('schedule').doc('meta').set({ shiftTypeDefs: shiftTypeDefs }).catch(function(err){
+                console.error('Gagal menyimpan jenis shift ke Firestore:', err);
+                displaySystemToast("Gagal Sinkron", "Perubahan jenis shift gagal disimpan ke cloud.", "error");
+            });
         }
 
         const taskThemes = {
@@ -2601,12 +2610,17 @@
         }
 
         function saveToLocalStorage() {
-            // Saat mode 'next' (draft minggu depan), simpan ke key draft terpisah
+            // Saat mode 'next' (draft minggu depan), simpan ke dokumen draft terpisah
             // agar data Jadwal Minggu Ini yang aktif tidak ikut tertimpa.
-            const teamKey = scheduleMode === 'next' ? 'coll_shift_teamData_next' : 'coll_shift_teamData';
-            const tasksKey = scheduleMode === 'next' ? 'coll_shift_tasks_next' : 'coll_shift_tasks';
-            localStorage.setItem(teamKey, JSON.stringify(teamData));
-            localStorage.setItem(tasksKey, JSON.stringify(tasks));
+            const docKey = scheduleMode === 'next' ? 'next' : 'current';
+            db.collection('schedule').doc(docKey).set({
+                teamData: teamData,
+                tasks: tasks,
+                updatedAt: Date.now()
+            }).catch(function(err){
+                console.error('Gagal menyimpan jadwal ke Firestore:', err);
+                displaySystemToast("Gagal Sinkron", "Perubahan jadwal gagal disimpan ke cloud. Periksa koneksi internet.", "error");
+            });
         }
 
         function migrateScheduleFormat(team) {
@@ -2624,20 +2638,78 @@
 
         function loadState() {
             scheduleMode = 'current';
-            const localTeam = localStorage.getItem('coll_shift_teamData');
-            const localTasks = localStorage.getItem('coll_shift_tasks');
-            if (localTeam && localTasks) {
-                teamData = JSON.parse(localTeam);
-                tasks = JSON.parse(localTasks);
-            } else {
-                teamData = JSON.parse(JSON.stringify(defaultTeamData));
-                tasks = JSON.parse(JSON.stringify(defaultTasks));
-            }
+            // Data awal sementara sebelum Firestore selesai dimuat
+            teamData = JSON.parse(JSON.stringify(defaultTeamData));
+            tasks = JSON.parse(JSON.stringify(defaultTasks));
+            shiftTypeDefs = JSON.parse(JSON.stringify(defaultShiftTypeDefs));
 
-            migrateScheduleFormat(teamData);
+            // Dengarkan Jadwal Minggu Ini secara real-time — otomatis update di semua device
+            db.collection('schedule').doc('current').onSnapshot(function(snap){
+                if (snap.exists) {
+                    const data = snap.data();
+                    fsCurrent.teamData = migrateScheduleFormat(data.teamData || []);
+                    fsCurrent.tasks = data.tasks || [];
+                } else {
+                    // Dokumen belum ada di Firestore -> buat sekali dari data default
+                    fsCurrent.teamData = JSON.parse(JSON.stringify(defaultTeamData));
+                    fsCurrent.tasks = JSON.parse(JSON.stringify(defaultTasks));
+                    db.collection('schedule').doc('current').set({
+                        teamData: fsCurrent.teamData, tasks: fsCurrent.tasks, updatedAt: Date.now()
+                    });
+                }
+                fsReady.current = true;
+                if (scheduleMode === 'current') {
+                    teamData = JSON.parse(JSON.stringify(fsCurrent.teamData));
+                    tasks = JSON.parse(JSON.stringify(fsCurrent.tasks));
+                    onFirestoreStateChanged();
+                }
+            }, function(err){
+                console.error('Gagal memuat jadwal dari Firestore:', err);
+                displaySystemToast("Gagal Memuat", "Tidak bisa terhubung ke database jadwal di cloud.", "error");
+            });
 
-            const localShiftTypes = localStorage.getItem('coll_shift_types');
-            shiftTypeDefs = localShiftTypes ? JSON.parse(localShiftTypes) : JSON.parse(JSON.stringify(defaultShiftTypeDefs));
+            // Dengarkan Draft Minggu Depan (kalau ada) supaya statusnya selalu terkini
+            db.collection('schedule').doc('next').onSnapshot(function(snap){
+                if (snap.exists) {
+                    const data = snap.data();
+                    fsNext.teamData = migrateScheduleFormat(data.teamData || []);
+                    fsNext.tasks = data.tasks || [];
+                    fsNextExists = true;
+                } else {
+                    fsNext.teamData = null;
+                    fsNext.tasks = null;
+                    fsNextExists = false;
+                }
+                if (scheduleMode === 'next') {
+                    teamData = JSON.parse(JSON.stringify(fsNext.teamData || []));
+                    tasks = JSON.parse(JSON.stringify(fsNext.tasks || []));
+                    onFirestoreStateChanged();
+                } else if (typeof renderWeekModeBanner === 'function') {
+                    renderWeekModeBanner();
+                }
+            }, function(err){
+                console.error('Gagal memuat draft minggu depan dari Firestore:', err);
+            });
+
+            // Dengarkan jenis shift (Shift 1, Shift 2, Backup, dst.)
+            db.collection('schedule').doc('meta').onSnapshot(function(snap){
+                if (snap.exists && snap.data().shiftTypeDefs) {
+                    shiftTypeDefs = snap.data().shiftTypeDefs;
+                } else {
+                    shiftTypeDefs = JSON.parse(JSON.stringify(defaultShiftTypeDefs));
+                }
+                fsReady.meta = true;
+                onFirestoreStateChanged();
+            }, function(err){
+                console.error('Gagal memuat jenis shift dari Firestore:', err);
+            });
+        }
+
+        // Dipanggil setiap kali ada data baru dari Firestore (awal muat maupun update dari device lain)
+        function onFirestoreStateChanged() {
+            if (!fsReady.current || !fsReady.meta) return; // tunggu data awal siap dulu
+            populateAssigneeSelects();
+            refreshAllViews();
         }
 
         // ---------- Fitur Jadwal Minggu Depan ----------
@@ -2661,7 +2733,7 @@
         function renderWeekModeBanner() {
             const el = document.getElementById('weekModeBanner');
             if(!el) return;
-            const hasDraft = localStorage.getItem('coll_shift_teamData_next') !== null;
+            const hasDraft = fsNextExists;
 
             if (scheduleMode === 'next') {
                 el.innerHTML = `
@@ -2701,14 +2773,11 @@
             // Simpan dulu perubahan yang ada pada Jadwal Minggu Ini
             saveToLocalStorage();
 
-            const draftTeam = localStorage.getItem('coll_shift_teamData_next');
-            const draftTasks = localStorage.getItem('coll_shift_tasks_next');
-
             scheduleMode = 'next';
 
-            if (draftTeam && draftTasks) {
-                teamData = migrateScheduleFormat(JSON.parse(draftTeam));
-                tasks = JSON.parse(draftTasks);
+            if (fsNextExists && fsNext.teamData) {
+                teamData = JSON.parse(JSON.stringify(fsNext.teamData));
+                tasks = JSON.parse(JSON.stringify(fsNext.tasks || []));
             } else {
                 // Mulai draft minggu depan dari salinan Jadwal Minggu Ini sebagai titik awal
                 teamData = JSON.parse(JSON.stringify(teamData));
@@ -2724,8 +2793,8 @@
         window.exitNextWeekDraft = function() {
             saveToLocalStorage(); // simpan progres draft (mode masih 'next')
             scheduleMode = 'current';
-            teamData = migrateScheduleFormat(JSON.parse(localStorage.getItem('coll_shift_teamData') || '[]'));
-            tasks = JSON.parse(localStorage.getItem('coll_shift_tasks') || '[]');
+            teamData = JSON.parse(JSON.stringify(fsCurrent.teamData || []));
+            tasks = JSON.parse(JSON.stringify(fsCurrent.tasks || []));
             populateAssigneeSelects();
             refreshAllViews();
         };
@@ -2733,26 +2802,27 @@
         window.applyNextWeekAsCurrent = function() {
             if(!checkAuth('superadmin')) return;
             if(!confirm("Terapkan draft ini sebagai Jadwal Minggu Ini yang aktif? Jadwal minggu ini yang lama akan digantikan.")) return;
-            localStorage.setItem('coll_shift_teamData', JSON.stringify(teamData));
-            localStorage.setItem('coll_shift_tasks', JSON.stringify(tasks));
-            localStorage.removeItem('coll_shift_teamData_next');
-            localStorage.removeItem('coll_shift_tasks_next');
-            scheduleMode = 'current';
-            refreshAllViews();
-            displaySystemToast("Diterapkan", "Jadwal ini sekarang aktif sebagai Jadwal Minggu Ini.", "success");
+            db.collection('schedule').doc('current').set({
+                teamData: teamData, tasks: tasks, updatedAt: Date.now()
+            }).then(function(){
+                return db.collection('schedule').doc('next').delete();
+            }).then(function(){
+                scheduleMode = 'current';
+                refreshAllViews();
+                displaySystemToast("Diterapkan", "Jadwal ini sekarang aktif sebagai Jadwal Minggu Ini.", "success");
+            }).catch(function(err){
+                console.error('Gagal menerapkan draft ke Firestore:', err);
+                displaySystemToast("Gagal", "Tidak bisa menerapkan draft ke cloud. Coba lagi.", "error");
+            });
         };
 
         window.resetToDefaultData = function() {
             if(!checkAuth()) return;
-            localStorage.removeItem('coll_shift_teamData');
-            localStorage.removeItem('coll_shift_tasks');
-            localStorage.removeItem('coll_shift_teamData_next');
-            localStorage.removeItem('coll_shift_tasks_next');
-            localStorage.removeItem('coll_shift_types');
             scheduleMode = 'current';
             teamData = JSON.parse(JSON.stringify(defaultTeamData));
             tasks = JSON.parse(JSON.stringify(defaultTasks));
             shiftTypeDefs = JSON.parse(JSON.stringify(defaultShiftTypeDefs));
+            db.collection('schedule').doc('next').delete().catch(function(){});
             saveToLocalStorage();
             saveShiftTypesToStorage();
             refreshAllViews();
@@ -3180,10 +3250,8 @@
         }
 
         window.onload = function() {
-            loadState();
-            populateAssigneeSelects();
-            initHourOptionRanges();
-            refreshAllViews();
+            initHourOptionRanges(); // tidak bergantung pada data cloud, aman dijalankan langsung
+            loadState(); // membaca & mendengarkan Firestore; populateAssigneeSelects()/refreshAllViews() dipanggil otomatis saat data siap
         };
     </script>
 </div>
