@@ -2,7 +2,7 @@
 <html lang="id"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- build: team-readonly-jadwal -->
+<!-- build: self-signup-toko -->
 <title>Monitoring Jubelio — Jubelio × LPH Infinity × TI TO Detail Infinity</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -356,6 +356,13 @@
   }
   .login-error.show{display:block;}
   .login-note{font-size:11px; color:var(--muted); margin-top:16px; line-height:1.5;}
+  .login-forgot{
+    display:block; width:100%; margin-top:10px;
+    background:none; border:none; cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:12px; color:var(--muted);
+    text-decoration:underline; text-underline-offset:2px; padding:4px;
+  }
+  .login-forgot:hover{color:var(--accent);}
 
   /* ---------- USER BAR / ROLE ---------- */
   .userbar{
@@ -411,6 +418,14 @@
   }
   .users-table select:hover{border-color:var(--accent);}
   .users-table select:focus{outline:none; border-color:var(--accent);}
+  .users-table .user-actions{display:flex; flex-direction:column; gap:5px; align-items:stretch;}
+  .users-table .reset-pw{
+    border:1px solid var(--line); background:transparent; color:var(--ink-soft); border-radius:6px;
+    padding:5px 8px; font-size:11.5px; cursor:pointer; white-space:nowrap;
+    font-family:'Inter',sans-serif;
+  }
+  .users-table .reset-pw:hover{border-color:var(--accent); color:var(--accent);}
+  .users-table .reset-pw:disabled{opacity:.5; cursor:not-allowed;}
   .users-table .del-user{
     border:none; background:var(--warn-bg); color:var(--warn); border-radius:6px;
     padding:5px 9px; font-size:11.5px; cursor:pointer; white-space:nowrap;
@@ -841,8 +856,29 @@
         <input type="password" id="loginPass" autocomplete="current-password" required="">
       </div>
       <button type="submit" class="login-btn" id="loginSubmit">Masuk</button>
+      <button type="button" class="login-forgot" id="loginForgot">Lupa password?</button>
     </form>
-    <div class="login-note">Hubungi owner jika belum punya akun. Setiap pengguna diberi peran <b>Owner</b>, <b>Super Admin</b>, <b>Admin</b>, <b>Team</b>, atau <b>Toko</b> yang menentukan hak akses di dashboard ini.</div>
+    <form id="registerForm" style="display:none;">
+      <div class="login-field">
+        <label for="regUsername">Username</label>
+        <input type="text" id="regUsername" autocomplete="username" required="">
+      </div>
+      <div class="login-field">
+        <label for="regEmail">Email Kantor</label>
+        <input type="email" id="regEmail" autocomplete="email" required="">
+      </div>
+      <div class="login-field">
+        <label for="regPass">Password</label>
+        <input type="password" id="regPass" autocomplete="new-password" minlength="6" required="">
+      </div>
+      <div class="login-field">
+        <label for="regPass2">Ulangi Password</label>
+        <input type="password" id="regPass2" autocomplete="new-password" minlength="6" required="">
+      </div>
+      <button type="submit" class="login-btn" id="registerSubmit">Buat Akun</button>
+    </form>
+    <button type="button" class="login-forgot" id="toggleAuthMode">Belum punya akun? Daftar di sini</button>
+    <div class="login-note" id="loginNote">Setiap pengguna diberi peran <b>Owner</b>, <b>Super Admin</b>, <b>Admin</b>, <b>Team</b>, atau <b>Toko</b> yang menentukan hak akses di dashboard ini.</div>
   </div>
 </div>
 
@@ -859,7 +895,7 @@
       <div class="users-table-wrap">
         <table class="users-table">
           <colgroup>
-            <col style="width:19%"><col style="width:40%"><col style="width:23%"><col style="width:18%">
+            <col style="width:17%"><col style="width:36%"><col style="width:22%"><col style="width:25%">
           </colgroup>
           <thead><tr><th>Username</th><th>Email</th><th>Peran</th><th></th></tr></thead>
           <tbody id="usersTableBody"><tr><td colspan="4">Memuat…</td></tr></tbody>
@@ -1113,6 +1149,8 @@
 
   function showLoginError(msg){
     var el = document.getElementById('loginError');
+    el.style.borderColor = '';
+    el.style.color = '';
     el.textContent = msg;
     el.classList.add('show');
   }
@@ -1124,6 +1162,7 @@
     return resolveEmail(identifier).then(function(email){
       if(!email){ return Promise.reject({code:'custom/not-found'}); }
       return firebase.auth().signInWithEmailAndPassword(email, password)['catch'](function(err){
+        try{ err.resolvedEmail = email; }catch(e){}
         // bootstrap otomatis: kalau akun owner belum pernah dibuat di Firebase Auth, buat sekali di sini
         if((err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials') &&
             email === OWNER_EMAIL && password === OWNER_PASSWORD){
@@ -1168,6 +1207,7 @@
     if(!user){
       window.currentRole = null;
       document.getElementById('loginOverlay').classList.remove('hidden');
+      if(typeof setAuthMode === 'function') setAuthMode('login');
       return;
     }
     db.collection('users').doc(user.uid).get().then(function(snap){
@@ -1184,6 +1224,9 @@
           applyRole(OWNER_USERNAME, 'owner');
           startAppIfNeeded();
         });
+      } else if(pendingSelfSignupUid === user.uid){
+        // dokumen peran sedang dibuat oleh proses pendaftaran — biarkan selesai dulu
+        return;
       } else {
         showLoginError('Akun ini belum memiliki peran akses. Hubungi owner untuk didaftarkan.');
         firebase.auth().signOut();
@@ -1206,11 +1249,142 @@
       else if(code === 'auth/operation-not-allowed') msg = 'Metode login Email/Password belum diaktifkan di Firebase Console (Authentication → Sign-in method → Email/Password → Enable).';
       else if(code === 'auth/unauthorized-domain') msg = 'Domain ini belum diizinkan di Firebase Console (Authentication → Settings → Authorized domains).';
       else if(code === 'auth/network-request-failed') msg = 'Gagal terhubung ke server Firebase. Periksa koneksi internet Anda.';
-      else if(code === 'custom/not-found') msg = 'Username tidak ditemukan.';
+      else if(code === 'custom/not-found') msg = 'Username tidak ditemukan. Coba masuk memakai alamat email, atau minta owner mendaftarkan ulang username ini.';
+      else if(code === 'auth/wrong-password' || code === 'auth/invalid-credential' ||
+              code === 'auth/invalid-login-credentials' || code === 'auth/user-not-found'){
+        var em = err.resolvedEmail ? ' (' + err.resolvedEmail + ')' : '';
+        msg = 'Password salah, atau akun' + em + ' belum terdaftar di Firebase Authentication. ' +
+              'Klik "Lupa password?" di bawah untuk menerima email pengaturan ulang, atau hubungi owner.';
+      }
+      else if(code === 'auth/user-disabled') msg = 'Akun ini dinonaktifkan. Hubungi owner.';
       else if(code) msg = 'Gagal masuk (' + code + '). Coba lagi atau hubungi owner.';
       showLoginError(msg);
     })['finally'](function(){
       btn.disabled = false; btn.textContent = 'Masuk';
+    });
+  });
+
+  // ---------- pendaftaran akun sendiri (peran otomatis paling rendah: Toko) ----------
+  var SELF_SIGNUP_ROLE = 'toko';
+  // Hanya email dengan domain ini yang boleh mendaftar sendiri.
+  // Kosongkan array-nya ([]) kalau ingin membuka pendaftaran untuk domain apa pun.
+  var SELF_SIGNUP_DOMAINS = ['bercaretail.com'];
+  var pendingSelfSignupUid = null;
+
+  function isAllowedSignupDomain(email){
+    if(!SELF_SIGNUP_DOMAINS.length) return true;
+    var at = String(email || '').lastIndexOf('@');
+    if(at === -1) return false;
+    var domain = email.slice(at + 1).toLowerCase();
+    return SELF_SIGNUP_DOMAINS.indexOf(domain) !== -1;
+  }
+
+  function setAuthMode(mode){
+    var isRegister = mode === 'register';
+    document.getElementById('loginForm').style.display = isRegister ? 'none' : '';
+    document.getElementById('registerForm').style.display = isRegister ? '' : 'none';
+    document.querySelector('.login-card h1').textContent = isRegister ? 'Daftar' : 'Masuk';
+    document.getElementById('toggleAuthMode').textContent = isRegister
+      ? 'Sudah punya akun? Masuk di sini'
+      : 'Belum punya akun? Daftar di sini';
+    document.getElementById('loginNote').innerHTML = isRegister
+      ? 'Akun baru otomatis mendapat peran <b>Toko</b> (akses paling terbatas: hanya melihat Monitoring Rekonsiliasi). Minta owner menaikkan peran Anda bila perlu.'
+      : 'Setiap pengguna diberi peran <b>Owner</b>, <b>Super Admin</b>, <b>Admin</b>, <b>Team</b>, atau <b>Toko</b> yang menentukan hak akses di dashboard ini.';
+    hideLoginError();
+  }
+
+  document.getElementById('toggleAuthMode').addEventListener('click', function(){
+    setAuthMode(document.getElementById('registerForm').style.display === 'none' ? 'register' : 'login');
+  });
+
+  document.getElementById('registerForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    hideLoginError();
+    var btn = document.getElementById('registerSubmit');
+    var username = document.getElementById('regUsername').value.trim().toLowerCase();
+    var email = document.getElementById('regEmail').value.trim().toLowerCase();
+    var pass = document.getElementById('regPass').value;
+    var pass2 = document.getElementById('regPass2').value;
+
+    if(!/^[a-z0-9._-]{3,20}$/.test(username)){
+      showLoginError('Username hanya boleh huruf kecil, angka, titik, garis bawah, atau tanda hubung (3–20 karakter).');
+      return;
+    }
+    if(pass !== pass2){ showLoginError('Kedua password tidak sama.'); return; }
+    if(pass.length < 6){ showLoginError('Password minimal 6 karakter.'); return; }
+    if(!isAllowedSignupDomain(email)){
+      showLoginError('Pendaftaran hanya untuk email @' + SELF_SIGNUP_DOMAINS.join(' atau @') + '. Hubungi owner untuk email lain.');
+      return;
+    }
+
+    btn.disabled = true; btn.textContent = 'Membuat akun…';
+
+    db.collection('usernames').doc(username).get().then(function(snap){
+      if(snap.exists) throw {code:'custom/username-taken'};
+      return firebase.auth().createUserWithEmailAndPassword(email, pass);
+    }).then(function(cred){
+      // tahan sementara pemeriksaan peran di onAuthStateChanged sampai dokumen selesai dibuat
+      pendingSelfSignupUid = cred.user.uid;
+      return db.collection('users').doc(cred.user.uid).set({
+        email: email, username: username, role: SELF_SIGNUP_ROLE, createdAt: Date.now(), selfRegistered: true
+      }).then(function(){
+        return db.collection('usernames').doc(username).set({email: email});
+      }).then(function(){
+        pendingSelfSignupUid = null;
+        applyRole(username, SELF_SIGNUP_ROLE);
+        startAppIfNeeded();
+      });
+    })['catch'](function(err){
+      pendingSelfSignupUid = null;
+      console.error('Register error:', err);
+      var code = err && err.code;
+      var msg = 'Gagal membuat akun. Coba lagi atau hubungi owner.';
+      if(code === 'custom/username-taken') msg = 'Username "' + username + '" sudah dipakai. Pilih username lain.';
+      else if(code === 'auth/email-already-in-use') msg = 'Email ini sudah terdaftar. Coba masuk, atau pakai "Lupa password?" bila lupa passwordnya.';
+      else if(code === 'auth/invalid-email') msg = 'Format email tidak valid.';
+      else if(code === 'auth/weak-password') msg = 'Password terlalu lemah, minimal 6 karakter.';
+      else if(code === 'auth/operation-not-allowed') msg = 'Metode Email/Password belum diaktifkan di Firebase Console.';
+      else if(code === 'permission-denied') msg = 'Pendaftaran ditolak oleh aturan keamanan database. Minta owner memperbarui Firestore Rules.';
+      else if(code) msg = 'Gagal membuat akun (' + code + ').';
+      showLoginError(msg);
+      // kalau akun Auth sudah terbentuk tapi dokumennya gagal, jangan tinggalkan sesi setengah jadi
+      if(firebase.auth().currentUser && code === 'permission-denied'){
+        firebase.auth().signOut()['catch'](function(){});
+      }
+    })['finally'](function(){
+      btn.disabled = false; btn.textContent = 'Buat Akun';
+    });
+  });
+
+  document.getElementById('loginForgot').addEventListener('click', function(){
+    hideLoginError();
+    var id = document.getElementById('loginId').value;
+    if(!String(id || '').trim()){
+      showLoginError('Isi dulu email atau username Anda, lalu klik "Lupa password?".');
+      return;
+    }
+    var btn = this;
+    btn.disabled = true; btn.textContent = 'Mengirim…';
+    resolveEmail(id).then(function(email){
+      if(!email) throw {code:'custom/not-found'};
+      return firebase.auth().sendPasswordResetEmail(email).then(function(){
+        var el = document.getElementById('loginError');
+        el.style.display = 'block';
+        el.style.borderColor = 'var(--ok)';
+        el.style.color = 'var(--ok)';
+        el.textContent = 'Email pengaturan ulang password sudah dikirim ke ' + email + '. Cek inbox (dan folder spam).';
+      });
+    })['catch'](function(err){
+      var code = err && err.code;
+      var msg = 'Gagal mengirim email pengaturan ulang.';
+      if(code === 'custom/not-found') msg = 'Username tidak ditemukan. Coba masukkan alamat email lengkap.';
+      else if(code === 'auth/user-not-found') msg = 'Email ini belum terdaftar di Firebase Authentication. Minta owner membuat akunnya.';
+      else if(code === 'auth/invalid-email') msg = 'Format email tidak valid.';
+      else if(code === 'auth/too-many-requests') msg = 'Terlalu banyak permintaan. Coba lagi beberapa menit lagi.';
+      else if(code) msg = 'Gagal mengirim email pengaturan ulang (' + code + ').';
+      showLoginError(msg);
+    })['finally'](function(){
+      btn.disabled = false; btn.textContent = 'Lupa password?';
     });
   });
 
@@ -1240,7 +1414,10 @@
                 '<option value="toko"' + (d.role==='toko'?' selected':'') + '>Toko</option>' +
               '</select>') +
             '</td>' +
-            '<td>' + (isOwnerRow ? '' : '<button type="button" class="del-user">Cabut Akses</button>') + '</td>' +
+            '<td><div class="user-actions">' +
+              '<button type="button" class="reset-pw" data-email="' + (d.email || '') + '">Reset Password</button>' +
+              (isOwnerRow ? '' : '<button type="button" class="del-user">Cabut Akses</button>') +
+            '</div></td>' +
           '</tr>'
         );
       });
@@ -1255,6 +1432,22 @@
             document.getElementById('usersMsg').className = 'users-msg err';
             document.getElementById('usersMsg').textContent = 'Gagal memperbarui peran: ' + err.message;
           });
+        });
+      });
+      Array.prototype.forEach.call(body.querySelectorAll('.reset-pw'), function(btn){
+        btn.addEventListener('click', function(){
+          var email = this.getAttribute('data-email');
+          var msgEl = document.getElementById('usersMsg');
+          if(!email){ msgEl.className = 'users-msg err'; msgEl.textContent = 'Email pengguna ini tidak diketahui.'; return; }
+          if(!window.confirm('Kirim email pengaturan ulang password ke ' + email + '?')) return;
+          var b = this; b.disabled = true;
+          firebase.auth().sendPasswordResetEmail(email).then(function(){
+            msgEl.className = 'users-msg ok';
+            msgEl.textContent = 'Email pengaturan ulang password dikirim ke ' + email + '.';
+          })['catch'](function(err){
+            msgEl.className = 'users-msg err';
+            msgEl.textContent = 'Gagal mengirim: ' + err.message;
+          })['finally'](function(){ b.disabled = false; });
         });
       });
       Array.prototype.forEach.call(body.querySelectorAll('.del-user'), function(btn){
