@@ -801,7 +801,7 @@
       </div>
       <button type="submit" class="login-btn" id="loginSubmit">Masuk</button>
     </form>
-    <div class="login-note">Hubungi owner jika belum punya akun. Setiap pengguna diberi peran <b>Owner</b>, <b>Super Admin</b>, <b>Admin</b>, <b>Team</b>, atau <b>Toko</b> yang menentukan hak akses di dashboard ini.</div>
+    <div class="login-note">Hubungi owner jika belum punya akun. Setiap pengguna diberi peran <b>Owner</b>, <b>Super Admin</b>, <b>Admin</b>, atau <b>Team</b> yang menentukan hak akses di dashboard ini.</div>
   </div>
 </div>
 
@@ -828,7 +828,6 @@
           <option value="superadmin">Super Admin</option>
           <option value="admin">Admin</option>
           <option value="viewer">Team</option>
-          <option value="toko">Toko</option>
         </select>
         <button type="submit" class="btn btn-primary full">+ Tambah Pengguna</button>
       </form>
@@ -854,13 +853,13 @@
 
   <div class="userbar">
     <span class="who">Masuk sebagai <b id="whoName">–</b><span class="role-tag" id="whoRole">–</span></span>
-    <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko">👤 Kelola Pengguna</button>
+    <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer">👤 Kelola Pengguna</button>
     <button type="button" id="logoutBtn">Keluar</button>
   </div>
 
   <div class="view-tabs">
     <button type="button" class="view-tab active" id="tabMonitoringBtn" onclick="switchAppView('monitoring')">📊 Monitoring Rekonsiliasi</button>
-    <button type="button" class="view-tab" id="tabJadwalBtn" data-role-hide="viewer,toko" onclick="switchAppView('jadwal')">🗓 Jadwal &amp; Tugas Tim</button>
+    <button type="button" class="view-tab" id="tabJadwalBtn" data-role-hide="viewer" onclick="switchAppView('jadwal')">🗓 Jadwal &amp; Tugas Tim</button>
   </div>
 
   <div class="pipeline" id="pipeline"><div class="node"><div class="n-label">Sumber 1</div><div class="n-name">JUBELIO</div><div class="n-count">8.486 pesanan</div></div><div class="link"><div class="track"><div class="fill" style="width:69%"></div><div class="arrow"></div></div><div class="pct"><span>69%</span> match · 5.859</div></div><div class="node"><div class="n-label">Sumber 2</div><div class="n-name">LPH INFINITY</div><div class="n-count">5.859 terhubung</div></div><div class="link"><div class="track"><div class="fill" style="width:39%"></div><div class="arrow"></div></div><div class="pct"><span>39%</span> match · 2.298</div></div><div class="node"><div class="n-label">Sumber 3</div><div class="n-name">TI TO DETAIL INFINITY</div><div class="n-count">2.298 terhubung</div></div></div>
@@ -869,7 +868,7 @@
 <main id="viewMonitoring">
   <div class="stats" id="stats"><div class="stat " data-stat="pesanan" title="Klik untuk lihat diagram"><div class="s-label">Total Pesanan</div><div class="s-value">8.486</div><div class="s-sub">5.614 completed</div></div><div class="stat " data-stat="qty" title="Klik untuk lihat diagram"><div class="s-label">Total Qty</div><div class="s-value">8.839</div><div class="s-sub">unit terjual</div></div><div class="stat accent" data-stat="omzet" title="Klik untuk lihat diagram"><div class="s-label">Total Omzet</div><div class="s-value">Rp 2.496.243.096</div><div class="s-sub">seluruh sumber</div></div><div class="stat ok" data-stat="lph" title="Klik untuk lihat diagram"><div class="s-label">Match ke LPH</div><div class="s-value">69%</div><div class="s-sub">5.859 dari 8.486</div></div><div class="stat warn" data-stat="tii" title="Klik untuk lihat diagram"><div class="s-label">MATCH KE TO TI DETAIL</div><div class="s-value">27%</div><div class="s-sub">2.298 dari 8.486</div></div></div>
 
-  <section class="panel upload-panel" id="uploadPanel" data-role-hide="viewer,toko">
+  <section class="panel upload-panel" id="uploadPanel" data-role-hide="viewer">
     <div class="upload-head">
       <div>
         <div class="up-title">Tambah Data Baru</div>
@@ -879,7 +878,7 @@
       </div>
       <label class="btn btn-primary" for="fileInput">⬆ Pilih File</label>
       <input type="file" id="fileInput" accept=".xlsx,.xls" multiple="" hidden="">
-      <button class="btn btn-ghost" id="clearDataBtn" type="button" data-role-hide="admin,viewer,superadmin,toko" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
+      <button class="btn btn-ghost" id="clearDataBtn" type="button" data-role-hide="admin,viewer,superadmin" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
     </div>
     <div id="dropZone" class="drop-zone">
       Seret &amp; letakkan file .xlsx di sini, atau klik "Pilih File" di atas
@@ -1094,13 +1093,13 @@
   function applyRole(username, role){
     window.currentRole = role;
     document.getElementById('whoName').textContent = username;
-    document.getElementById('whoRole').textContent = role === 'owner' ? 'Owner' : (role === 'superadmin' ? 'Super Admin' : (role === 'admin' ? 'Admin' : (role === 'toko' ? 'Toko' : 'Team')));
+    document.getElementById('whoRole').textContent = role === 'owner' ? 'Owner' : (role === 'superadmin' ? 'Super Admin' : (role === 'admin' ? 'Admin' : 'Team'));
     Array.prototype.forEach.call(document.querySelectorAll('[data-role-hide]'), function(el){
       var hideFor = el.getAttribute('data-role-hide').split(',');
       el.style.display = hideFor.indexOf(role) !== -1 ? 'none' : '';
     });
-    // Peran Team & Toko hanya boleh melihat Monitoring — paksa kembali ke tab Monitoring kalau sedang di halaman Jadwal
-    if((role === 'viewer' || role === 'toko') && typeof switchAppView === 'function'){ try{ switchAppView('monitoring'); }catch(e){} }
+    // Peran Team hanya boleh melihat Monitoring — paksa kembali ke tab Monitoring kalau sedang di halaman Jadwal
+    if(role === 'viewer' && typeof switchAppView === 'function'){ try{ switchAppView('monitoring'); }catch(e){} }
     // Refresh UI akses di halaman Jadwal (peran admin/super admin) begitu peran diketahui
     if(typeof refreshAllViews === 'function'){ try{ refreshAllViews(); }catch(e){} }
   }
@@ -1186,7 +1185,6 @@
                 '<option value="superadmin"' + (d.role==='superadmin'?' selected':'') + '>Super Admin</option>' +
                 '<option value="admin"' + (d.role==='admin'?' selected':'') + '>Admin</option>' +
                 '<option value="viewer"' + (d.role==='viewer'?' selected':'') + '>Team</option>' +
-                '<option value="toko"' + (d.role==='toko'?' selected':'') + '>Toko</option>' +
               '</select>') +
             '</td>' +
             '<td>' + (isOwnerRow ? '' : '<button type="button" class="del-user">Cabut Akses</button>') + '</td>' +
@@ -2541,7 +2539,7 @@
         let fsReady = { current: false, meta: false };
 
         // Auth State — memakai peran login dashboard utama (owner/superadmin/admin/viewer)
-        var JADWAL_ROLE_RANK = { toko: -1, viewer: 0, admin: 1, superadmin: 2, owner: 3 };
+        var JADWAL_ROLE_RANK = { viewer: 0, admin: 1, superadmin: 2, owner: 3 };
         function hasRole(minRole) {
             minRole = minRole || 'admin';
             var myRank = JADWAL_ROLE_RANK.hasOwnProperty(currentRole) ? JADWAL_ROLE_RANK[currentRole] : -1;
@@ -2600,7 +2598,7 @@
         function renderAuthUI() {
             const container = document.getElementById('authContainer');
             if (!container) return;
-            var roleLabel = currentRole === 'owner' ? 'Owner' : (currentRole === 'superadmin' ? 'Super Admin' : (currentRole === 'admin' ? 'Admin' : (currentRole === 'toko' ? 'Toko' : 'Team')));
+            var roleLabel = currentRole === 'owner' ? 'Owner' : (currentRole === 'superadmin' ? 'Super Admin' : (currentRole === 'admin' ? 'Admin' : 'Team'));
             var canEditJadwal = hasRole('admin');
             container.innerHTML = `<span class="${canEditJadwal ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-900/70 text-slate-400 border-slate-800'} border px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5" title="Peran akses Anda saat ini"><i class="fas ${canEditJadwal ? 'fa-user-shield' : 'fa-eye'}"></i> ${roleLabel}</span>`;
         }
@@ -3267,8 +3265,8 @@ function switchAppView(view){
   var jad = document.getElementById('viewJadwal');
   var bMon = document.getElementById('tabMonitoringBtn');
   var bJad = document.getElementById('tabJadwalBtn');
-  // Peran Team & Toko hanya boleh melihat Monitoring, tidak boleh membuka halaman Jadwal sama sekali
-  if(view === 'jadwal' && (window.currentRole === 'viewer' || window.currentRole === 'toko')){
+  // Peran Team hanya boleh melihat Monitoring, tidak boleh membuka halaman Jadwal sama sekali
+  if(view === 'jadwal' && window.currentRole === 'viewer'){
     view = 'monitoring';
   }
   if(view === 'jadwal'){
