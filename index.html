@@ -29,6 +29,7 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
+  html{color-scheme:dark;}  /* daftar opsi <select> & scrollbar bawaan browser ikut gelap */
   body{
     background:var(--paper);
     color:var(--ink);
@@ -269,7 +270,8 @@
     border-radius:14px;
     width:min(720px, 100%);
     max-height:88vh;
-    overflow:auto;
+    overflow-y:auto;
+    overflow-x:hidden;
     box-shadow:0 30px 60px -20px rgba(0,0,0,0.5);
     border:1px solid var(--line);
   }
@@ -378,13 +380,23 @@
 
   /* ---------- MANAGE USERS MODAL ---------- */
   .users-modal .chart-modal{width:min(560px, 100%);}
-  .users-table{width:100%; border-collapse:collapse; margin-bottom:18px; font-size:13px;}
+  .users-table{
+    width:100%; border-collapse:collapse; margin-bottom:18px; font-size:13px;
+    table-layout:fixed; /* cegah email panjang membuat modal melebar & bergeser */
+  }
+  .users-table td, .users-table th{overflow-wrap:anywhere;}
   .users-table th{
     text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em;
     color:var(--muted); padding:6px 8px; border-bottom:1px solid var(--line);
   }
-  .users-table td{padding:8px; border-bottom:1px solid var(--line); vertical-align:middle;}
-  .users-table select{padding:4px 6px; border-radius:6px; border:1px solid var(--line);}
+  .users-table td{padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; color:var(--ink);}
+  .users-table select{
+    padding:5px 8px; border-radius:6px; border:1px solid var(--line);
+    background:var(--paper-raised); color:var(--ink);
+    font-family:'Inter',sans-serif; font-size:12.5px; cursor:pointer;
+  }
+  .users-table select:hover{border-color:var(--accent);}
+  .users-table select:focus{outline:none; border-color:var(--accent);}
   .users-table .del-user{
     border:none; background:var(--warn-bg); color:var(--warn); border-radius:6px;
     padding:5px 9px; font-size:12px; cursor:pointer;
@@ -394,6 +406,14 @@
   }
   .add-user-form input, .add-user-form select{
     padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;
+    background:var(--paper-raised); color:var(--ink); font-family:'Inter',sans-serif;
+  }
+  .add-user-form input::placeholder{color:var(--muted);}
+  .add-user-form input:focus, .add-user-form select:focus{outline:none; border-color:var(--accent);}
+  /* Daftar opsi dropdown juga dipaksa gelap (default browser = putih) */
+  .users-table select option, .add-user-form select option,
+  .toolbar select option, .pager select option{
+    background:var(--paper-raised); color:var(--ink);
   }
   .add-user-form .full{grid-column:1 / -1;}
   .users-msg{font-size:12px; margin-top:8px; min-height:16px;}
@@ -639,6 +659,7 @@
   .pager select{
     border:1px solid var(--line); border-radius:6px; padding:5px 8px; font-size:12.5px;
     font-family:'Inter',sans-serif;
+    background:var(--paper-raised); color:var(--ink);
   }
 
   /* ---------- upload panel ---------- */
