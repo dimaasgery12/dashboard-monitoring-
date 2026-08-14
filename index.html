@@ -2,7 +2,7 @@
 <html lang="id"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- build: self-signup-toko -->
+<!-- build: compact-shift-modal-today-tabs -->
 <title>Monitoring Jubelio — Jubelio × LPH Infinity × TI TO Detail Infinity</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -1009,7 +1009,6 @@
       <label class="chk"><input type="checkbox" id="onlyUnmatched"> Hanya yang belum lengkap match</label>
       <div class="spacer"></div>
       <button class="btn btn-ghost" id="resetBtn">Reset filter</button>
-      <button class="btn btn-ghost" id="downloadHtmlBtn">⬇ Unduh HTML</button>
       <button class="btn btn-primary" id="downloadBtn">⬇ Unduh Excel</button>
     </div>
 
@@ -2430,7 +2429,6 @@
     document.getElementById('lastPage').addEventListener('click', function(){ state.page = Math.ceil(state.filtered.length/state.pageSize); renderTable(); });
 
     document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
-    document.getElementById('downloadHtmlBtn').addEventListener('click', downloadHtml);
 
     document.getElementById('clearDataBtn').addEventListener('click', function(){
       if(currentRole !== 'owner'){ window.alert('Hanya Owner yang bisa menghapus semua data.'); return; }
@@ -2737,21 +2735,21 @@
 
     <!-- Modal Kelola Jenis Shift -->
     <div id="shiftTypeModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[40] p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all duration-300">
-            <div class="bg-slate-800/40 p-5 border-b border-slate-800 flex justify-between items-center">
-                <h3 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-list-check text-cyan-400"></i> Kelola Jenis Shift</h3>
-                <button onclick="closeShiftTypeModal()" class="text-slate-400 hover:text-white p-2 rounded-lg transition-colors"><i class="fas fa-xmark text-lg"></i></button>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm max-h-[85vh] flex flex-col overflow-hidden transform transition-all duration-300">
+            <div class="bg-slate-800/40 px-4 py-3 border-b border-slate-800 flex justify-between items-center shrink-0">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="fas fa-list-check text-cyan-400"></i> Kelola Jenis Shift</h3>
+                <button onclick="closeShiftTypeModal()" class="text-slate-400 hover:text-white p-1.5 rounded-lg transition-colors"><i class="fas fa-xmark"></i></button>
             </div>
-            <p class="text-xs text-slate-400 px-6 pt-4">Ubah nama, ganti warna, hapus, atau tambah jenis shift. Perubahan berlaku di dropdown jadwal &amp; kartu ringkasan. "Off" (libur) selalu tersedia dan tidak bisa dihapus.</p>
-            <div class="p-6 max-h-[420px] overflow-y-auto custom-scroll space-y-3" id="shiftTypeFieldsContainer"></div>
-            <div class="px-6 pb-6 pt-2">
-                <button onclick="addNewShiftType()" class="w-full border border-dashed border-slate-700 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-500/5 rounded-xl py-3 text-xs font-bold transition-all btn-press flex items-center justify-center gap-2">
+            <p class="text-[10px] text-slate-400 px-4 pt-3 leading-relaxed shrink-0">Ubah nama, warna, hapus, atau tambah jenis shift. "Off" selalu tersedia dan tidak bisa dihapus.</p>
+            <div class="px-4 py-3 flex-1 overflow-y-auto custom-scroll space-y-2" id="shiftTypeFieldsContainer"></div>
+            <div class="px-4 pb-3 shrink-0">
+                <button onclick="addNewShiftType()" class="w-full border border-dashed border-slate-700 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-500/5 rounded-lg py-2 text-[11px] font-bold transition-all btn-press flex items-center justify-center gap-2">
                     <i class="fas fa-plus"></i> Tambah Jenis Shift
                 </button>
             </div>
-            <div class="p-6 bg-slate-950/40 border-t border-slate-800 flex justify-end gap-3">
-                <button onclick="closeShiftTypeModal()" class="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-300 font-bold text-xs btn-press">Batal</button>
-                <button onclick="saveShiftTypeChanges()" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-extrabold text-xs btn-press">Simpan Perubahan</button>
+            <div class="px-4 py-3 bg-slate-950/40 border-t border-slate-800 flex justify-end gap-2 shrink-0">
+                <button onclick="closeShiftTypeModal()" class="px-3 py-2 rounded-lg border border-slate-800 text-slate-300 font-bold text-[11px] btn-press">Batal</button>
+                <button onclick="saveShiftTypeChanges()" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-extrabold text-[11px] btn-press">Simpan Perubahan</button>
             </div>
         </div>
     </div>
@@ -2811,7 +2809,14 @@
         // Core State
         let teamData = [];
         let tasks = [];
-        let activeSelectedDay = 0; 
+        // Indeks hari nyata: JS getDay() 0=Minggu, sedangkan daysMap dimulai dari Senin
+        function getTodayDayIndex() {
+            return (new Date().getDay() + 6) % 7;
+        }
+        let activeSelectedDay = getTodayDayIndex();
+        // Selama pengguna belum memilih hari secara manual, tab ikut berpindah otomatis
+        // saat tanggal berganti (lewat tengah malam).
+        let followToday = true; 
         let activeFilterMember = "all";
 
         // Mode Jadwal: 'current' = Minggu Ini (aktif), 'next' = Draft Minggu Depan
@@ -3131,6 +3136,14 @@
             }
         }
 
+        // Dipanggil oleh jam hidup ketika tanggal berganti
+        window.onDayChanged = function(newIdx) {
+            if (followToday) activeSelectedDay = newIdx;
+            renderDaySelectorTabs();
+            updateStatCards();
+            renderSidebarTaskList();
+        };
+
         function refreshAllViews() {
             renderAuthUI();
             applyJadwalPermissions();
@@ -3214,26 +3227,20 @@
             container.innerHTML = '';
 
             if (shiftTypeDraft.length === 0) {
-                container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">Belum ada Jenis Shift kustom. Tambahkan minimal satu di bawah ini.</p>`;
+                container.innerHTML = `<p class="text-[11px] text-slate-500 text-center py-3">Belum ada Jenis Shift kustom. Tambahkan minimal satu di bawah ini.</p>`;
             }
 
             shiftTypeDraft.forEach((def, idx) => {
                 const swatches = shiftColorNames.map(colorName => {
                     const c = shiftColorPalette[colorName];
                     const isActive = def.color === colorName;
-                    return `<button type="button" onclick="setShiftTypeDraftColor(${idx}, '${colorName}')" class="w-6 h-6 rounded-full ${c.dot} ${isActive ? 'ring-2 ring-offset-2 ring-offset-slate-900 ring-white' : 'opacity-60 hover:opacity-100'} transition-all"></button>`;
+                    return `<button type="button" onclick="setShiftTypeDraftColor(${idx}, '${colorName}')" title="${colorName}" class="w-4 h-4 rounded-full ${c.dot} ${isActive ? 'ring-2 ring-offset-1 ring-offset-slate-950 ring-white' : 'opacity-50 hover:opacity-100'} transition-all"></button>`;
                 }).join('');
 
-                container.innerHTML += `<div class="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3 relative">
-                    <button onclick="removeShiftTypeDraft(${idx})" class="absolute top-4 right-4 text-slate-600 hover:text-rose-400 p-1"><i class="fas fa-trash-can"></i></button>
-                    <div>
-                        <label class="block text-[9px] text-slate-500 mb-1">Nama Jenis Shift</label>
-                        <input type="text" oninput="renameShiftTypeDraft(${idx}, this.value)" value="${def.name}" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white pr-8">
-                    </div>
-                    <div>
-                        <label class="block text-[9px] text-slate-500 mb-1.5">Warna</label>
-                        <div class="flex gap-2">${swatches}</div>
-                    </div>
+                container.innerHTML += `<div class="bg-slate-950/40 border border-slate-800 p-2.5 rounded-lg flex items-center gap-2">
+                    <input type="text" oninput="renameShiftTypeDraft(${idx}, this.value)" value="${def.name}" placeholder="Nama shift" class="flex-1 min-w-0 bg-slate-900 border border-slate-800 rounded-md px-2 py-1.5 text-[11px] text-white">
+                    <div class="flex gap-1 shrink-0">${swatches}</div>
+                    <button onclick="removeShiftTypeDraft(${idx})" class="text-slate-600 hover:text-rose-400 p-1 shrink-0" title="Hapus jenis shift"><i class="fas fa-trash-can text-[11px]"></i></button>
                 </div>`;
             });
         }
@@ -3347,15 +3354,39 @@
         function renderDaySelectorTabs() {
             const container = document.getElementById('dayTabsContainer');
             container.innerHTML = '';
+            const todayIdx = getTodayDayIndex();
             daysMap.forEach((day, idx) => {
                 const btn = document.createElement('button');
-                btn.onclick = () => { activeSelectedDay = idx; renderDaySelectorTabs(); updateStatCards(); };
-                btn.className = activeSelectedDay === idx 
+                const isToday = idx === todayIdx;
+                btn.onclick = () => {
+                    activeSelectedDay = idx;
+                    followToday = (idx === getTodayDayIndex());
+                    renderDaySelectorTabs();
+                    updateStatCards();
+                };
+                btn.className = activeSelectedDay === idx
                     ? "text-[11px] font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white"
-                    : "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 hover:bg-slate-900";
-                btn.innerText = day;
+                    : (isToday
+                        ? "text-[11px] font-bold px-3 py-1.5 rounded-lg text-emerald-400 border border-emerald-500/30 hover:bg-slate-900"
+                        : "text-[11px] font-bold px-3 py-1.5 rounded-lg text-slate-400 hover:bg-slate-900");
+                btn.innerText = isToday ? day + ' •' : day;
+                btn.title = isToday ? 'Hari ini' : '';
                 container.appendChild(btn);
             });
+
+            // tombol kembali ke hari ini, muncul hanya kalau sedang melihat hari lain
+            if (activeSelectedDay !== todayIdx) {
+                const back = document.createElement('button');
+                back.onclick = () => {
+                    activeSelectedDay = getTodayDayIndex();
+                    followToday = true;
+                    renderDaySelectorTabs();
+                    updateStatCards();
+                };
+                back.className = "text-[11px] font-bold px-3 py-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 ml-1";
+                back.innerHTML = '<i class="fas fa-rotate-left"></i> Hari ini';
+                container.appendChild(back);
+            }
         }
 
         window.openAddTaskModal = function() {
@@ -3604,8 +3635,15 @@ function switchAppView(view){
 }
 
 // ---------- Jam & tanggal live (WIB) untuk seluruh dashboard ----------
+var lastKnownDayIndex = (new Date().getDay() + 6) % 7;
 function updateLiveClocks(){
   var now = new Date();
+  // Deteksi pergantian hari (lewat tengah malam) tanpa perlu refresh halaman
+  var nowDayIndex = (now.getDay() + 6) % 7;
+  if(nowDayIndex !== lastKnownDayIndex){
+    lastKnownDayIndex = nowDayIndex;
+    if(typeof window.onDayChanged === 'function'){ try{ window.onDayChanged(nowDayIndex); }catch(e){ console.error(e); } }
+  }
   var dateStr = now.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   var timeStr = now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) + ' WIB';
   ['heroClockDate','jadwalClockDate'].forEach(function(id){
