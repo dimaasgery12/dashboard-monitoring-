@@ -2,7 +2,7 @@
 <html lang="id"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- build: users-modal-scroll-fix -->
+<!-- build: recover-existing-auth-user -->
 <title>Monitoring Jubelio — Jubelio × LPH Infinity × TI TO Detail Infinity</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -1229,7 +1229,7 @@
         var d = doc.data();
         var isOwnerRow = d.role === 'owner';
         rows.push(
-          '<tr data-uid="' + doc.id + '">' +
+          '<tr data-uid="' + doc.id + '" data-username="' + (d.username || '') + '">' +
             '<td>' + (d.username || '-') + '</td>' +
             '<td>' + (d.email || '-') + '</td>' +
             '<td>' + (isOwnerRow ? 'Owner' :
@@ -1251,6 +1251,9 @@
           db.collection('users').doc(uid).update({role: this.value}).then(function(){
             document.getElementById('usersMsg').className = 'users-msg ok';
             document.getElementById('usersMsg').textContent = 'Peran pengguna diperbarui.';
+          })['catch'](function(err){
+            document.getElementById('usersMsg').className = 'users-msg err';
+            document.getElementById('usersMsg').textContent = 'Gagal memperbarui peran: ' + err.message;
           });
         });
       });
@@ -1258,11 +1261,18 @@
         btn.addEventListener('click', function(){
           var tr = this.closest('tr');
           var uid = tr.getAttribute('data-uid');
-          if(!window.confirm('Cabut akses pengguna ini? Pengguna tidak akan bisa masuk lagi ke dashboard.')) return;
+          var uname = tr.getAttribute('data-username') || '';
+          if(!window.confirm('Cabut akses pengguna ini? Pengguna tidak akan bisa masuk lagi ke dashboard.\n\nCatatan: akun email-nya tetap ada di Firebase Authentication, jadi email yang sama masih bisa dipulihkan lewat form "Tambah Pengguna Baru".')) return;
           db.collection('users').doc(uid).delete().then(function(){
+            // mapping username -> email juga dibersihkan supaya login via username tidak nyangkut
+            if(uname) return db.collection('usernames').doc(uname).delete()['catch'](function(){});
+          }).then(function(){
             tr.remove();
             document.getElementById('usersMsg').className = 'users-msg ok';
-            document.getElementById('usersMsg').textContent = 'Akses pengguna dicabut.';
+            document.getElementById('usersMsg').textContent = 'Akses pengguna dicabut. Akun email-nya masih ada di Authentication dan bisa dipulihkan kapan saja.';
+          })['catch'](function(err){
+            document.getElementById('usersMsg').className = 'users-msg err';
+            document.getElementById('usersMsg').textContent = 'Gagal mencabut akses: ' + err.message;
           });
         });
       });
@@ -1297,20 +1307,45 @@
     var secondaryApp = firebase.initializeApp(firebaseConfig, secondaryName);
     var secondaryAuth = secondaryApp.auth();
 
-    secondaryAuth.createUserWithEmailAndPassword(email, password).then(function(cred){
-      return db.collection('users').doc(cred.user.uid).set({
+    function writeUserDocs(uid){
+      return db.collection('users').doc(uid).set({
         email: email, username: username, role: role, createdAt: Date.now()
       }).then(function(){
         return db.collection('usernames').doc(username).set({email: email});
       });
-    }).then(function(){
+    }
+
+    secondaryAuth.createUserWithEmailAndPassword(email, password).then(function(cred){
+      return writeUserDocs(cred.user.uid).then(function(){ return 'baru'; });
+    })['catch'](function(err){
+      // Email sudah terdaftar di Firebase Authentication tapi belum punya dokumen
+      // peran di Firestore (mis. pernah dicabut aksesnya, atau percobaan sebelumnya
+      // gagal di tengah jalan). Kalau passwordnya cocok, akses cukup dipulihkan.
+      if(err && err.code === 'auth/email-already-in-use'){
+        msgEl.textContent = 'Email sudah terdaftar, mencoba memulihkan akses…';
+        return secondaryAuth.signInWithEmailAndPassword(email, password).then(function(cred){
+          return writeUserDocs(cred.user.uid).then(function(){ return 'pulih'; });
+        })['catch'](function(err2){
+          var c = err2 && err2.code;
+          if(c === 'auth/wrong-password' || c === 'auth/invalid-credential' || c === 'auth/invalid-login-credentials'){
+            throw new Error('Email ' + email + ' sudah dipakai akun lain di Firebase Authentication, dan password yang Anda isi tidak cocok dengan akun itu. Pilihan: (1) isi password lama akun tersebut untuk memulihkan aksesnya, atau (2) hapus akunnya dulu di Firebase Console → Authentication → Users, lalu buat ulang.');
+          }
+          throw err2;
+        });
+      }
+      if(err && err.code === 'auth/weak-password') throw new Error('Password minimal 6 karakter.');
+      if(err && err.code === 'auth/invalid-email') throw new Error('Format email tidak valid.');
+      throw err;
+    }).then(function(mode){
       msgEl.className = 'users-msg ok';
-      msgEl.textContent = 'Pengguna ' + username + ' berhasil dibuat.';
+      msgEl.textContent = mode === 'pulih'
+        ? 'Akun ' + email + ' sudah ada di Authentication — akses & peran ' + username + ' berhasil dipulihkan.'
+        : 'Pengguna ' + username + ' berhasil dibuat.';
       document.getElementById('addUserForm').reset();
       loadUsersList();
     })['catch'](function(err){
       msgEl.className = 'users-msg err';
-      msgEl.textContent = 'Gagal membuat pengguna: ' + err.message;
+      msgEl.textContent = 'Gagal menambahkan pengguna: ' + (err && err.message ? err.message : err);
     })['finally'](function(){
       secondaryAuth.signOut()['catch'](function(){});
       secondaryApp['delete']()['catch'](function(){});
