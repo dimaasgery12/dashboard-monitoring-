@@ -78,6 +78,20 @@
     margin:0 0 8px;
     line-height:1.05;
   }
+  /* Judul hero — pakai selector .hero h1 (spesifisitas lebih tinggi) supaya
+     tidak tertimpa reset bawaan Tailwind yang membuat h1 ikut ukuran teks biasa. */
+  .hero h1{
+    font-family:'Oswald',sans-serif;
+    font-size:clamp(42px, 5.6vw, 64px);
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.015em;
+    line-height:1.02;
+    margin:0 0 12px;
+    color:#F4F1EA;
+    position:relative;
+    z-index:1;
+  }
   .hero-logo{
     position:absolute;
     top:22px;
@@ -503,6 +517,36 @@
     color-scheme: dark;
   }
   .toolbar .spacer{flex:1 1 auto;}
+  /* ---------- filter duplikat ---------- */
+  .dup-info{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    color:var(--amber);
+    background:var(--amber-bg);
+    border:1px solid rgba(214,164,25,.35);
+    padding:6px 10px;
+    border-radius:999px;
+    white-space:nowrap;
+    letter-spacing:.02em;
+  }
+  #dupFilter.on{
+    border-color:rgba(214,164,25,.55);
+    color:var(--amber);
+  }
+  tr.dup-band td{background:rgba(214,164,25,.065);}
+  .dup-count{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    font-weight:700;
+    color:var(--amber);
+    background:var(--amber-bg);
+    border:1px solid rgba(214,164,25,.35);
+    padding:1px 5px;
+    border-radius:5px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
 
   /* ---------- MULTI-SELECT FILTER ---------- */
   .msel{position:relative;}
@@ -746,6 +790,7 @@
 
   @media (max-width: 720px){
     .hero{padding:28px 20px 24px;}
+    .hero h1{font-size:clamp(30px, 8.5vw, 42px);}
     .hero-logo{position:static; height:28px; margin:0 0 14px; right:auto; top:auto;}
     .hero-topline{padding-right:0; justify-content:flex-start;}
     main{padding:20px 16px 40px;}
@@ -897,8 +942,8 @@
           <colgroup>
             <col style="width:17%"><col style="width:36%"><col style="width:22%"><col style="width:25%">
           </colgroup>
-          <thead><tr><th>Username</th><th>Email</th><th>Peran</th><th></th></tr></thead>
-          <tbody id="usersTableBody"><tr><td colspan="4">Memuat…</td></tr></tbody>
+          <thead><tr><th>Username</th><th>Email</th><th>Peran</th><th>Lokasi</th><th></th></tr></thead>
+          <tbody id="usersTableBody"><tr><td colspan="5">Memuat…</td></tr></tbody>
         </table>
       </div>
       <div class="up-title" style="margin-bottom:8px;">Tambah Pengguna Baru</div>
@@ -911,6 +956,9 @@
           <option value="admin">Admin</option>
           <option value="viewer">Team</option>
           <option value="toko">Toko</option>
+        </select>
+        <select id="newLokasi" title="Batasi akun ini hanya ke satu lokasi">
+          <option value="">Semua lokasi (tanpa batasan)</option>
         </select>
         <button type="submit" class="btn btn-primary full">+ Tambah Pengguna</button>
       </form>
@@ -1007,6 +1055,15 @@
         </div>
       </div>
       <label class="chk"><input type="checkbox" id="onlyUnmatched"> Hanya yang belum lengkap match</label>
+      <select id="dupFilter" title="Tampilkan hanya baris yang nomornya kembar (duplikat)">
+        <option value="">Duplikat: nonaktif</option>
+        <option value="No Pesanan">Duplikat — No. Pesanan sama</option>
+        <option value="No SO (LPH)">Duplikat — No SO (LPH) sama</option>
+        <option value="No TI (TII)">Duplikat — No TI (TII) sama</option>
+        <option value="No TO (TII)">Duplikat — No TO (TII) sama</option>
+        <option value="__COMBO__">Duplikat — Pesanan + SO + TI + TO sama</option>
+      </select>
+      <span class="dup-info" id="dupInfo" hidden=""></span>
       <div class="spacer"></div>
       <button class="btn btn-ghost" id="resetBtn">Reset filter</button>
       <button class="btn btn-primary" id="downloadBtn">⬇ Unduh Excel</button>
@@ -1128,8 +1185,55 @@
   var OWNER_USERNAME = 'gerry';
   var OWNER_PASSWORD = '12345678';
   window.currentRole = null;
+  window.lockedLokasi = null;   // kalau diisi, akun hanya boleh melihat 1 lokasi ini
   var appStarted = false;
   var usernameCache = {};
+
+  // ---------- pembatasan lokasi per akun ----------
+  function normLokasi(v){
+    return (v === null || v === undefined) ? '' : String(v).trim().toUpperCase();
+  }
+
+  // Daftar seluruh lokasi dari data mentah (tidak ikut terpotong pembatasan akun)
+  function allLokasiList(){
+    var seen = {}, out = [];
+    jubelioRows.forEach(function(r){
+      var v = (r && r['Lokasi'] !== null && r['Lokasi'] !== undefined) ? String(r['Lokasi']).trim() : '';
+      if(v && !seen[normLokasi(v)]){ seen[normLokasi(v)] = true; out.push(v); }
+    });
+    return out.sort(function(a,b){ return a.localeCompare(b, 'id'); });
+  }
+
+  // Isi <select> pilihan lokasi (dipakai form tambah pengguna & tabel pengguna)
+  function lokasiOptionsHtml(selected){
+    var sel = normLokasi(selected);
+    var html = '<option value=""' + (sel ? '' : ' selected') + '>Semua lokasi</option>';
+    allLokasiList().forEach(function(lok){
+      html += '<option value="' + lok.replace(/"/g, '&quot;') + '"' +
+              (normLokasi(lok) === sel ? ' selected' : '') + '>' + lok + '</option>';
+    });
+    return html;
+  }
+
+  // Kunci kontrol filter Lokasi di toolbar supaya tidak bisa diubah pengguna terbatas
+  function lockLokasiUI(){
+    var lok = window.lockedLokasi;
+    var root = document.getElementById('mselLokasi');
+    var btn = document.getElementById('mselLokasiBtn');
+    if(!root || !btn) return;
+    if(lok){
+      root.classList.remove('open');
+      btn.textContent = '🔒 ' + lok;
+      btn.disabled = true;
+      btn.title = 'Akun Anda dibatasi hanya untuk lokasi ' + lok;
+      root.style.opacity = '.75';
+      root.style.pointerEvents = 'none';
+    } else {
+      btn.disabled = false;
+      root.style.opacity = '';
+      root.style.pointerEvents = '';
+    }
+  }
 
   function resolveEmail(identifier){
     identifier = String(identifier || '').trim();
@@ -1178,14 +1282,39 @@
     });
   }
 
-  function applyRole(username, role){
+  function applyRole(username, role, lokasi){
     window.currentRole = role;
+    window.lockedLokasi = (lokasi === null || lokasi === undefined || String(lokasi).trim() === '')
+      ? null : String(lokasi).trim();
     document.getElementById('whoName').textContent = username;
     document.getElementById('whoRole').textContent = role === 'owner' ? 'Owner' : (role === 'superadmin' ? 'Super Admin' : (role === 'admin' ? 'Admin' : (role === 'toko' ? 'Toko' : 'Team')));
     Array.prototype.forEach.call(document.querySelectorAll('[data-role-hide]'), function(el){
       var hideFor = el.getAttribute('data-role-hide').split(',');
       el.style.display = hideFor.indexOf(role) !== -1 ? 'none' : '';
     });
+    // Tampilkan lencana lokasi kalau akun ini dikunci ke satu lokasi
+    var whoRoleEl = document.getElementById('whoRole');
+    var lokTag = document.getElementById('whoLokasi');
+    if(!lokTag && whoRoleEl && whoRoleEl.parentNode){
+      lokTag = document.createElement('span');
+      lokTag.id = 'whoLokasi';
+      lokTag.className = 'role-tag';
+      lokTag.style.marginLeft = '6px';
+      whoRoleEl.parentNode.appendChild(lokTag);
+    }
+    if(lokTag){
+      if(window.lockedLokasi){
+        lokTag.textContent = '📍 ' + window.lockedLokasi;
+        lokTag.style.display = '';
+        lokTag.title = 'Akun ini hanya dapat melihat data lokasi ' + window.lockedLokasi;
+      } else {
+        lokTag.style.display = 'none';
+      }
+    }
+    // Data sudah dimuat? bangun ulang supaya pembatasan lokasi langsung berlaku
+    if(appStarted && typeof refreshAll === 'function'){ try{ refreshAll(); }catch(e){ console.error(e); } }
+    lockLokasiUI();
+
     // Peran Toko hanya boleh melihat Monitoring. Team boleh melihat Jadwal (read-only).
     if(role === 'toko' && typeof switchAppView === 'function'){ try{ switchAppView('monitoring'); }catch(e){} }
     // Mulai sinkronisasi jadwal ke Firestore setelah peran diketahui (sudah login)
@@ -1212,7 +1341,7 @@
     db.collection('users').doc(user.uid).get().then(function(snap){
       if(snap.exists){
         var d = snap.data();
-        applyRole(d.username || user.email, d.role);
+        applyRole(d.username || user.email, d.role, d.lokasi);
         startAppIfNeeded();
       } else if(user.email === OWNER_EMAIL){
         db.collection('users').doc(user.uid).set({
@@ -1394,9 +1523,9 @@
   // ---------- kelola pengguna (khusus owner) ----------
   function loadUsersList(){
     var body = document.getElementById('usersTableBody');
-    body.innerHTML = '<tr><td colspan="4">Memuat…</td></tr>';
+    body.innerHTML = '<tr><td colspan="5">Memuat…</td></tr>';
     db.collection('users').get().then(function(qs){
-      if(qs.empty){ body.innerHTML = '<tr><td colspan="4">Belum ada pengguna.</td></tr>'; return; }
+      if(qs.empty){ body.innerHTML = '<tr><td colspan="5">Belum ada pengguna.</td></tr>'; return; }
       var rows = [];
       qs.forEach(function(doc){
         var d = doc.data();
@@ -1413,6 +1542,8 @@
                 '<option value="toko"' + (d.role==='toko'?' selected':'') + '>Toko</option>' +
               '</select>') +
             '</td>' +
+            '<td>' + (isOwnerRow ? '<span style="color:var(--muted);">Semua lokasi</span>' :
+              '<select class="lokasi-select">' + lokasiOptionsHtml(d.lokasi) + '</select>') + '</td>' +
             '<td><div class="user-actions">' +
               '<button type="button" class="reset-pw" data-email="' + (d.email || '') + '">Reset Password</button>' +
               (isOwnerRow ? '' : '<button type="button" class="del-user">Cabut Akses</button>') +
@@ -1430,6 +1561,22 @@
           })['catch'](function(err){
             document.getElementById('usersMsg').className = 'users-msg err';
             document.getElementById('usersMsg').textContent = 'Gagal memperbarui peran: ' + err.message;
+          });
+        });
+      });
+      Array.prototype.forEach.call(body.querySelectorAll('.lokasi-select'), function(sel){
+        sel.addEventListener('change', function(){
+          var uid = this.closest('tr').getAttribute('data-uid');
+          var val = this.value;
+          var msgEl = document.getElementById('usersMsg');
+          db.collection('users').doc(uid).update({lokasi: val}).then(function(){
+            msgEl.className = 'users-msg ok';
+            msgEl.textContent = val
+              ? 'Pengguna ini sekarang hanya bisa melihat lokasi ' + val + '. Berlaku setelah ia masuk ulang.'
+              : 'Pembatasan lokasi dilepas — pengguna ini bisa melihat semua lokasi setelah masuk ulang.';
+          })['catch'](function(err){
+            msgEl.className = 'users-msg err';
+            msgEl.textContent = 'Gagal menyimpan lokasi: ' + err.message;
           });
         });
       });
@@ -1469,13 +1616,15 @@
         });
       });
     })['catch'](function(err){
-      body.innerHTML = '<tr><td colspan="4">Gagal memuat: ' + err.message + '</td></tr>';
+      body.innerHTML = '<tr><td colspan="5">Gagal memuat: ' + err.message + '</td></tr>';
     });
   }
 
   document.getElementById('manageUsersBtn').addEventListener('click', function(){
     document.getElementById('usersOverlay').classList.add('open');
     document.getElementById('usersMsg').textContent = '';
+    var newLok = document.getElementById('newLokasi');
+    if(newLok) newLok.innerHTML = lokasiOptionsHtml('');
     loadUsersList();
   });
   document.getElementById('usersModalClose').addEventListener('click', function(){
@@ -1493,6 +1642,7 @@
     var email = document.getElementById('newEmail').value.trim().toLowerCase();
     var password = document.getElementById('newPassword').value;
     var role = document.getElementById('newRole').value;
+    var lokasi = document.getElementById('newLokasi').value;
 
     // pakai instance Firebase kedua supaya owner tidak ikut ter-logout saat akun baru dibuat
     var secondaryName = 'Secondary_' + Date.now();
@@ -1501,7 +1651,7 @@
 
     function writeUserDocs(uid){
       return db.collection('users').doc(uid).set({
-        email: email, username: username, role: role, createdAt: Date.now()
+        email: email, username: username, role: role, lokasi: lokasi, createdAt: Date.now()
       }).then(function(){
         return db.collection('usernames').doc(username).set({email: email});
       });
@@ -1530,9 +1680,10 @@
       throw err;
     }).then(function(mode){
       msgEl.className = 'users-msg ok';
-      msgEl.textContent = mode === 'pulih'
+      msgEl.textContent = (mode === 'pulih'
         ? 'Akun ' + email + ' sudah ada di Authentication — akses & peran ' + username + ' berhasil dipulihkan.'
-        : 'Pengguna ' + username + ' berhasil dibuat.';
+        : 'Pengguna ' + username + ' berhasil dibuat.')
+        + (lokasi ? ' Dibatasi hanya untuk lokasi ' + lokasi + '.' : '');
       document.getElementById('addUserForm').reset();
       loadUsersList();
     })['catch'](function(err){
@@ -1650,6 +1801,16 @@
 
   function rebuildRaw(){
     RAW = jubelioRows.map(joinRow);
+    // Akun yang dikunci ke satu lokasi: seluruh aplikasi (tabel, statistik,
+    // pipeline, grafik, unduhan Excel) hanya melihat baris lokasi tersebut.
+    var lock = window.lockedLokasi;
+    if(lock){
+      var lockKey = String(lock).trim().toUpperCase();
+      RAW = RAW.filter(function(r){
+        var v = (r['Lokasi'] === null || r['Lokasi'] === undefined) ? '' : String(r['Lokasi']).trim().toUpperCase();
+        return v === lockKey;
+      });
+    }
   }
 
   // ---------- pipeline header ----------
@@ -2067,6 +2228,24 @@
     });
   }
 
+  // ---------- helper filter duplikat ----------
+  var DUP_COMBO_KEYS = ['No Pesanan', 'No SO (LPH)', 'No TI (TII)', 'No TO (TII)'];
+
+  function dupNorm(v){
+    return (v === null || v === undefined) ? '' : String(v).trim().toUpperCase();
+  }
+
+  // Menghasilkan "kunci duplikat" sebuah baris. String kosong = baris diabaikan.
+  function dupKeyOf(r, mode){
+    if(!mode) return '';
+    if(mode === '__COMBO__'){
+      var parts = DUP_COMBO_KEYS.map(function(k){ return dupNorm(r[k]); });
+      var adaIsi = parts.some(function(p){ return p !== ''; });
+      return adaIsi ? parts.join(' | ') : '';
+    }
+    return dupNorm(r[mode]);
+  }
+
   function applyFilters(){
     var q = document.getElementById('searchBox').value.trim().toLowerCase();
     var stSel = state.msel.status;
@@ -2097,10 +2276,48 @@
       return true;
     });
 
-    var anyFilterActive = !!(q || stSel.length || smSel.length || tkSel.length || lokSel.length || onlyUnmatched || dateFrom || dateTo);
+    // ---------- filter duplikat: hanya baris yang nomornya kembar ----------
+    var dupSel = document.getElementById('dupFilter');
+    var dupMode = dupSel ? dupSel.value : '';
+    var dupInfo = document.getElementById('dupInfo');
+    state.dupKey = dupMode;
+    state.dupCounts = null;
+
+    if(dupMode){
+      var counts = {};
+      state.filtered.forEach(function(r){
+        var k = dupKeyOf(r, dupMode);
+        if(k) counts[k] = (counts[k] || 0) + 1;
+      });
+      state.filtered = state.filtered.filter(function(r){
+        var k = dupKeyOf(r, dupMode);
+        return k && counts[k] > 1;
+      });
+      state.dupCounts = counts;
+
+      var nGrup = 0;
+      Object.keys(counts).forEach(function(k){ if(counts[k] > 1) nGrup++; });
+      if(dupInfo){
+        dupInfo.hidden = false;
+        dupInfo.textContent = '⚠ ' + state.filtered.length.toLocaleString('id-ID') + ' baris kembar · ' +
+                              nGrup.toLocaleString('id-ID') + ' grup';
+      }
+      if(dupSel) dupSel.classList.add('on');
+    } else {
+      if(dupInfo){ dupInfo.hidden = true; dupInfo.textContent = ''; }
+      if(dupSel) dupSel.classList.remove('on');
+    }
+
+    var anyFilterActive = !!(q || stSel.length || smSel.length || tkSel.length || lokSel.length || onlyUnmatched || dateFrom || dateTo || dupMode);
     renderStats(state.filtered, anyFilterActive);
 
     if(state.sortKey) sortRows();
+    else if(dupMode){
+      // urutkan agar baris yang kembar tampil berdampingan
+      state.filtered.sort(function(a, b){
+        return dupKeyOf(a, dupMode).localeCompare(dupKeyOf(b, dupMode), 'id');
+      });
+    }
     state.page = 1;
     renderTable();
   }
@@ -2144,8 +2361,20 @@
     var start = (state.page-1) * state.pageSize;
     var pageRows = state.filtered.slice(start, start + state.pageSize);
 
+    var dupMode = state.dupKey || '';
+    var dupCounts = state.dupCounts || {};
+    var lastDupKey = null, dupBand = 0;
+
     var html = pageRows.map(function(r){
-      return '<tr>' + COLUMNS.map(function(c){
+      var trCls = '';
+      var rowDupKey = '', rowDupCount = 0;
+      if(dupMode){
+        rowDupKey = dupKeyOf(r, dupMode);
+        rowDupCount = dupCounts[rowDupKey] || 0;
+        if(rowDupKey !== lastDupKey){ dupBand = 1 - dupBand; lastDupKey = rowDupKey; }
+        if(dupBand) trCls = ' class="dup-band"';
+      }
+      return '<tr' + trCls + '>' + COLUMNS.map(function(c){
         var v = r[c.key];
         var cellCls = c.cls || '';
         var content;
@@ -2161,6 +2390,10 @@
           cellCls += ' amt';
         } else {
           content = (v === null || v === undefined) ? '' : String(v);
+        }
+        if(dupMode && rowDupCount > 1 &&
+           (c.key === dupMode || (dupMode === '__COMBO__' && c.key === 'No Pesanan'))){
+          content += '<span class="dup-count" title="Nomor ini muncul ' + rowDupCount + ' kali">×' + rowDupCount + '</span>';
         }
         return '<td class="' + cellCls + '">' + content + '</td>';
       }).join('') + '</tr>';
@@ -2192,6 +2425,12 @@
     renderPipeline();
     initFilters();
     applyFilters();
+    lockLokasiUI();
+    var newLok = document.getElementById('newLokasi');
+    if(newLok){
+      var keep = newLok.value;
+      newLok.innerHTML = lokasiOptionsHtml(keep);
+    }
   }
 
   // ---------- export ----------
@@ -2404,12 +2643,18 @@
     document.getElementById('dateFrom').addEventListener('change', applyFilters);
     document.getElementById('dateTo').addEventListener('change', applyFilters);
     document.getElementById('onlyUnmatched').addEventListener('change', applyFilters);
+    document.getElementById('dupFilter').addEventListener('change', function(){
+      state.sortKey = null;   // biar grup duplikat otomatis berdampingan
+      renderHead();
+      applyFilters();
+    });
 
     document.getElementById('resetBtn').addEventListener('click', function(){
       document.getElementById('searchBox').value = '';
       document.getElementById('dateFrom').value = '';
       document.getElementById('dateTo').value = '';
       document.getElementById('onlyUnmatched').checked = false;
+      document.getElementById('dupFilter').value = '';
       MSEL_CONFIGS.forEach(function(cfg){
         state.msel[cfg.key] = [];
         Array.prototype.forEach.call(document.querySelectorAll('#' + cfg.optId + ' input'), function(inp){ inp.checked = false; });
