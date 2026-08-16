@@ -484,6 +484,8 @@
   .act-badge.upload{background:var(--ok-bg); color:var(--ok); border:1px solid rgba(63,191,99,.35);}
   .act-badge.hapus{background:var(--warn-bg); color:var(--warn); border:1px solid rgba(214,69,69,.35);}
   .act-badge.lain{background:var(--amber-bg); color:var(--amber); border:1px solid rgba(214,164,25,.35);}
+  .act-badge.masuk{background:rgba(56,160,214,.12); color:#3FA3D6; border:1px solid rgba(56,160,214,.35);}
+  .act-badge.keluar{background:rgba(140,140,140,.12); color:var(--muted); border:1px solid var(--line);}
   .users-msg.err{color:var(--warn);}
   .users-msg.ok{color:var(--ok);}
 
@@ -1011,6 +1013,11 @@
     </div>
     <div class="chart-modal-body">
       <div class="activity-toolbar">
+        <select id="activityKategori">
+          <option value="semua">Semua aktivitas</option>
+          <option value="data">Hanya update data</option>
+          <option value="akses">Hanya akses masuk/keluar</option>
+        </select>
         <select id="activityLimit">
           <option value="50">50 aktivitas terakhir</option>
           <option value="100" selected="">100 aktivitas terakhir</option>
@@ -1381,6 +1388,17 @@
     if(appStarted && typeof refreshAll === 'function'){ try{ refreshAll(); }catch(e){ console.error(e); } }
     lockLokasiUI();
 
+    // Catat akses ke dashboard, sekali saja per sesi browser
+    try{
+      if(!window.__aksesTercatat){
+        window.__aksesTercatat = true;
+        recordActivity('Masuk dashboard',
+          'Membuka dashboard sebagai ' + (role || 'tanpa peran') +
+          (window.lockedLokasi ? ' · lokasi ' + window.lockedLokasi : ''),
+          'akses');
+      }
+    }catch(e){ console.warn(e); }
+
     // Peran Toko hanya boleh melihat Monitoring. Team boleh melihat Jadwal (read-only).
     if(role === 'toko' && typeof switchAppView === 'function'){ try{ switchAppView('monitoring'); }catch(e){} }
     // Mulai sinkronisasi jadwal ke Firestore setelah peran diketahui (sudah login)
@@ -1583,7 +1601,16 @@
   });
 
   document.getElementById('logoutBtn').addEventListener('click', function(){
-    firebase.auth().signOut();
+    var selesai = function(){ firebase.auth().signOut(); };
+    // catat dulu, tapi jangan sampai menahan proses keluar
+    var p = recordActivity('Keluar dashboard', 'Menutup sesi dashboard.', 'akses');
+    if(p && typeof p.then === 'function'){
+      var jalanTerus = setTimeout(selesai, 1500);
+      p.then(function(){ clearTimeout(jalanTerus); selesai(); })
+       ['catch'](function(){ clearTimeout(jalanTerus); selesai(); });
+    } else {
+      selesai();
+    }
   });
 
   // ---------- kelola pengguna (khusus owner) ----------
@@ -1714,6 +1741,8 @@
     var a = String(action || '').toLowerCase();
     if(a.indexOf('hapus') !== -1) return 'act-badge hapus';
     if(a.indexOf('unggah') !== -1) return 'act-badge upload';
+    if(a.indexOf('masuk') !== -1) return 'act-badge masuk';
+    if(a.indexOf('keluar') !== -1) return 'act-badge keluar';
     return 'act-badge lain';
   }
 
@@ -1732,31 +1761,54 @@
     msgEl.className = 'users-msg'; msgEl.textContent = '';
 
     db.collection('activityLog').orderBy('at', 'desc').limit(limit).get().then(function(qs){
-      activityRows = [];
-      qs.forEach(function(doc){ activityRows.push(doc.data()); });
+      var semua = [];
+      qs.forEach(function(doc){ semua.push(doc.data()); });
+
+      var kategori = document.getElementById('activityKategori').value;
+      activityRows = semua.filter(function(d){
+        if(kategori === 'semua') return true;
+        var k = d.kategori || 'data';   // catatan lama tanpa kategori dianggap 'data'
+        return k === kategori;
+      });
 
       if(!activityRows.length){
-        body.innerHTML = '<tr><td colspan="4">Belum ada aktivitas tercatat.<br>' +
-          'Kalau Anda <b>sudah</b> mengunggah data tapi tetap kosong, kemungkinan besar Firestore Rules belum ' +
-          'mengizinkan koleksi <code>activityLog</code>. Klik <b>🔎 Cek izin</b> di atas untuk memastikan.</td></tr>';
+        body.innerHTML = '<tr><td colspan="4">' +
+          (semua.length
+            ? 'Tidak ada aktivitas untuk kategori ini dalam ' + semua.length + ' catatan terakhir. Coba perbesar jumlah yang dimuat.'
+            : 'Belum ada aktivitas tercatat.<br>' +
+              'Kalau Anda <b>sudah</b> mengunggah data tapi tetap kosong, kemungkinan besar Firestore Rules belum ' +
+              'mengizinkan koleksi <code>activityLog</code>. Klik <b>🔎 Cek izin</b> di atas untuk memastikan.') +
+          '</td></tr>';
+        msgEl.textContent = '';
         return;
       }
 
       body.innerHTML = activityRows.map(function(d){
         var lok = d.lokasi ? ' · 📍 ' + esc(d.lokasi) : '';
+        var alat = d.perangkat ? '<br><span style="color:var(--muted);font-size:11px;">🖥 ' + esc(d.perangkat) + '</span>' : '';
         return '<tr>' +
           '<td class="act-time">' + fmtLogTime(d.at) + '</td>' +
           '<td class="act-user">' + esc(d.username || '–') +
             '<small>' + esc(d.email || '') + (d.role ? ' · ' + esc(d.role) : '') + lok + '</small></td>' +
           '<td><span class="' + actBadgeClass(d.action) + '">' + esc(d.action || '–') + '</span></td>' +
-          '<td>' + esc(d.detail || '') + '</td>' +
+          '<td>' + esc(d.detail || '') + alat + '</td>' +
         '</tr>';
       }).join('');
 
+      // Ringkasan: berapa akun berbeda yang membuka dashboard hari ini
+      var mulaiHariIni = new Date(); mulaiHariIni.setHours(0,0,0,0);
+      var akunHariIni = {};
+      semua.forEach(function(d){
+        if((d.kategori || '') === 'akses' && String(d.action).indexOf('Masuk') !== -1 && d.at >= mulaiHariIni.getTime()){
+          akunHariIni[d.username || d.email] = true;
+        }
+      });
+      var jumlahAkun = Object.keys(akunHariIni).length;
       var terbaru = activityRows[0];
       msgEl.className = 'users-msg ok';
-      msgEl.textContent = 'Menampilkan ' + activityRows.length + ' aktivitas. Terakhir: ' +
-                          (terbaru.username || '–') + ' pada ' + fmtLogTime(terbaru.at) + '.';
+      msgEl.textContent = 'Menampilkan ' + activityRows.length + ' aktivitas' +
+        (jumlahAkun ? ' · ' + jumlahAkun + ' akun membuka dashboard hari ini' : '') +
+        ' · Terakhir: ' + (terbaru.username || '–') + ' pada ' + fmtLogTime(terbaru.at) + '.';
     })['catch'](function(err){
       body.innerHTML = '<tr><td colspan="4">Gagal memuat riwayat: ' + esc(err.message) + '</td></tr>';
       msgEl.className = 'users-msg err';
@@ -1784,6 +1836,8 @@
       role: window.currentRole || '',
       lokasi: window.lockedLokasi || '',
       action: 'Uji koneksi',
+      kategori: 'akses',
+      perangkat: deviceLabel(),
       detail: 'Pengujian izin tulis riwayat — baris ini otomatis dihapus.'
     }).then(function(ref){
       return ref.delete()['catch'](function(){ /* biarkan kalau hapus tidak diizinkan */ }).then(function(){
@@ -1800,12 +1854,13 @@
 
   function exportActivityLog(){
     if(!activityRows.length){ window.alert('Belum ada riwayat untuk diunduh.'); return; }
-    var headers = ['Waktu', 'Username', 'Email', 'Peran', 'Lokasi', 'Aktivitas', 'Rincian'];
+    var headers = ['Waktu', 'Username', 'Email', 'Peran', 'Lokasi', 'Kategori', 'Aktivitas', 'Perangkat', 'Rincian'];
     var rows = activityRows.map(function(d){
-      return [fmtLogTime(d.at), d.username || '', d.email || '', d.role || '', d.lokasi || '', d.action || '', d.detail || ''];
+      return [fmtLogTime(d.at), d.username || '', d.email || '', d.role || '', d.lokasi || '',
+              d.kategori || 'data', d.action || '', d.perangkat || '', d.detail || ''];
     });
     var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
-    ws['!cols'] = [{wch:18},{wch:16},{wch:30},{wch:12},{wch:22},{wch:18},{wch:60}];
+    ws['!cols'] = [{wch:18},{wch:16},{wch:30},{wch:12},{wch:22},{wch:10},{wch:18},{wch:20},{wch:55}];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Riwayat Update');
     XLSX.writeFile(wb, 'riwayat_update_monitoring.xlsx');
@@ -1823,6 +1878,7 @@
   });
   document.getElementById('activityRefresh').addEventListener('click', loadActivityLog);
   document.getElementById('activityLimit').addEventListener('change', loadActivityLog);
+  document.getElementById('activityKategori').addEventListener('change', loadActivityLog);
   document.getElementById('activityExport').addEventListener('click', exportActivityLog);
   document.getElementById('activityDiag').addEventListener('click', diagnoseActivityLog);
 
@@ -1971,7 +2027,25 @@
     return err && err.message ? err.message : String(err);
   }
 
-  function recordActivity(action, detail){
+  // Label perangkat singkat, membantu owner mengenali akses dari mana
+  function deviceLabel(){
+    var ua = navigator.userAgent || '';
+    var os = 'Perangkat lain';
+    if(/Windows/i.test(ua)) os = 'Windows';
+    else if(/Android/i.test(ua)) os = 'Android';
+    else if(/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+    else if(/Mac OS X/i.test(ua)) os = 'macOS';
+    else if(/Linux/i.test(ua)) os = 'Linux';
+    var br = 'Browser lain';
+    if(/Edg\//i.test(ua)) br = 'Edge';
+    else if(/OPR\//i.test(ua)) br = 'Opera';
+    else if(/Chrome\//i.test(ua)) br = 'Chrome';
+    else if(/Firefox\//i.test(ua)) br = 'Firefox';
+    else if(/Safari\//i.test(ua)) br = 'Safari';
+    return os + ' · ' + br;
+  }
+
+  function recordActivity(action, detail, kategori){
     try{
       var user = firebase.auth().currentUser;
       if(!user){ return Promise.resolve(); }
@@ -1982,6 +2056,8 @@
         role: window.currentRole || '',
         lokasi: window.lockedLokasi || '',
         action: action,
+        kategori: kategori || 'data',
+        perangkat: deviceLabel(),
         detail: detail || ''
       }).then(function(){
         window.lastActivityError = null;
