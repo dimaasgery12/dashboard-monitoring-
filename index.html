@@ -1008,6 +1008,7 @@
         </select>
         <button type="button" class="btn btn-ghost" id="activityRefresh">⟳ Muat ulang</button>
         <button type="button" class="btn btn-ghost" id="activityExport">⬇ Unduh Excel</button>
+        <button type="button" class="btn btn-ghost" id="activityDiag">🔎 Cek izin</button>
       </div>
       <div class="users-table-wrap" style="max-height:52vh;">
         <table class="users-table activity-table">
@@ -1725,7 +1726,9 @@
       qs.forEach(function(doc){ activityRows.push(doc.data()); });
 
       if(!activityRows.length){
-        body.innerHTML = '<tr><td colspan="4">Belum ada aktivitas tercatat. Riwayat mulai terisi begitu ada yang mengunggah atau menghapus data.</td></tr>';
+        body.innerHTML = '<tr><td colspan="4">Belum ada aktivitas tercatat.<br>' +
+          'Kalau Anda <b>sudah</b> mengunggah data tapi tetap kosong, kemungkinan besar Firestore Rules belum ' +
+          'mengizinkan koleksi <code>activityLog</code>. Klik <b>🔎 Cek izin</b> di atas untuk memastikan.</td></tr>';
         return;
       }
 
@@ -1746,6 +1749,42 @@
                           (terbaru.username || '–') + ' pada ' + fmtLogTime(terbaru.at) + '.';
     })['catch'](function(err){
       body.innerHTML = '<tr><td colspan="4">Gagal memuat riwayat: ' + esc(err.message) + '</td></tr>';
+      msgEl.className = 'users-msg err';
+      msgEl.textContent = activityRulesHint(err);
+    });
+  }
+
+  // Uji tulis+baca ke koleksi activityLog supaya penyebab kosongnya jelas
+  function diagnoseActivityLog(){
+    var msgEl = document.getElementById('activityMsg');
+    msgEl.className = 'users-msg';
+    msgEl.textContent = 'Menguji izin tulis ke Firestore…';
+
+    var user = firebase.auth().currentUser;
+    if(!user){
+      msgEl.className = 'users-msg err';
+      msgEl.textContent = 'Anda belum masuk, jadi tidak bisa menulis riwayat.';
+      return;
+    }
+
+    db.collection('activityLog').add({
+      at: Date.now(),
+      username: window.currentUsername || user.email,
+      email: user.email || '',
+      role: window.currentRole || '',
+      lokasi: window.lockedLokasi || '',
+      action: 'Uji koneksi',
+      detail: 'Pengujian izin tulis riwayat — baris ini otomatis dihapus.'
+    }).then(function(ref){
+      return ref.delete()['catch'](function(){ /* biarkan kalau hapus tidak diizinkan */ }).then(function(){
+        msgEl.className = 'users-msg ok';
+        msgEl.textContent = '✓ Izin tulis NORMAL. Riwayat seharusnya terisi saat ada yang mengunggah data. ' +
+                            'Kalau tetap kosong, pastikan pengunggah memakai file dashboard versi terbaru ini.';
+      });
+    })['catch'](function(err){
+      msgEl.className = 'users-msg err';
+      msgEl.textContent = '✕ Izin tulis DITOLAK (' + (err.code || 'error') + '). ' + activityRulesHint(err);
+      console.error('Diagnosa activityLog:', err);
     });
   }
 
@@ -1775,6 +1814,7 @@
   document.getElementById('activityRefresh').addEventListener('click', loadActivityLog);
   document.getElementById('activityLimit').addEventListener('change', loadActivityLog);
   document.getElementById('activityExport').addEventListener('click', exportActivityLog);
+  document.getElementById('activityDiag').addEventListener('click', diagnoseActivityLog);
 
   document.getElementById('addUserForm').addEventListener('submit', function(e){
     e.preventDefault();
@@ -1910,21 +1950,39 @@
   }
 
   // ---------- catatan aktivitas (siapa mengubah data apa) ----------
+  window.lastActivityError = null;
+
+  function activityRulesHint(err){
+    var code = (err && (err.code || err.message)) || '';
+    if(String(code).indexOf('permission-denied') !== -1 || String(code).toLowerCase().indexOf('insufficient') !== -1){
+      return 'Firestore menolak akses ke koleksi "activityLog". Buka Firebase Console → Firestore Database → Rules, ' +
+             'lalu tambahkan izin untuk koleksi activityLog (lihat tombol "Cek izin" di panel Riwayat).';
+    }
+    return err && err.message ? err.message : String(err);
+  }
+
   function recordActivity(action, detail){
     try{
       var user = firebase.auth().currentUser;
+      if(!user){ return Promise.resolve(); }
       return db.collection('activityLog').add({
         at: Date.now(),
-        username: window.currentUsername || (user && user.email) || 'tidak diketahui',
-        email: (user && user.email) || '',
+        username: window.currentUsername || user.email || 'tidak diketahui',
+        email: user.email || '',
         role: window.currentRole || '',
         lokasi: window.lockedLokasi || '',
         action: action,
         detail: detail || ''
+      }).then(function(){
+        window.lastActivityError = null;
       })['catch'](function(err){
+        window.lastActivityError = err;
         console.warn('Gagal mencatat aktivitas:', err && err.message);
+        // Jangan diam-diam gagal — beri tahu di panel log layar
+        logMsg('warn', '⚠', 'Aktivitas ini <b>tidak tercatat</b> di Riwayat Update Data. ' + activityRulesHint(err));
       });
     }catch(e){
+      window.lastActivityError = e;
       console.warn('Gagal mencatat aktivitas:', e);
       return Promise.resolve();
     }
