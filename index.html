@@ -461,6 +461,29 @@
   }
   .add-user-form .full{grid-column:1 / -1;}
   .users-msg{font-size:12px; margin-top:8px; min-height:16px;}
+  /* ---------- riwayat update data ---------- */
+  .activity-toolbar{
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    margin-bottom:10px;
+  }
+  .activity-toolbar select{
+    padding:8px 10px; border:1px solid var(--line); border-radius:7px;
+    font-size:12.5px; background:var(--paper-raised); color:var(--ink);
+    font-family:'Inter',sans-serif;
+  }
+  .activity-toolbar .btn{padding:8px 12px; font-size:12.5px;}
+  .activity-table td{font-size:12.5px; vertical-align:top;}
+  .activity-table .act-time{font-family:'IBM Plex Mono',monospace; color:var(--ink-soft); white-space:nowrap;}
+  .activity-table .act-user{font-weight:600;}
+  .activity-table .act-user small{display:block; font-weight:400; color:var(--muted); font-size:11px;}
+  .act-badge{
+    display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; padding:3px 8px; border-radius:999px; white-space:nowrap;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .act-badge.upload{background:var(--ok-bg); color:var(--ok); border:1px solid rgba(63,191,99,.35);}
+  .act-badge.hapus{background:var(--warn-bg); color:var(--warn); border:1px solid rgba(214,69,69,.35);}
+  .act-badge.lain{background:var(--amber-bg); color:var(--amber); border:1px solid rgba(214,164,25,.35);}
   .users-msg.err{color:var(--warn);}
   .users-msg.ok{color:var(--ok);}
 
@@ -967,6 +990,36 @@
   </div>
 </div>
 
+<div class="chart-overlay users-modal" id="activityOverlay">
+  <div class="chart-modal">
+    <div class="chart-modal-head">
+      <div>
+        <h3>Riwayat Update Data</h3>
+        <div class="sub">Siapa saja yang mengunggah, mengubah, atau menghapus data monitoring</div>
+      </div>
+      <button class="chart-modal-close" id="activityModalClose" aria-label="Tutup">✕</button>
+    </div>
+    <div class="chart-modal-body">
+      <div class="activity-toolbar">
+        <select id="activityLimit">
+          <option value="50">50 aktivitas terakhir</option>
+          <option value="100" selected="">100 aktivitas terakhir</option>
+          <option value="250">250 aktivitas terakhir</option>
+        </select>
+        <button type="button" class="btn btn-ghost" id="activityRefresh">⟳ Muat ulang</button>
+        <button type="button" class="btn btn-ghost" id="activityExport">⬇ Unduh Excel</button>
+      </div>
+      <div class="users-table-wrap" style="max-height:52vh;">
+        <table class="users-table activity-table">
+          <thead><tr><th>Waktu</th><th>Pengguna</th><th>Aktivitas</th><th>Rincian</th></tr></thead>
+          <tbody id="activityTableBody"><tr><td colspan="4">Memuat…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="users-msg" id="activityMsg"></div>
+    </div>
+  </div>
+</div>
+
 <div class="hero">
   <img src="data:image/webp;base64,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" alt="League — Lead The Way" class="hero-logo">
   <div class="hero-topline">
@@ -985,6 +1038,7 @@
   <div class="userbar">
     <span class="who">Masuk sebagai <b id="whoName">–</b><span class="role-tag" id="whoRole">–</span></span>
     <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko">👤 Kelola Pengguna</button>
+    <button type="button" id="activityLogBtn" data-role-hide="admin,viewer,toko">🕘 Riwayat Update Data</button>
     <button type="button" id="logoutBtn">Keluar</button>
   </div>
 
@@ -1284,6 +1338,7 @@
 
   function applyRole(username, role, lokasi){
     window.currentRole = role;
+    window.currentUsername = username;
     window.lockedLokasi = (lokasi === null || lokasi === undefined || String(lokasi).trim() === '')
       ? null : String(lokasi).trim();
     document.getElementById('whoName').textContent = username;
@@ -1634,6 +1689,93 @@
     if(e.target === this) this.classList.remove('open');
   });
 
+  // ---------- panel riwayat update data (khusus owner) ----------
+  function fmtLogTime(ms){
+    if(!ms) return '–';
+    var d = new Date(ms);
+    if(isNaN(d.getTime())) return '–';
+    var pad = function(n){ return n < 10 ? '0' + n : String(n); };
+    return pad(d.getDate()) + '/' + pad(d.getMonth()+1) + '/' + d.getFullYear() +
+           ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function actBadgeClass(action){
+    var a = String(action || '').toLowerCase();
+    if(a.indexOf('hapus') !== -1) return 'act-badge hapus';
+    if(a.indexOf('unggah') !== -1) return 'act-badge upload';
+    return 'act-badge lain';
+  }
+
+  function esc(v){
+    return String(v === null || v === undefined ? '' : v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  var activityRows = [];
+
+  function loadActivityLog(){
+    var body = document.getElementById('activityTableBody');
+    var msgEl = document.getElementById('activityMsg');
+    var limit = Number(document.getElementById('activityLimit').value) || 100;
+    body.innerHTML = '<tr><td colspan="4">Memuat…</td></tr>';
+    msgEl.className = 'users-msg'; msgEl.textContent = '';
+
+    db.collection('activityLog').orderBy('at', 'desc').limit(limit).get().then(function(qs){
+      activityRows = [];
+      qs.forEach(function(doc){ activityRows.push(doc.data()); });
+
+      if(!activityRows.length){
+        body.innerHTML = '<tr><td colspan="4">Belum ada aktivitas tercatat. Riwayat mulai terisi begitu ada yang mengunggah atau menghapus data.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = activityRows.map(function(d){
+        var lok = d.lokasi ? ' · 📍 ' + esc(d.lokasi) : '';
+        return '<tr>' +
+          '<td class="act-time">' + fmtLogTime(d.at) + '</td>' +
+          '<td class="act-user">' + esc(d.username || '–') +
+            '<small>' + esc(d.email || '') + (d.role ? ' · ' + esc(d.role) : '') + lok + '</small></td>' +
+          '<td><span class="' + actBadgeClass(d.action) + '">' + esc(d.action || '–') + '</span></td>' +
+          '<td>' + esc(d.detail || '') + '</td>' +
+        '</tr>';
+      }).join('');
+
+      var terbaru = activityRows[0];
+      msgEl.className = 'users-msg ok';
+      msgEl.textContent = 'Menampilkan ' + activityRows.length + ' aktivitas. Terakhir: ' +
+                          (terbaru.username || '–') + ' pada ' + fmtLogTime(terbaru.at) + '.';
+    })['catch'](function(err){
+      body.innerHTML = '<tr><td colspan="4">Gagal memuat riwayat: ' + esc(err.message) + '</td></tr>';
+    });
+  }
+
+  function exportActivityLog(){
+    if(!activityRows.length){ window.alert('Belum ada riwayat untuk diunduh.'); return; }
+    var headers = ['Waktu', 'Username', 'Email', 'Peran', 'Lokasi', 'Aktivitas', 'Rincian'];
+    var rows = activityRows.map(function(d){
+      return [fmtLogTime(d.at), d.username || '', d.email || '', d.role || '', d.lokasi || '', d.action || '', d.detail || ''];
+    });
+    var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
+    ws['!cols'] = [{wch:18},{wch:16},{wch:30},{wch:12},{wch:22},{wch:18},{wch:60}];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Riwayat Update');
+    XLSX.writeFile(wb, 'riwayat_update_monitoring.xlsx');
+  }
+
+  document.getElementById('activityLogBtn').addEventListener('click', function(){
+    document.getElementById('activityOverlay').classList.add('open');
+    loadActivityLog();
+  });
+  document.getElementById('activityModalClose').addEventListener('click', function(){
+    document.getElementById('activityOverlay').classList.remove('open');
+  });
+  document.getElementById('activityOverlay').addEventListener('click', function(e){
+    if(e.target === this) this.classList.remove('open');
+  });
+  document.getElementById('activityRefresh').addEventListener('click', loadActivityLog);
+  document.getElementById('activityLimit').addEventListener('change', loadActivityLog);
+  document.getElementById('activityExport').addEventListener('click', exportActivityLog);
+
   document.getElementById('addUserForm').addEventListener('submit', function(e){
     e.preventDefault();
     var msgEl = document.getElementById('usersMsg');
@@ -1765,6 +1907,27 @@
         logMsg('ok', '✓', 'Data tersimpan ke cloud, akan otomatis muncul di device lain.');
       });
     }, 800);
+  }
+
+  // ---------- catatan aktivitas (siapa mengubah data apa) ----------
+  function recordActivity(action, detail){
+    try{
+      var user = firebase.auth().currentUser;
+      return db.collection('activityLog').add({
+        at: Date.now(),
+        username: window.currentUsername || (user && user.email) || 'tidak diketahui',
+        email: (user && user.email) || '',
+        role: window.currentRole || '',
+        lokasi: window.lockedLokasi || '',
+        action: action,
+        detail: detail || ''
+      })['catch'](function(err){
+        console.warn('Gagal mencatat aktivitas:', err && err.message);
+      });
+    }catch(e){
+      console.warn('Gagal mencatat aktivitas:', e);
+      return Promise.resolve();
+    }
   }
 
   // ---------- helpers ----------
@@ -2555,6 +2718,7 @@
     if(updated) parts.push(updated + ' baris diperbarui (termasuk perubahan status)');
     if(unchanged) parts.push(unchanged + ' baris tidak berubah');
     logMsg('ok', '✓', '<b>' + fileName + '</b> dikenali sebagai <b>Jubelio</b> — ' + parts.join(', ') + '.');
+    recordActivity('Unggah Jubelio', fileName + ' — ' + parts.join(', ') + '.');
   }
 
   function mergeLphSheet(json, fileName){
@@ -2568,6 +2732,7 @@
       lphLookup[key] = val;
     });
     logMsg('ok', '✓', '<b>' + fileName + '</b> dikenali sebagai <b>LPH</b> — ' + added + ' pencocokan baru, ' + updated + ' diperbarui.');
+    recordActivity('Unggah LPH', fileName + ' — ' + added + ' pencocokan baru, ' + updated + ' diperbarui.');
   }
 
   function mergeTiiSheet(json, fileName){
@@ -2582,6 +2747,7 @@
       if(e !== undefined) tiiLookupE[key] = e;
     });
     logMsg('ok', '✓', '<b>' + fileName + '</b> dikenali sebagai <b>TII</b> — ' + added + ' pencocokan baru, ' + updated + ' diperbarui.');
+    recordActivity('Unggah TII', fileName + ' — ' + added + ' pencocokan baru, ' + updated + ' diperbarui.');
   }
 
   function processFile(file){
@@ -2679,12 +2845,14 @@
       if(currentRole !== 'owner'){ window.alert('Hanya Owner yang bisa menghapus semua data.'); return; }
       var sure = window.confirm('Yakin ingin menghapus SEMUA data (Jubelio, LPH, TII) dari dashboard ini? Data akan terhapus juga dari cloud dan tidak bisa dikembalikan, kecuali kamu upload ulang filenya.');
       if(!sure) return;
+      var jumlahSebelum = jubelioRows.length;
       jubelioRows = [];
       lphLookup = {};
       tiiLookupC = {};
       tiiLookupE = {};
       refreshAll();
       logMsg('warn', '🗑', 'Semua data dihapus dari dashboard ini.');
+      recordActivity('Hapus semua data', 'Menghapus seluruh data Jubelio, LPH, dan TII (' + jumlahSebelum.toLocaleString('id-ID') + ' baris Jubelio terhapus).');
       if(saveTimer) clearTimeout(saveTimer);
       saveToCloud().then(function(){
         window.alert('Semua data berhasil dihapus. Silakan upload file baru untuk mulai lagi.');
