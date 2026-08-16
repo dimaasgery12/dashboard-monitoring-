@@ -868,6 +868,16 @@
     .custom-scroll::-webkit-scrollbar-thumb { background-color: #2F373E; border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: #3C454D; }
 
+    /* Pengingat draft belum diterapkan — kedipan halus supaya menarik perhatian
+       tanpa mengganggu. Dinonaktifkan bagi pengguna yang memilih kurangi animasi. */
+    @keyframes draftPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+      50%      { box-shadow: 0 0 0 5px rgba(244, 63, 94, .13); }
+    }
+    .animate-pulse-slow{ animation: draftPulse 2.6s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce){
+      .animate-pulse-slow{ animation: none; }
+    }
     .glass-card {
         background: rgba(38, 44, 51, 0.65);
         backdrop-filter: blur(16px);
@@ -3011,6 +3021,9 @@
             </div>
         </header>
 
+        <!-- Pengingat: draft minggu lalu belum diterapkan -->
+        <div id="draftReminder" class="hidden"></div>
+
         <!-- Week Mode Banner: Minggu Ini vs Draft Minggu Depan -->
         <div id="weekModeBanner" class="glass-card rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 border border-slate-800">
             <!-- Populated dynamically -->
@@ -3297,6 +3310,8 @@
         let fsCurrent = { teamData: null, tasks: null };
         let fsNext = { teamData: null, tasks: null };
         let fsNextExists = false;
+        let fsNextUpdatedAt = null;      // kapan draft terakhir disimpan
+        let draftReminderToastShown = false;
         let fsReady = { current: false, meta: false };
 
         // Auth State — memakai peran login dashboard utama (owner/superadmin/admin/viewer)
@@ -3437,10 +3452,12 @@
                     const data = snap.data();
                     fsNext.teamData = migrateScheduleFormat(data.teamData || []);
                     fsNext.tasks = data.tasks || [];
+                    fsNextUpdatedAt = data.updatedAt || null;
                     fsNextExists = true;
                 } else {
                     fsNext.teamData = null;
                     fsNext.tasks = null;
+                    fsNextUpdatedAt = null;
                     fsNextExists = false;
                 }
                 if (scheduleMode === 'next') {
@@ -3493,7 +3510,99 @@
             return `${mondayDate.toLocaleDateString('id-ID', optsShort)} – ${sunday.toLocaleDateString('id-ID', optsFull)}`;
         }
 
+        // ---------- Pengingat: draft belum diterapkan ----------
+
+        // Draft dianggap "tertunggak" kalau disimpan SEBELUM Senin minggu berjalan.
+        // Artinya draft itu disusun untuk minggu yang kini sudah dimulai, tapi
+        // belum pernah ditekan tombol Terapkan.
+        function isDraftOverdue() {
+            if (!fsNextExists || !fsNextUpdatedAt) return false;
+            return fsNextUpdatedAt < getWeekMonday(0).getTime();
+        }
+
+        function renderDraftReminder() {
+            const el = document.getElementById('draftReminder');
+            if (!el) return;
+
+            if (!isDraftOverdue()) {
+                el.className = 'hidden';
+                el.innerHTML = '';
+                return;
+            }
+
+            const bisaTerapkan = hasRole('superadmin');
+            const tglDraft = new Date(fsNextUpdatedAt).toLocaleDateString('id-ID', {
+                day: 'numeric', month: 'long', year: 'numeric'
+            });
+
+            el.className = 'rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 ' +
+                           'border border-rose-500/50 bg-rose-500/10 animate-pulse-slow';
+            el.innerHTML = `
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-lg bg-rose-500/20 flex items-center justify-center text-rose-400">
+                        <i class="fas fa-triangle-exclamation"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-rose-400 font-bold uppercase tracking-wider block">Perlu Tindakan</span>
+                        <h4 class="text-sm font-extrabold text-white">Draft jadwal belum diterapkan</h4>
+                        <p class="text-[11px] text-slate-300 mt-0.5">
+                            Draft yang disusun ${tglDraft} seharusnya sudah berlaku minggu ini
+                            (${formatWeekRangeID(getWeekMonday(0))}). Tim masih melihat jadwal lama.
+                        </p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    ${bisaTerapkan ? `
+                    <button onclick="applyDraftFromReminder()" class="bg-rose-600 hover:bg-rose-500 text-white rounded-xl px-3.5 py-2 text-xs font-bold btn-press flex items-center gap-1.5 shadow-lg shadow-rose-500/20">
+                        <i class="fas fa-check-double"></i> Terapkan Sekarang
+                    </button>
+                    <button onclick="startNextWeekDraft()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold btn-press flex items-center gap-1.5">
+                        <i class="fas fa-eye"></i> Lihat Draft Dulu
+                    </button>` : `
+                    <span class="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 px-1">
+                        <i class="fas fa-lock"></i> Hubungi Super Admin untuk menerapkannya
+                    </span>`}
+                </div>`;
+
+            if (!draftReminderToastShown) {
+                draftReminderToastShown = true;
+                displaySystemToast("Draft Belum Diterapkan",
+                    "Jadwal minggu ini masih memakai data lama. Terapkan draft agar tim melihat jadwal terbaru.",
+                    "error");
+            }
+        }
+
+        // Menerapkan isi draft langsung dari pengingat, tanpa harus masuk mode draft dulu.
+        window.applyDraftFromReminder = function() {
+            if (!checkAuth('superadmin')) return;
+            if (!fsNextExists || !fsNext.teamData) {
+                displaySystemToast("Draft Tidak Ada", "Tidak ada draft yang bisa diterapkan.", "error");
+                return;
+            }
+            if (!confirm("Terapkan draft ini sebagai Jadwal Minggu Ini yang aktif? Jadwal minggu ini yang lama akan digantikan.")) return;
+
+            const draftTeam = JSON.parse(JSON.stringify(fsNext.teamData));
+            const draftTasks = JSON.parse(JSON.stringify(fsNext.tasks || []));
+
+            db.collection('schedule').doc('current').set({
+                teamData: draftTeam, tasks: draftTasks, updatedAt: Date.now()
+            }).then(function(){
+                return db.collection('schedule').doc('next').delete();
+            }).then(function(){
+                scheduleMode = 'current';
+                teamData = draftTeam;
+                tasks = draftTasks;
+                populateAssigneeSelects();
+                refreshAllViews();
+                displaySystemToast("Diterapkan", "Jadwal minggu ini sekarang memakai draft terbaru.", "success");
+            }).catch(function(err){
+                console.error('Gagal menerapkan draft ke Firestore:', err);
+                displaySystemToast("Gagal", "Tidak bisa menerapkan draft ke cloud. Coba lagi.", "error");
+            });
+        };
+
         function renderWeekModeBanner() {
+            renderDraftReminder();
             const el = document.getElementById('weekModeBanner');
             if(!el) return;
             const hasDraft = fsNextExists;
