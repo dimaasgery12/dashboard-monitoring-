@@ -553,7 +553,49 @@
     white-space:nowrap; color:var(--warn); font-weight:600;
   }
   .bl-bar{height:4px; border-radius:2px; background:var(--warn); opacity:.55; margin-top:5px;}
+  .trend-block{margin-top:18px; border-top:1px solid var(--line); padding-top:14px;}
+  .trend-block h3{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:0 0 10px;
+  }
+  .trend-note{font-size:11.5px; color:var(--muted); margin:8px 0 0;}
   .backlog-empty{font-size:12.5px; color:var(--muted); padding:14px 2px;}
+  /* ---------- tampilan tabel di layar kecil ----------
+     Tabel 16 kolom mustahil dibaca di HP, jadi tiap baris diubah
+     menjadi kartu dengan label di kiri dan nilainya di kanan. */
+  @media (max-width: 760px){
+    .table-wrap{overflow:visible;}
+    #dataTable thead{display:none;}
+    #dataTable, #dataTable tbody, #dataTable tr, #dataTable td{display:block; width:100%;}
+    #dataTable tr{
+      background:var(--paper-raised);
+      border:1px solid var(--line);
+      border-left:3px solid var(--amber);
+      border-radius:10px;
+      margin-bottom:10px;
+      padding:6px 2px;
+    }
+    #dataTable tr.dup-band{border-left-color:var(--warn);}
+    #dataTable td{
+      display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+      border:none; border-bottom:1px dashed var(--line);
+      padding:7px 12px; text-align:right; white-space:normal;
+    }
+    #dataTable tr td:last-child{border-bottom:none;}
+    #dataTable td::before{
+      content:attr(data-label);
+      font-family:'IBM Plex Mono',monospace;
+      font-size:9.5px; font-weight:700; letter-spacing:.06em;
+      text-transform:uppercase; color:var(--muted);
+      text-align:left; flex:0 0 38%; padding-top:2px;
+    }
+    #dataTable td:empty{display:none;}
+    .toolbar{flex-direction:column; align-items:stretch;}
+    .toolbar input[type="search"], .toolbar select, .toolbar .msel{width:100%;}
+    .stats{grid-template-columns:repeat(2, 1fr);}
+    .backlog-head{flex-direction:column;}
+    .backlog-total{text-align:left;}
+  }
   .users-msg{font-size:12px; margin-top:8px; min-height:16px;}
   /* ---------- riwayat update data ---------- */
   .activity-toolbar{
@@ -1132,6 +1174,30 @@
   </div>
 </div>
 
+<div class="chart-overlay users-modal" id="backupOverlay">
+  <div class="chart-modal">
+    <div class="chart-modal-head">
+      <div>
+        <h3>Cadangan Data</h3>
+        <div class="sub">Salinan otomatis dibuat sebelum setiap unggahan — 3 versi terakhir disimpan</div>
+      </div>
+      <button class="chart-modal-close" id="backupModalClose" aria-label="Tutup">✕</button>
+    </div>
+    <div class="chart-modal-body">
+      <div class="activity-toolbar">
+        <button type="button" class="btn btn-ghost" id="backupManual">💾 Buat Cadangan Sekarang</button>
+      </div>
+      <div class="users-table-wrap" style="max-height:48vh;">
+        <table class="users-table activity-table">
+          <thead><tr><th>Waktu</th><th>Dibuat Oleh</th><th>Isi</th><th></th></tr></thead>
+          <tbody id="backupTableBody"><tr><td colspan="4">Memuat…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="users-msg" id="backupMsg"></div>
+    </div>
+  </div>
+</div>
+
 <div class="hero">
   <img src="data:image/webp;base64,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" alt="League — Lead The Way" class="hero-logo">
   <div class="hero-topline">
@@ -1151,6 +1217,7 @@
     <span class="who">Masuk sebagai <b id="whoName">–</b><span class="role-tag" id="whoRole">–</span></span>
     <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko">👤 Kelola Pengguna</button>
     <button type="button" id="activityLogBtn" data-role-hide="admin,viewer,toko">🕘 Riwayat Update Data</button>
+    <button type="button" id="backupBtn" data-role-hide="admin,viewer,toko">💾 Cadangan Data</button>
     <button type="button" id="logoutBtn">Keluar</button>
   </div>
 
@@ -1200,6 +1267,11 @@
         <h3>Putus di Tahap Mana</h3>
         <div class="backlog-table-wrap"><table class="backlog-table"><tbody id="backlogTahap"></tbody></table></div>
       </div>
+    </div>
+    <div class="trend-block">
+      <h3>Tren Match Rate Mingguan</h3>
+      <div id="trendWrap"><canvas id="trendCanvas" height="200"></canvas></div>
+      <p class="trend-note" id="trendNote"></p>
     </div>
   </section>
 
@@ -2091,6 +2163,7 @@
       }
       var info = infoSnap.data();
       var chunkCount = info.chunkCount || 0;
+      cloudUpdatedAt = info.updatedAt || 0;
       lastChunkCount = chunkCount;
       var chunkPromises = [];
       for(var i=0;i<chunkCount;i++){
@@ -2118,6 +2191,12 @@
     });
   }
 
+  // ---------- perlindungan tabrakan antar pengguna ----------
+  // Versi data yang sedang dipegang browser ini. Dipakai untuk mendeteksi
+  // kalau ada orang lain yang menyimpan data lebih dulu.
+  var cloudUpdatedAt = 0;
+  var sedangMenyimpan = false;
+
   function saveToCloud(){
     var chunks = [];
     for(var i=0;i<jubelioRows.length;i+=CHUNK_SIZE){
@@ -2131,10 +2210,53 @@
       batch.delete(chunkedRowsRef(j));
     }
     lastChunkCount = chunks.length;
-    batch.set(db.collection('meta').doc('info'), {chunkCount: chunks.length, updatedAt: Date.now()});
+    var stamp = Date.now();
+    batch.set(db.collection('meta').doc('info'), {chunkCount: chunks.length, updatedAt: stamp});
     batch.set(db.collection('meta').doc('lookups'), {lphLookup: lphLookup, tiiLookupC: tiiLookupC, tiiLookupE: tiiLookupE});
-    return batch.commit()['catch'](function(err){
+    sedangMenyimpan = true;
+    return batch.commit().then(function(){
+      cloudUpdatedAt = stamp;      // versi kita kini jadi versi terbaru
+      sedangMenyimpan = false;
+    })['catch'](function(err){
+      sedangMenyimpan = false;
       logMsg('warn', '⚠', 'Gagal menyimpan data ke cloud: ' + err.message);
+    });
+  }
+
+  // Pastikan data di memori sudah versi terbaru SEBELUM digabung dengan file baru.
+  // Tanpa ini, unggahan orang lain bisa terhapus tanpa peringatan.
+  function pastikanDataTerbaru(){
+    return db.collection('meta').doc('info').get().then(function(snap){
+      if(!snap.exists) return false;
+      var remoteAt = snap.data().updatedAt || 0;
+      if(remoteAt && remoteAt !== cloudUpdatedAt){
+        logMsg('info', '🔄', 'Ada perubahan data dari pengguna lain — memuat versi terbaru dulu sebelum menggabungkan…');
+        return loadFromCloud().then(function(){
+          refreshAll();
+          logMsg('ok', '✓', 'Versi terbaru dimuat (' + jubelioRows.length.toLocaleString('id-ID') + ' baris). Penggabungan dilanjutkan.');
+          return true;
+        });
+      }
+      return false;
+    })['catch'](function(err){
+      logMsg('warn', '⚠', 'Tidak bisa memeriksa versi terbaru: ' + err.message + '. Penggabungan tetap dilanjutkan.');
+      return false;
+    });
+  }
+
+  // Pantau perubahan dari pengguna lain secara langsung
+  function pantauDataCloud(){
+    db.collection('meta').doc('info').onSnapshot(function(snap){
+      if(!snap.exists || sedangMenyimpan) return;
+      var remoteAt = snap.data().updatedAt || 0;
+      if(!remoteAt || remoteAt === cloudUpdatedAt) return;
+      loadFromCloud().then(function(){
+        refreshAll();
+        logMsg('info', '🔄', 'Data diperbarui oleh pengguna lain — layar ini ikut disegarkan (' +
+          jubelioRows.length.toLocaleString('id-ID') + ' baris).');
+      });
+    }, function(err){
+      console.warn('Gagal memantau meta/info:', err && err.message);
     });
   }
 
@@ -2753,6 +2875,153 @@
     return rp(n);
   }
 
+  // Nomor telepon pelanggan hanya utuh untuk Admin ke atas.
+  // Peran Team dan Toko melihat versi tersamar.
+  function bolehLihatTelp(){
+    var r = window.currentRole;
+    return r === 'owner' || r === 'superadmin' || r === 'admin';
+  }
+
+  function samarkanTelp(v){
+    var s = (v === null || v === undefined) ? '' : String(v).trim();
+    if(!s) return '';
+    if(bolehLihatTelp()) return s;
+    if(s.length <= 6) return '•'.repeat(s.length);
+    return s.slice(0, 4) + '••••' + s.slice(-3);
+  }
+
+  // ---------- tren match rate mingguan ----------
+  function seninDari(iso){
+    var d = new Date(iso + 'T00:00:00');
+    if(isNaN(d.getTime())) return null;
+    var hari = d.getDay();
+    var geser = hari === 0 ? -6 : 1 - hari;
+    d.setDate(d.getDate() + geser);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function renderTrend(rows){
+    var canvas = document.getElementById('trendCanvas');
+    var noteEl = document.getElementById('trendNote');
+    if(!canvas) return;
+
+    var perMinggu = {};
+    rows.forEach(function(r){
+      var tgl = String(r['Tanggal'] || '').slice(0, 10);
+      if(!tgl) return;
+      var sn = seninDari(tgl);
+      if(!sn) return;
+      if(!perMinggu[sn]) perMinggu[sn] = {tot: 0, ok: 0};
+      perMinggu[sn].tot++;
+      if(r['No SO (LPH)'] && r['No TI (TII)']) perMinggu[sn].ok++;
+    });
+
+    // Batas cakupan data TII: tanggal terakhir yang benar-benar punya No TI.
+    // Minggu setelah itu TIDAK digambar, karena akan tampak 0% padahal
+    // sebenarnya datanya saja yang belum diunggah.
+    var batasCakupan = '';
+    rows.forEach(function(r){
+      if(r['No TI (TII)']){
+        var tg = String(r['Tanggal'] || '').slice(0, 10);
+        if(tg > batasCakupan) batasCakupan = tg;
+      }
+    });
+    var seninBatas = batasCakupan ? seninDari(batasCakupan) : null;
+
+    // buang minggu berjalan (belum lengkap datanya) supaya tidak menyesatkan
+    var seninIni = seninDari(new Date().toISOString().slice(0, 10));
+    var keys = Object.keys(perMinggu).sort().filter(function(k){
+      if(k === seninIni) return false;
+      if(seninBatas && k > seninBatas) return false;
+      return true;
+    }).slice(-12);
+    var nilai = keys.map(function(k){
+      return Math.round(perMinggu[k].ok / perMinggu[k].tot * 100);
+    });
+
+    var lebar = canvas.parentElement.clientWidth || 640;
+    var tinggi = 200;
+    var ctx = setupCanvas(canvas, lebar, tinggi);
+
+    if(keys.length < 2){
+      ctx.fillStyle = '#6B7280';
+      ctx.font = '12.5px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Belum cukup data mingguan untuk menggambar tren.', lebar / 2, tinggi / 2);
+      noteEl.textContent = '';
+      return;
+    }
+
+    var padL = 38, padR = 12, padT = 14, padB = 30;
+    var w = lebar - padL - padR, h = tinggi - padT - padB;
+
+    // garis bantu 0/25/50/75/100%
+    ctx.strokeStyle = 'rgba(140,140,140,.18)';
+    ctx.fillStyle = '#8A8A8A';
+    ctx.font = '10px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.lineWidth = 1;
+    [0, 25, 50, 75, 100].forEach(function(p){
+      var y = padT + h - (p / 100 * h);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + w, y); ctx.stroke();
+      ctx.fillText(p + '%', padL - 6, y + 3);
+    });
+
+    var xOf = function(i){ return padL + (keys.length === 1 ? w / 2 : i / (keys.length - 1) * w); };
+    var yOf = function(v){ return padT + h - (v / 100 * h); };
+
+    // area di bawah garis
+    var grad = ctx.createLinearGradient(0, padT, 0, padT + h);
+    grad.addColorStop(0, 'rgba(63,191,99,.28)');
+    grad.addColorStop(1, 'rgba(63,191,99,0)');
+    ctx.beginPath();
+    ctx.moveTo(xOf(0), padT + h);
+    nilai.forEach(function(v, i){ ctx.lineTo(xOf(i), yOf(v)); });
+    ctx.lineTo(xOf(keys.length - 1), padT + h);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // garis tren
+    ctx.beginPath();
+    nilai.forEach(function(v, i){
+      if(i === 0) ctx.moveTo(xOf(i), yOf(v)); else ctx.lineTo(xOf(i), yOf(v));
+    });
+    ctx.strokeStyle = '#3FBF63';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // titik + label persen
+    ctx.font = '10px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    nilai.forEach(function(v, i){
+      ctx.beginPath();
+      ctx.arc(xOf(i), yOf(v), 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#3FBF63';
+      ctx.fill();
+      if(keys.length <= 8 || i % 2 === 0){
+        ctx.fillStyle = '#8A8A8A';
+        ctx.fillText(v + '%', xOf(i), yOf(v) - 8);
+      }
+    });
+
+    // label tanggal
+    ctx.fillStyle = '#8A8A8A';
+    ctx.font = '9.5px "IBM Plex Mono", monospace';
+    keys.forEach(function(k, i){
+      if(keys.length > 8 && i % 2 !== 0) return;
+      var p = k.split('-');
+      ctx.fillText(p[2] + '/' + p[1], xOf(i), padT + h + 16);
+    });
+
+    var awal = nilai[0], akhir = nilai[nilai.length - 1];
+    var selisih = akhir - awal;
+    noteEl.textContent = keys.length + ' minggu terakhir. Match lengkap ' + akhir + '% pada minggu terakhir, ' +
+      (selisih > 0 ? 'naik ' + selisih + ' poin' : selisih < 0 ? 'turun ' + Math.abs(selisih) + ' poin' : 'tidak berubah') +
+      ' dibanding ' + keys.length + ' minggu lalu.' +
+      (batasCakupan ? ' Minggu setelah ' + fmtTanggalID(batasCakupan) + ' belum digambar karena data TII terbaru baru sampai tanggal itu.' : '');
+  }
+
   function renderBacklog(rows){
     var pending = rows.filter(belumLengkap);
     var totalRp = pending.reduce(function(a, r){ return a + (Number(r['amount']) || 0); }, 0);
@@ -2893,6 +3162,7 @@
     // Panel tunggakan dihitung SEBELUM penyaringan kelompok umur,
     // supaya angkanya tidak ikut menyusut saat sebuah kartu diklik.
     renderBacklog(state.filtered);
+    renderTrend(state.filtered);
 
     if(state.agingBucket){
       state.filtered = state.filtered.filter(function(r){
@@ -2983,11 +3253,14 @@
         } else {
           content = (v === null || v === undefined) ? '' : String(v);
         }
+        if(c.key === 'No Telp'){
+          content = esc(samarkanTelp(v));
+        }
         if(dupMode && rowDupCount > 1 &&
            (c.key === dupMode || (dupMode === '__COMBO__' && c.key === 'No Pesanan'))){
           content += '<span class="dup-count" title="Nomor ini muncul ' + rowDupCount + ' kali">×' + rowDupCount + '</span>';
         }
-        return '<td class="' + cellCls + '">' + content + '</td>';
+        return '<td class="' + cellCls + '" data-label="' + esc(c.label) + '">' + content + '</td>';
       }).join('') + '</tr>';
     }).join('');
 
@@ -3116,6 +3389,7 @@
     var rows = state.filtered.map(function(r){
       return COLUMNS.map(function(c){
         var v = r[c.key];
+        if(c.key === 'No Telp') return samarkanTelp(v);
         return (v === null || v === undefined) ? '' : v;
       });
     });
@@ -3301,11 +3575,182 @@
   function handleFiles(fileList){
     var files = Array.prototype.slice.call(fileList);
     if(!files.length) return;
-    logMsg('info', '…', 'Memproses ' + files.length + ' file…');
-    files.forEach(processFile);
+    logMsg('info', '…', 'Memeriksa versi data terbaru…');
+
+    // 1) tarik versi terbaru supaya tidak menimpa unggahan orang lain
+    // 2) buat cadangan otomatis sebelum data diubah
+    pastikanDataTerbaru().then(function(){
+      return buatCadangan(files.map(function(f){ return f.name; }).join(', '));
+    }).then(function(){
+      logMsg('info', '…', 'Memproses ' + files.length + ' file…');
+      files.forEach(processFile);
+    })['catch'](function(err){
+      console.error(err);
+      logMsg('warn', '⚠', 'Persiapan gagal: ' + err.message + '. File tetap diproses.');
+      files.forEach(processFile);
+    });
   }
 
   // ---------- wire up ----------
+  // ---------- cadangan & pemulihan data ----------
+  var MAKS_CADANGAN = 3;
+
+  // Semua dokumen cadangan berada di satu koleksi 'backups':
+  //   {id}          -> ringkasan + lookups
+  //   {id}__c0..cN  -> potongan baris
+  function buatCadangan(pemicu){
+    if(!jubelioRows.length) return Promise.resolve();
+
+    var id = 'bk_' + Date.now();
+    var user = firebase.auth().currentUser;
+    var batch = db.batch();
+    var chunks = [];
+    for(var i = 0; i < jubelioRows.length; i += CHUNK_SIZE){
+      chunks.push(jubelioRows.slice(i, i + CHUNK_SIZE));
+    }
+    chunks.forEach(function(c, idx){
+      batch.set(db.collection('backups').doc(id + '__c' + idx), {rows: c});
+    });
+    batch.set(db.collection('backups').doc(id), {
+      at: Date.now(),
+      oleh: window.currentUsername || (user && user.email) || 'tidak diketahui',
+      pemicu: pemicu || 'Perubahan data',
+      jumlahBaris: jubelioRows.length,
+      chunkCount: chunks.length,
+      lphLookup: lphLookup,
+      tiiLookupC: tiiLookupC,
+      tiiLookupE: tiiLookupE
+    });
+
+    logMsg('info', '💾', 'Membuat cadangan otomatis (' + jubelioRows.length.toLocaleString('id-ID') + ' baris)…');
+    return batch.commit().then(function(){
+      logMsg('ok', '✓', 'Cadangan tersimpan. Bisa dipulihkan lewat tombol <b>Cadangan Data</b>.');
+      return bersihkanCadanganLama();
+    })['catch'](function(err){
+      logMsg('warn', '⚠', 'Gagal membuat cadangan: ' + err.message + '. Perubahan tetap dilanjutkan.');
+    });
+  }
+
+  function ambilDaftarCadangan(){
+    return db.collection('backups').get().then(function(qs){
+      var out = [];
+      qs.forEach(function(doc){
+        if(doc.id.indexOf('__c') === -1) out.push(Object.assign({id: doc.id}, doc.data()));
+      });
+      return out.sort(function(a, b){ return (b.at || 0) - (a.at || 0); });
+    });
+  }
+
+  function hapusCadangan(id, chunkCount){
+    var batch = db.batch();
+    for(var i = 0; i < (chunkCount || 0); i++){
+      batch.delete(db.collection('backups').doc(id + '__c' + i));
+    }
+    batch.delete(db.collection('backups').doc(id));
+    return batch.commit();
+  }
+
+  function bersihkanCadanganLama(){
+    return ambilDaftarCadangan().then(function(list){
+      var lama = list.slice(MAKS_CADANGAN);
+      if(!lama.length) return;
+      return Promise.all(lama.map(function(b){ return hapusCadangan(b.id, b.chunkCount); }));
+    })['catch'](function(err){ console.warn('Gagal membersihkan cadangan lama:', err); });
+  }
+
+  function pulihkanCadangan(b){
+    var reads = [];
+    for(var i = 0; i < (b.chunkCount || 0); i++){
+      reads.push(db.collection('backups').doc(b.id + '__c' + i).get());
+    }
+    return Promise.all(reads).then(function(snaps){
+      var rows = [];
+      snaps.forEach(function(s){ if(s.exists && s.data().rows) rows = rows.concat(s.data().rows); });
+      if(!rows.length) throw new Error('Isi cadangan kosong atau tidak lengkap.');
+
+      jubelioRows = rows;
+      lphLookup = b.lphLookup || {};
+      tiiLookupC = b.tiiLookupC || {};
+      tiiLookupE = b.tiiLookupE || {};
+      refreshAll();
+      return saveToCloud();
+    }).then(function(){
+      recordActivity('Pulihkan cadangan',
+        'Memulihkan data ke cadangan ' + fmtLogTime(b.at) + ' (' + (b.jumlahBaris || 0) + ' baris).');
+      logMsg('ok', '✓', 'Data berhasil dipulihkan ke versi ' + fmtLogTime(b.at) + '.');
+    });
+  }
+
+  function renderDaftarCadangan(){
+    var body = document.getElementById('backupTableBody');
+    var msg = document.getElementById('backupMsg');
+    body.innerHTML = '<tr><td colspan="4">Memuat…</td></tr>';
+    msg.className = 'users-msg'; msg.textContent = '';
+
+    ambilDaftarCadangan().then(function(list){
+      if(!list.length){
+        body.innerHTML = '<tr><td colspan="4">Belum ada cadangan. Cadangan dibuat otomatis setiap kali ada unggahan data baru.</td></tr>';
+        return;
+      }
+      body.innerHTML = list.map(function(b, i){
+        return '<tr data-id="' + b.id + '">' +
+          '<td class="act-time">' + fmtLogTime(b.at) + (i === 0 ? '<br><span class="act-badge upload">Terbaru</span>' : '') + '</td>' +
+          '<td class="act-user">' + esc(b.oleh || '–') + '<small>' + esc(b.pemicu || '') + '</small></td>' +
+          '<td class="bl-n">' + (b.jumlahBaris || 0).toLocaleString('id-ID') + ' baris</td>' +
+          '<td><button type="button" class="btn btn-ghost pulih-btn">↩ Kembalikan</button></td>' +
+        '</tr>';
+      }).join('');
+
+      Array.prototype.forEach.call(body.querySelectorAll('.pulih-btn'), function(btn){
+        btn.addEventListener('click', function(){
+          var id = this.closest('tr').getAttribute('data-id');
+          var b = list.filter(function(x){ return x.id === id; })[0];
+          if(!b) return;
+          if(!window.confirm('Kembalikan seluruh data ke versi ' + fmtLogTime(b.at) + ' (' +
+             (b.jumlahBaris || 0).toLocaleString('id-ID') + ' baris)?\n\nData yang ada sekarang akan digantikan. ' +
+             'Sebuah cadangan dari kondisi saat ini akan dibuat lebih dulu.')) return;
+
+          msg.className = 'users-msg';
+          msg.textContent = 'Memulihkan…';
+          buatCadangan('Sebelum pemulihan manual').then(function(){
+            return pulihkanCadangan(b);
+          }).then(function(){
+            msg.className = 'users-msg ok';
+            msg.textContent = 'Data berhasil dipulihkan ke versi ' + fmtLogTime(b.at) + '.';
+            renderDaftarCadangan();
+          })['catch'](function(err){
+            msg.className = 'users-msg err';
+            msg.textContent = 'Gagal memulihkan: ' + err.message;
+          });
+        });
+      });
+    })['catch'](function(err){
+      body.innerHTML = '<tr><td colspan="4">Gagal memuat daftar cadangan: ' + esc(err.message) + '</td></tr>';
+      msg.className = 'users-msg err';
+      msg.textContent = activityRulesHint(err);
+    });
+  }
+
+  document.getElementById('backupBtn').addEventListener('click', function(){
+    document.getElementById('backupOverlay').classList.add('open');
+    renderDaftarCadangan();
+  });
+  document.getElementById('backupModalClose').addEventListener('click', function(){
+    document.getElementById('backupOverlay').classList.remove('open');
+  });
+  document.getElementById('backupOverlay').addEventListener('click', function(e){
+    if(e.target === this) this.classList.remove('open');
+  });
+  document.getElementById('backupManual').addEventListener('click', function(){
+    var msg = document.getElementById('backupMsg');
+    msg.className = 'users-msg'; msg.textContent = 'Membuat cadangan…';
+    buatCadangan('Cadangan manual').then(function(){
+      msg.className = 'users-msg ok';
+      msg.textContent = 'Cadangan baru berhasil dibuat.';
+      renderDaftarCadangan();
+    });
+  });
+
   function init(){
     pantauDataStart();
     refreshAll();
@@ -3318,6 +3763,7 @@
         refreshAll();
         logMsg('ok', '✓', 'Data terbaru dari cloud berhasil dimuat.');
       }
+      pantauDataCloud();   // pantau perubahan dari pengguna lain
     });
 
     document.getElementById('searchBox').addEventListener('input', applyFilters);
