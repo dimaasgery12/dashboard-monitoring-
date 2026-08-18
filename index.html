@@ -219,11 +219,16 @@
   /* ---------- MAIN ---------- */
   main{padding:26px 40px 60px;}
 
+  /* Blok pertama di dalam <main> sengaja naik menimpa bagian bawah hero.
+     Pull-up dipasang di container (bukan di .stats) supaya kartu statistik
+     tidak lagi menumpuk di atas bar "Periode Data Dihitung". */
+  #viewMonitoring{margin-top:-46px;}
+
   .stats{
     display:grid;
     grid-template-columns:repeat(auto-fit, minmax(168px,1fr));
     gap:14px;
-    margin:-46px 0 26px;
+    margin:0 0 26px;
     position:relative;
     z-index:2;
   }
@@ -467,8 +472,10 @@
     background:var(--paper-raised); border:1px solid var(--line);
     border-left:3px solid var(--amber);
     border-radius:10px; padding:12px 16px; margin-bottom:14px;
+    position:relative; z-index:2;
+    box-shadow:0 10px 24px -18px rgba(20,24,28,0.35);
   }
-  .datastart-bar .ds-left{display:flex; align-items:center; gap:12px;}
+  .datastart-bar .ds-left{display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 260px;}
   .datastart-bar .ds-icon{font-size:18px; opacity:.85;}
   .datastart-bar .ds-label{
     font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700;
@@ -476,7 +483,7 @@
   }
   .datastart-bar .ds-value{font-size:13px; font-weight:600; color:var(--ink); margin-top:2px;}
   .datastart-bar .ds-value small{display:block; font-weight:400; color:var(--muted); font-size:11.5px; margin-top:2px;}
-  .datastart-bar .ds-right{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .datastart-bar .ds-right{display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex:0 0 auto;}
   .datastart-bar .ds-field{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted);}
   .datastart-bar input[type="date"]{
     padding:7px 9px; border:1px solid var(--line); border-radius:7px;
@@ -596,6 +603,40 @@
     .backlog-head{flex-direction:column;}
     .backlog-total{text-align:left;}
   }
+  /* ---------- ringkasan harian ---------- */
+  .sum-grid{display:grid; grid-template-columns:220px 1fr; gap:14px;}
+  @media (max-width:720px){ .sum-grid{grid-template-columns:1fr;} }
+  .sum-col h4{
+    font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:0 0 7px;
+  }
+  .sum-recipients{
+    border:1px solid var(--line); border-radius:8px; padding:8px;
+    max-height:300px; overflow:auto; background:var(--paper);
+  }
+  .sum-recipients label{
+    display:flex; align-items:flex-start; gap:7px; padding:5px 4px;
+    font-size:12px; cursor:pointer; border-bottom:1px solid var(--line);
+  }
+  .sum-recipients label:last-child{border-bottom:none;}
+  .sum-recipients label small{display:block; color:var(--muted); font-size:10.5px;}
+  .sum-text{
+    width:100%; border:1px solid var(--line); border-radius:8px; padding:10px;
+    background:var(--paper); color:var(--ink);
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; line-height:1.6;
+    resize:vertical;
+  }
+  .noon-reminder{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; background:var(--amber-bg); border:1px solid rgba(214,164,25,.4);
+    border-left:3px solid var(--amber); border-radius:10px;
+    padding:11px 15px; margin-bottom:14px;
+    position:relative; z-index:2;
+  }
+  /* host kosong jangan menyisakan ruang/menggeser pull-up */
+  #noonReminderHost:empty{display:none;}
+  .noon-reminder .nr-text{font-size:12.5px; color:var(--ink);}
+  .noon-reminder .nr-text b{color:var(--amber);}
   .users-msg{font-size:12px; margin-top:8px; min-height:16px;}
   /* ---------- riwayat update data ---------- */
   .activity-toolbar{
@@ -955,7 +996,8 @@
     .hero-logo{position:static; height:28px; margin:0 0 14px; right:auto; top:auto;}
     .hero-topline{padding-right:0; justify-content:flex-start;}
     main{padding:20px 16px 40px;}
-    .stats{margin-top:-30px;}
+    #viewMonitoring{margin-top:-30px;}
+    .stats{margin-top:0;}
   }
 </style>
 
@@ -1174,6 +1216,36 @@
   </div>
 </div>
 
+<div class="chart-overlay users-modal" id="summaryOverlay">
+  <div class="chart-modal">
+    <div class="chart-modal-head">
+      <div>
+        <h3>Kirim Ringkasan Harian</h3>
+        <div class="sub">Ringkasan tunggakan rekonsiliasi untuk dikirim ke tim</div>
+      </div>
+      <button class="chart-modal-close" id="summaryModalClose" aria-label="Tutup">✕</button>
+    </div>
+    <div class="chart-modal-body">
+      <div class="sum-grid">
+        <div class="sum-col">
+          <h4>Penerima</h4>
+          <div class="sum-recipients" id="summaryRecipients">Memuat…</div>
+        </div>
+        <div class="sum-col">
+          <h4>Isi Ringkasan</h4>
+          <textarea id="summaryText" class="sum-text" rows="16"></textarea>
+        </div>
+      </div>
+      <div class="activity-toolbar" style="margin-top:12px;">
+        <button type="button" class="btn btn-primary" id="summarySend">📧 Buka Aplikasi Email</button>
+        <button type="button" class="btn btn-ghost" id="summaryCopy">📋 Salin Teks</button>
+        <button type="button" class="btn btn-ghost" id="summaryMarkSent">✓ Tandai Sudah Dikirim</button>
+      </div>
+      <div class="users-msg" id="summaryMsg"></div>
+    </div>
+  </div>
+</div>
+
 <div class="chart-overlay users-modal" id="backupOverlay">
   <div class="chart-modal">
     <div class="chart-modal-head">
@@ -1218,6 +1290,7 @@
     <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko">👤 Kelola Pengguna</button>
     <button type="button" id="activityLogBtn" data-role-hide="admin,viewer,toko">🕘 Riwayat Update Data</button>
     <button type="button" id="backupBtn" data-role-hide="admin,viewer,toko">💾 Cadangan Data</button>
+    <button type="button" id="summaryBtn" data-role-hide="viewer,toko">📧 Kirim Ringkasan</button>
     <button type="button" id="logoutBtn">Keluar</button>
   </div>
 
@@ -1230,6 +1303,7 @@
 </div>
 
 <main id="viewMonitoring">
+  <div id="noonReminderHost"></div>
   <div class="datastart-bar" id="dataStartBar">
     <div class="ds-left">
       <span class="ds-icon">📅</span>
@@ -3350,6 +3424,8 @@
         if(inp) inp.value = baru || '';
         if(appStarted) refreshAll();
       }
+      window.ringkasanTerakhir = snap.exists ? (snap.data().ringkasanTerakhir || '') : '';
+      renderNoonReminder();
       renderDataStartBar();
     }, function(err){
       console.warn('Gagal memantau meta/config:', err && err.message);
@@ -3751,8 +3827,188 @@
     });
   });
 
+  // ---------- ringkasan harian untuk dikirim ke tim ----------
+  function susunRingkasan(){
+    var rows = RAW;
+    var pending = rows.filter(belumLengkap);
+    var totalRp = pending.reduce(function(a, r){ return a + (Number(r['amount']) || 0); }, 0);
+    var matchLengkap = rows.filter(function(r){ return r['No SO (LPH)'] && r['No TI (TII)']; }).length;
+    var pct = rows.length ? Math.round(matchLengkap / rows.length * 100) : 0;
+
+    var agg = {};
+    AGING_BUCKETS.forEach(function(b){ agg[b.id] = {n:0, rp:0}; });
+    pending.forEach(function(r){
+      var bk = bucketOf(r);
+      if(bk){ agg[bk].n++; agg[bk].rp += Number(r['amount']) || 0; }
+    });
+
+    var lok = {};
+    pending.forEach(function(r){
+      var k = String(r['Lokasi'] || '').trim() || '(tanpa lokasi)';
+      if(!lok[k]) lok[k] = {n:0, rp:0};
+      lok[k].n++; lok[k].rp += Number(r['amount']) || 0;
+    });
+    var urut = Object.keys(lok).map(function(k){ return {nama:k, n:lok[k].n, rp:lok[k].rp}; })
+                    .sort(function(a,b){ return b.n - a.n; }).slice(0, 6);
+
+    var tanpaSO = pending.filter(function(r){ return !r['No SO (LPH)']; }).length;
+    var tanpaTI = pending.filter(function(r){ return r['No SO (LPH)'] && !r['No TI (TII)']; }).length;
+
+    var t = [];
+    t.push('RINGKASAN MONITORING JUBELIO');
+    t.push('Per ' + fmtTanggalID(new Date().toISOString().slice(0,10)));
+    t.push('Periode data: mulai ' + fmtTanggalID(window.dataStartDate || '') );
+    t.push('');
+    t.push('== GAMBARAN UMUM ==');
+    t.push('Total pesanan       : ' + rows.length.toLocaleString('id-ID'));
+    t.push('Match lengkap       : ' + pct + '% (' + matchLengkap.toLocaleString('id-ID') + ' pesanan)');
+    t.push('Tunggakan           : ' + pending.length.toLocaleString('id-ID') + ' pesanan');
+    t.push('Nilai tertahan      : ' + rp(totalRp));
+    t.push('');
+    t.push('== UMUR TUNGGAKAN ==');
+    AGING_BUCKETS.forEach(function(b){
+      t.push(('  ' + b.label).padEnd(16) + ': ' + String(agg[b.id].n).padStart(4) + ' pesanan  ' + rpSingkat(agg[b.id].rp));
+    });
+    t.push('');
+    t.push('== LOKASI PALING BANYAK TERTAHAN ==');
+    urut.forEach(function(x, i){
+      t.push('  ' + (i+1) + '. ' + x.nama + ' — ' + x.n + ' pesanan, ' + rpSingkat(x.rp));
+    });
+    t.push('');
+    t.push('== PUTUS DI TAHAP MANA ==');
+    t.push('  Belum ada No SO (LPH)      : ' + tanpaSO + ' pesanan');
+    t.push('  Ada SO, belum ada No TI    : ' + tanpaTI + ' pesanan');
+    t.push('');
+    t.push('Mohon lokasi terkait menindaklanjuti pesanan yang berumur di atas 30 hari.');
+    t.push('Detail lengkap dapat dilihat di dashboard Monitoring Jubelio.');
+    t.push('');
+    t.push('— Dikirim oleh ' + (window.currentUsername || 'admin') + ' via Dashboard Monitoring Jubelio');
+    return t.join('\n');
+  }
+
+  function muatPenerima(){
+    var box = document.getElementById('summaryRecipients');
+    box.innerHTML = 'Memuat…';
+    return db.collection('users').get().then(function(qs){
+      var list = [];
+      qs.forEach(function(doc){
+        var d = doc.data();
+        if(d.email) list.push(d);
+      });
+      if(!list.length){ box.innerHTML = '<div style="font-size:12px;color:var(--muted);">Tidak ada akun terdaftar.</div>'; return; }
+      list.sort(function(a,b){ return String(a.username||'').localeCompare(String(b.username||''), 'id'); });
+      box.innerHTML = list.map(function(d){
+        return '<label><input type="checkbox" class="rcpt" value="' + esc(d.email) + '" checked>' +
+          '<span>' + esc(d.username || d.email) +
+          '<small>' + esc(d.email) + (d.lokasi ? ' · 📍 ' + esc(d.lokasi) : '') + '</small></span></label>';
+      }).join('');
+    })['catch'](function(err){
+      box.innerHTML = '<div style="font-size:12px;color:var(--warn);">Gagal memuat penerima: ' + esc(err.message) + '</div>';
+    });
+  }
+
+  function penerimaTerpilih(){
+    return Array.prototype.slice.call(document.querySelectorAll('.rcpt:checked'))
+      .map(function(el){ return el.value; });
+  }
+
+  function tandaiSudahDikirim(jumlah){
+    var hariIni = new Date().toISOString().slice(0,10);
+    return db.collection('meta').doc('config').set({
+      ringkasanTerakhir: hariIni, ringkasanJam: Date.now()
+    }, {merge:true}).then(function(){
+      recordActivity('Kirim ringkasan', 'Ringkasan harian dikirim ke ' + jumlah + ' penerima.');
+      renderNoonReminder();
+    });
+  }
+
+  document.getElementById('summaryBtn').addEventListener('click', function(){
+    document.getElementById('summaryOverlay').classList.add('open');
+    document.getElementById('summaryText').value = susunRingkasan();
+    document.getElementById('summaryMsg').textContent = '';
+    muatPenerima();
+  });
+  document.getElementById('summaryModalClose').addEventListener('click', function(){
+    document.getElementById('summaryOverlay').classList.remove('open');
+  });
+  document.getElementById('summaryOverlay').addEventListener('click', function(e){
+    if(e.target === this) this.classList.remove('open');
+  });
+
+  document.getElementById('summarySend').addEventListener('click', function(){
+    var emails = penerimaTerpilih();
+    var msg = document.getElementById('summaryMsg');
+    if(!emails.length){
+      msg.className = 'users-msg err';
+      msg.textContent = 'Pilih minimal satu penerima.';
+      return;
+    }
+    var subjek = 'Ringkasan Monitoring Jubelio — ' + fmtTanggalID(new Date().toISOString().slice(0,10));
+    var isi = document.getElementById('summaryText').value;
+    var url = 'mailto:?bcc=' + encodeURIComponent(emails.join(',')) +
+              '&subject=' + encodeURIComponent(subjek) +
+              '&body=' + encodeURIComponent(isi);
+
+    if(url.length > 1900){
+      msg.className = 'users-msg err';
+      msg.textContent = 'Ringkasan terlalu panjang untuk dibuka otomatis. Gunakan tombol Salin Teks lalu tempel di email Anda.';
+      return;
+    }
+    window.location.href = url;
+    msg.className = 'users-msg ok';
+    msg.textContent = 'Aplikasi email dibuka untuk ' + emails.length + ' penerima. Setelah benar-benar terkirim, klik "Tandai Sudah Dikirim".';
+  });
+
+  document.getElementById('summaryCopy').addEventListener('click', function(){
+    var ta = document.getElementById('summaryText');
+    var msg = document.getElementById('summaryMsg');
+    ta.select();
+    try{
+      document.execCommand('copy');
+      msg.className = 'users-msg ok';
+      msg.textContent = 'Teks ringkasan disalin. Tinggal tempel di email atau WhatsApp grup.';
+    }catch(e){
+      msg.className = 'users-msg err';
+      msg.textContent = 'Gagal menyalin. Pilih teksnya lalu tekan Ctrl+C.';
+    }
+  });
+
+  document.getElementById('summaryMarkSent').addEventListener('click', function(){
+    var msg = document.getElementById('summaryMsg');
+    tandaiSudahDikirim(penerimaTerpilih().length).then(function(){
+      msg.className = 'users-msg ok';
+      msg.textContent = 'Ditandai sudah dikirim untuk hari ini. Pengingat jam 12 tidak akan muncul lagi.';
+    });
+  });
+
+  // ---------- pengingat lewat jam 12 siang ----------
+  function renderNoonReminder(){
+    var host = document.getElementById('noonReminderHost');
+    if(!host) return;
+    var r = window.currentRole;
+    var bolehKirim = (r === 'owner' || r === 'superadmin' || r === 'admin');
+    var jam = new Date().getHours();
+    var hariIni = new Date().toISOString().slice(0,10);
+    var sudah = window.ringkasanTerakhir === hariIni;
+
+    if(!bolehKirim || jam < 12 || sudah){
+      host.innerHTML = '';
+      return;
+    }
+    host.innerHTML = '<div class="noon-reminder">' +
+      '<div class="nr-text">🔔 Sudah lewat pukul 12.00 — <b>ringkasan harian belum dikirim</b> ke tim hari ini.</div>' +
+      '<button type="button" class="btn btn-primary" id="noonSendBtn">📧 Kirim Sekarang</button>' +
+    '</div>';
+    document.getElementById('noonSendBtn').addEventListener('click', function(){
+      document.getElementById('summaryBtn').click();
+    });
+  }
+
   function init(){
     pantauDataStart();
+    renderNoonReminder();
+    // cek ulang tiap 10 menit supaya pengingat muncul begitu lewat jam 12
+    setInterval(renderNoonReminder, 600000);
     refreshAll();
     renderHead();
     wireMultiSelects();
