@@ -2,6 +2,18 @@
 <html lang="id"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+/* Tema dipasang sedini mungkin — sebelum CSS & isi halaman dirender —
+   supaya tidak ada kedipan warna saat halaman pertama kali dibuka. */
+(function(){
+  var t = null;
+  try { t = localStorage.getItem('jubelioTheme'); } catch(e) {}
+  if (t !== 'light' && t !== 'dark') {
+    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 <!-- build: compact-shift-modal-today-tabs -->
 <title>Monitoring Jubelio — Jubelio × LPH Infinity × TI TO Detail Infinity</title>
 <!-- FAVICON: logo League (huruf L) — embedded PNG, tidak butuh file eksternal -->
@@ -16,14 +28,27 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
+  /* =========================================================================
+     SISTEM TEMA — GELAP (bawaan) & TERANG
+     Semua warna dipusatkan di sini. Tema terang cukup menimpa nilai variabel
+     yang sama lewat selector [data-theme="light"], jadi tidak perlu menulis
+     ulang satu pun aturan CSS di bawahnya.
+     ========================================================================= */
   :root{
+    color-scheme:dark;
+    --scheme:dark;
+
+    /* -- warna dasar -- */
     --ink:#EAF3EC;
     --ink-soft:#CFE0D4;
+    --ink-dim:#C7C2B6;
     --paper:#0A0D0B;
     --paper-raised:#12160F;
     --line:#233028;
     --accent:#3FBF63;
     --accent-dark:#1F7A34;
+    --accent-soft:#16211A;
+    --on-accent:#fff;
     --ok:#3FBF63;
     --ok-bg:#12301D;
     --warn:#D64545;
@@ -31,10 +56,174 @@
     --muted:#8AA091;
     --amber:#D6A419;
     --amber-bg:#332608;
+    --orange:#E08A2B;
+
+    /* -- hero & login -- */
+    --hero-g1:#0B120C;
+    --hero-g2:#16211A;
+    --hero-glow:rgba(63,191,99,0.22);
+    --hero-weave:rgba(255,255,255,0.035);
+    --hero-ink:#F4F1EA;
+    --hero-ink-soft:#C9C4B8;
+    --hero-ink-dim:#A9A398;
+    --hero-surface:rgba(255,255,255,0.045);
+    --hero-chip:rgba(255,255,255,0.08);
+    --hero-border:rgba(255,255,255,0.12);
+    --hero-border-strong:rgba(255,255,255,0.2);
+    --hero-track:rgba(255,255,255,0.15);
+    --logo-plate:#fff;
+    --tab-active-ink:#1a0f08;
+
+    /* -- permukaan tabel & panel -- */
+    --surface-sunken:#0E120E;
+    --thead-bg:#0D120E;
+    --thead-ink:#F4F1EA;
+    --row-even:#101510;
+    --row-hover:#1B2419;
+    --row-even-soft:rgba(255,255,255,0.015);
+    --row-hover-soft:rgba(148,163,184,0.06);
+    --glass-bg:rgba(38,44,51,0.65);
+    --glass-border:rgba(255,255,255,0.06);
+    --scroll-thumb:#2F373E;
+    --scroll-thumb-hover:#3C454D;
+
+    /* -- bayangan & lapisan gelap -- */
+    --shadow-soft:rgba(20,24,28,0.35);
+    --shadow-mid:rgba(20,24,28,0.45);
+    --shadow-strong:rgba(0,0,0,0.5);
+    --shadow-panel:rgba(0,0,0,0.6);
+    --scrim:rgba(20,24,28,0.55);
+    --watermark-ink:%23ffffff;
+    --watermark-op:0.055;
+
+    /* -- badge status -- */
+    --badge-ship-bg:#12233A;   --badge-ship-fg:#6FA8DC;
+    --badge-ret-bg:#2A1836;    --badge-ret-fg:#C79AE8;
+    --badge-pend-bg:#242A26;   --badge-pend-fg:#9AA39C;
+    --badge-in-bg:rgba(56,160,214,.12); --badge-in-fg:#3FA3D6; --badge-in-bd:rgba(56,160,214,.35);
+    --badge-out-bg:rgba(140,140,140,.12);
+    --log-ok-bd:#1F5C3A;  --log-ok-fg:#6FDB9A;
+    --log-wn-bd:#6B2323;  --log-wn-fg:#F19A94;
+    --log-in-bg:#16202E;  --log-in-bd:#2A3D57; --log-in-fg:#8FB4E0;
+
+    /* -- skala abu Tailwind (kanal RGB, dipakai lewat rgb(var(--s-x)/alpha)) -- */
+    --s-100:237 239 241;
+    --s-200:221 225 228;
+    --s-300:195 201 206;
+    --s-400:154 163 171;
+    --s-500:124 135 144;
+    --s-600: 89  99 108;
+    --s-700: 60  69  77;
+    --s-800: 47  55  62;
+    --s-850: 36  43  49;
+    --s-900: 27  33  38;
+    --s-950: 20  24  28;
+
+    /* -- skala warna aksen Tailwind -- */
+    --c-300:166 230 184; --c-400: 95 203 126; --c-450: 63 191  99; --c-500: 63 191  99; --c-600: 31 122  52;
+    --p-300:143 220 185; --p-400: 52 181 131; --p-450: 30 158 107; --p-500: 30 158 107; --p-600: 23 124  84;
+    --a-300:239 203 120; --a-400:214 164  25; --a-450:214 164  25; --a-500:214 164  25; --a-600:179 134  14;
+    --r-300:243 168 162; --r-400:225 104  95; --r-450:214  69  69; --r-500:214  69  69; --r-600:178  51  51; --r-950: 58  18  16;
+  }
+
+  /* ---------------------------- TEMA TERANG ---------------------------- */
+  [data-theme="light"]{
+    color-scheme:light;
+    --scheme:light;
+
+    --ink:#12211A;
+    --ink-soft:#3D5147;
+    --ink-dim:#7E8C84;
+    --paper:#F1F4F0;
+    --paper-raised:#FFFFFF;
+    --line:#D7E1D9;
+    --accent:#1F8F43;
+    --accent-dark:#15662F;
+    --accent-soft:#E3F2E7;
+    --on-accent:#fff;
+    --ok:#1F8F43;
+    --ok-bg:#E1F3E6;
+    --warn:#C0332F;
+    --warn-bg:#FBE8E7;
+    --muted:#63756A;
+    --amber:#8A6608;
+    --amber-bg:#FBF2D8;
+    --orange:#A8620F;
+
+    --hero-g1:#E9F2EB;
+    --hero-g2:#D3E6D8;
+    --hero-glow:rgba(31,143,67,0.20);
+    --hero-weave:rgba(18,33,26,0.030);
+    --hero-ink:#12211A;
+    --hero-ink-soft:#41564A;
+    --hero-ink-dim:#5E7166;
+    --hero-surface:rgba(255,255,255,0.62);
+    --hero-chip:rgba(255,255,255,0.72);
+    --hero-border:rgba(18,33,26,0.13);
+    --hero-border-strong:rgba(18,33,26,0.24);
+    --hero-track:rgba(18,33,26,0.16);
+    --logo-plate:#fff;
+    --tab-active-ink:#FFFFFF;
+
+    --surface-sunken:#ECF1EC;
+    --thead-bg:#E4EDE6;
+    --thead-ink:#12211A;
+    --row-even:#F7F9F6;
+    --row-hover:#E6F1E9;
+    --row-even-soft:rgba(18,33,26,0.022);
+    --row-hover-soft:rgba(31,143,67,0.075);
+    --glass-bg:rgba(255,255,255,0.78);
+    --glass-border:rgba(18,33,26,0.08);
+    --scroll-thumb:#C7D2CA;
+    --scroll-thumb-hover:#AEBCB3;
+
+    --shadow-soft:rgba(31,45,36,0.16);
+    --shadow-mid:rgba(31,45,36,0.22);
+    --shadow-strong:rgba(31,45,36,0.20);
+    --shadow-panel:rgba(31,45,36,0.22);
+    --scrim:rgba(20,34,26,0.42);
+    --watermark-ink:%2312211A;
+    --watermark-op:0.030;
+
+    --badge-ship-bg:#DDEAF7;   --badge-ship-fg:#1D5A90;
+    --badge-ret-bg:#F0E4F8;    --badge-ret-fg:#6B3D8C;
+    --badge-pend-bg:#E8EDEA;   --badge-pend-fg:#57635C;
+    --badge-in-bg:rgba(30,106,155,.10); --badge-in-fg:#1D6A9B; --badge-in-bd:rgba(30,106,155,.30);
+    --badge-out-bg:rgba(99,117,106,.10);
+    --log-ok-bd:#A8DCBA;  --log-ok-fg:#176B33;
+    --log-wn-bd:#EFBAB6;  --log-wn-fg:#9C2A25;
+    --log-in-bg:#E4EEF9;  --log-in-bd:#B8D2EC; --log-in-fg:#255886;
+
+    /* Skala abu dibalik: 950 = latar halaman paling terang,
+       900 = kartu (putih murni), 100 = teks paling gelap. */
+    --s-100: 16  21  26;
+    --s-200: 29  36  42;
+    --s-300: 57  67  75;
+    --s-400: 92 104 115;
+    --s-500:120 132 142;
+    --s-600:152 163 172;
+    --s-700:203 212 218;
+    --s-800:225 231 235;
+    --s-850:237 241 244;
+    --s-900:255 255 255;
+    --s-950:241 244 246;
+
+    --c-300: 46 155  78; --c-400: 27 122  56; --c-450: 31 143  67; --c-500: 31 143  67; --c-600: 21 102  47;
+    --p-300: 23 124  84; --p-400: 17  99  71; --p-450: 21 138  95; --p-500: 21 138  95; --p-600: 15 104  68;
+    --a-300:138 102   8; --a-400:122  90   7; --a-500:199 150  18; --a-450:199 150  18; --a-600:158 117   9;
+    --r-300:181  50  44; --r-400:176  42  36; --r-450:195  58  52; --r-500:195  58  52; --r-600:158  42  37; --r-950:233  86  79;
+  }
+
+  /* Transisi halus saat tema ditukar (dinonaktifkan bagi yang mengurangi animasi) */
+  html.theme-anim, html.theme-anim *, html.theme-anim *::before, html.theme-anim *::after{
+    transition:background-color .22s ease, border-color .22s ease, color .22s ease, box-shadow .22s ease !important;
+  }
+  @media (prefers-reduced-motion: reduce){
+    html.theme-anim, html.theme-anim *{transition:none !important;}
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
-  html{color-scheme:dark;}  /* daftar opsi <select> & scrollbar bawaan browser ikut gelap */
+  html{color-scheme:var(--scheme);}  /* daftar opsi <select> & scrollbar bawaan browser ikut tema */
   body{
     background:var(--paper);
     color:var(--ink);
@@ -48,9 +237,9 @@
   /* ---------- HERO ---------- */
   .hero{
     background:
-      radial-gradient(1100px 420px at 85% -120px, rgba(63,191,99,0.22), transparent 60%),
-      linear-gradient(180deg, #0B120C 0%, #16211A 100%);
-    color:#F4F1EA;
+      radial-gradient(1100px 420px at 85% -120px, var(--hero-glow), transparent 60%),
+      linear-gradient(180deg, var(--hero-g1) 0%, var(--hero-g2) 100%);
+    color:var(--hero-ink);
     padding:38px 40px 30px;
     position:relative;
     overflow:hidden;
@@ -58,7 +247,7 @@
   .hero::after{
     content:"";
     position:absolute; inset:0;
-    background-image:repeating-linear-gradient(135deg, rgba(255,255,255,0.035) 0 2px, transparent 2px 26px);
+    background-image:repeating-linear-gradient(135deg, var(--hero-weave) 0 2px, transparent 2px 26px);
     pointer-events:none;
   }
   .eyebrow{
@@ -92,7 +281,7 @@
     letter-spacing:.015em;
     line-height:1.02;
     margin:0 0 12px;
-    color:#F4F1EA;
+    color:var(--hero-ink);
     position:relative;
     z-index:1;
   }
@@ -104,20 +293,20 @@
     height:34px;
     width:auto;
     display:block;
-    background:#fff;
+    background:var(--logo-plate);
     padding:7px 12px;
     border-radius:10px;
-    box-shadow:0 2px 14px rgba(0,0,0,.35);
-    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 2px 14px var(--shadow-soft);
+    border:1px solid var(--hero-border);
   }
   .hero-sub{
     max-width:680px;
-    color:#C9C4B8;
+    color:var(--hero-ink-soft);
     font-size:14.5px;
     line-height:1.6;
     margin:0 0 26px;
   }
-  .hero-sub b{color:#F4F1EA; font-weight:600;}
+  .hero-sub b{color:var(--hero-ink); font-weight:600;}
 
   .hero-topline{
     display:flex;
@@ -132,7 +321,7 @@
   .hero-clock{
     font-family:'IBM Plex Mono',monospace;
     font-size:12px;
-    color:#C9C4B8;
+    color:var(--hero-ink-soft);
     letter-spacing:.02em;
     display:flex;
     align-items:center;
@@ -140,7 +329,7 @@
     white-space:nowrap;
   }
   .hero-clock .hero-clock-sep{color:var(--accent);}
-  .hero-clock .hero-clock-time{color:#F4F1EA; font-weight:600;}
+  .hero-clock .hero-clock-time{color:var(--hero-ink); font-weight:600;}
 
   /* pipeline */
   .pipeline{
@@ -153,8 +342,8 @@
     padding-bottom:4px;
   }
   .node{
-    background:rgba(255,255,255,0.045);
-    border:1px solid rgba(255,255,255,0.12);
+    background:var(--hero-surface);
+    border:1px solid var(--hero-border);
     border-radius:10px;
     padding:14px 18px;
     min-width:168px;
@@ -166,14 +355,14 @@
     font-size:10.5px;
     letter-spacing:.1em;
     text-transform:uppercase;
-    color:#A9A398;
+    color:var(--hero-ink-dim);
     margin-bottom:6px;
   }
   .node .n-name{
     font-family:'Oswald',sans-serif;
     font-size:16px;
     font-weight:500;
-    color:#F4F1EA;
+    color:var(--hero-ink);
     line-height:1.2;
     white-space:normal;
   }
@@ -196,7 +385,7 @@
   .link .track{
     width:100%;
     height:2px;
-    background:rgba(255,255,255,0.15);
+    background:var(--hero-track);
     position:relative;
   }
   .link .fill{
@@ -214,7 +403,7 @@
   .link .pct{
     font-family:'IBM Plex Mono',monospace;
     font-size:12px;
-    color:#F4F1EA;
+    color:var(--hero-ink);
     margin-top:8px;
     white-space:nowrap;
   }
@@ -241,7 +430,7 @@
     border:1px solid var(--line);
     border-radius:10px;
     padding:16px 18px;
-    box-shadow:0 10px 24px -18px rgba(20,24,28,0.35);
+    box-shadow:0 10px 24px -18px var(--shadow-soft);
   }
   .stat .s-label{
     font-size:11px;
@@ -266,7 +455,7 @@
     position:relative;
   }
   .stat:hover{
-    box-shadow:0 14px 28px -16px rgba(20,24,28,0.45);
+    box-shadow:0 14px 28px -16px var(--shadow-mid);
     border-color:var(--accent);
     transform:translateY(-2px);
   }
@@ -282,7 +471,7 @@
   .chart-overlay{
     display:none;
     position:fixed; inset:0;
-    background:rgba(20,24,28,0.55);
+    background:var(--scrim);
     z-index:50;
     align-items:center;
     justify-content:center;
@@ -296,7 +485,7 @@
     max-height:88vh;
     overflow-y:auto;
     overflow-x:hidden;
-    box-shadow:0 30px 60px -20px rgba(0,0,0,0.5);
+    box-shadow:0 30px 60px -20px var(--shadow-strong);
     border:1px solid var(--line);
   }
   .chart-modal-head{
@@ -342,8 +531,8 @@
   #loginOverlay{
     position:fixed; inset:0; z-index:200;
     background:
-      radial-gradient(1100px 420px at 85% -120px, rgba(63,191,99,0.22), transparent 60%),
-      linear-gradient(180deg, #0B120C 0%, #16211A 100%);
+      radial-gradient(1100px 420px at 85% -120px, var(--hero-glow), transparent 60%),
+      linear-gradient(180deg, var(--hero-g1) 0%, var(--hero-g2) 100%);
     display:flex; align-items:center; justify-content:center;
     padding:20px;
   }
@@ -353,7 +542,7 @@
     border-radius:14px;
     width:min(360px, 100%);
     padding:30px 28px 26px;
-    box-shadow:0 30px 60px -20px rgba(0,0,0,0.5);
+    box-shadow:0 30px 60px -20px var(--shadow-strong);
   }
   .login-card .eyebrow{margin-bottom:4px;}
   .login-card h1{font-size:22px; margin-bottom:18px;}
@@ -370,7 +559,7 @@
   .login-field input:focus, .login-field select:focus{outline:2px solid var(--accent); outline-offset:-1px;}
   .login-btn{
     width:100%; padding:11px; border:none; border-radius:8px; background:var(--accent);
-    color:#fff; font-weight:600; font-size:14px; cursor:pointer; margin-top:4px;
+    color:var(--on-accent); font-weight:600; font-size:14px; cursor:pointer; margin-top:4px;
   }
   .login-btn:hover{background:var(--accent-dark);}
   .login-btn:disabled{opacity:.6; cursor:default;}
@@ -394,19 +583,19 @@
     margin-top:18px; flex-wrap:wrap;
   }
   .userbar .who{
-    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#F4F1EA;
-    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--hero-ink);
+    background:var(--hero-chip); border:1px solid var(--hero-border-strong);
     padding:6px 12px; border-radius:20px;
   }
   .userbar .who b{color:var(--accent);}
   .userbar .role-tag{
     text-transform:uppercase; font-size:10px; letter-spacing:.06em; font-weight:600;
-    padding:2px 8px; border-radius:10px; background:var(--accent); color:#fff; margin-left:6px;
+    padding:2px 8px; border-radius:10px; background:var(--accent); color:var(--on-accent); margin-left:6px;
   }
   .userbar button{
     font-family:'Inter',sans-serif; font-size:12px; font-weight:600; cursor:pointer;
-    padding:7px 14px; border-radius:20px; border:1px solid rgba(255,255,255,0.2);
-    background:transparent; color:#F4F1EA;
+    padding:7px 14px; border-radius:20px; border:1px solid var(--hero-border-strong);
+    background:transparent; color:var(--hero-ink);
   }
   .userbar button:hover{border-color:var(--accent); color:var(--accent);}
 
@@ -454,7 +643,7 @@
     border:none; background:var(--warn-bg); color:var(--warn); border-radius:6px;
     padding:5px 9px; font-size:11.5px; cursor:pointer; white-space:nowrap;
   }
-  .users-table .del-user:hover{background:var(--warn); color:#fff;}
+  .users-table .del-user:hover{background:var(--warn); color:var(--on-accent);}
   .add-user-form{
     display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px;
   }
@@ -478,7 +667,7 @@
     border-left:3px solid var(--amber);
     border-radius:10px; padding:12px 16px; margin-bottom:14px;
     position:relative; z-index:2;
-    box-shadow:0 10px 24px -18px rgba(20,24,28,0.35);
+    box-shadow:0 10px 24px -18px var(--shadow-soft);
   }
   .datastart-bar .ds-left{display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 260px;}
   .datastart-bar .ds-icon{font-size:18px; opacity:.85;}
@@ -530,9 +719,9 @@
   }
   .aging-card:hover{transform:translateY(-2px);}
   .aging-card.on{box-shadow:0 0 0 2px rgba(214,164,25,.35) inset;}
-  .aging-card.lvl1{border-top-color:#3FBF63;}
+  .aging-card.lvl1{border-top-color:var(--ok);}
   .aging-card.lvl2{border-top-color:var(--amber);}
-  .aging-card.lvl3{border-top-color:#E08A2B;}
+  .aging-card.lvl3{border-top-color:var(--orange);}
   .aging-card.lvl4{border-top-color:var(--warn);}
   .aging-card .a-label{
     font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700;
@@ -632,8 +821,8 @@
   .act-badge.upload{background:var(--ok-bg); color:var(--ok); border:1px solid rgba(63,191,99,.35);}
   .act-badge.hapus{background:var(--warn-bg); color:var(--warn); border:1px solid rgba(214,69,69,.35);}
   .act-badge.lain{background:var(--amber-bg); color:var(--amber); border:1px solid rgba(214,164,25,.35);}
-  .act-badge.masuk{background:rgba(56,160,214,.12); color:#3FA3D6; border:1px solid rgba(56,160,214,.35);}
-  .act-badge.keluar{background:rgba(140,140,140,.12); color:var(--muted); border:1px solid var(--line);}
+  .act-badge.masuk{background:var(--badge-in-bg); color:var(--badge-in-fg); border:1px solid var(--badge-in-bd);}
+  .act-badge.keluar{background:var(--badge-out-bg); color:var(--muted); border:1px solid var(--line);}
   .users-msg.err{color:var(--warn);}
   .users-msg.ok{color:var(--ok);}
 
@@ -651,7 +840,7 @@
     align-items:center;
     padding:16px 18px;
     border-bottom:1px solid var(--line);
-    background:#0E120E;
+    background:var(--surface-sunken);
   }
   .toolbar input[type=text]{
     flex:1 1 220px;
@@ -687,7 +876,7 @@
     font-family:'Inter',sans-serif;
     background:var(--paper-raised);
     color:var(--ink);
-    color-scheme: dark;
+    color-scheme: var(--scheme);
   }
   .toolbar .spacer{flex:1 1 auto;}
   /* ---------- filter duplikat ---------- */
@@ -738,10 +927,10 @@
     white-space:nowrap;
   }
   .msel-btn:hover{border-color:var(--accent);}
-  .msel.open .msel-btn{border-color:var(--accent); color:var(--accent); background:#16211A;}
+  .msel.open .msel-btn{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
   .msel-btn .count{
     background:var(--accent);
-    color:#fff;
+    color:var(--on-accent);
     border-radius:999px;
     font-size:10.5px;
     font-weight:600;
@@ -758,7 +947,7 @@
     background:var(--paper-raised);
     border:1px solid var(--line);
     border-radius:10px;
-    box-shadow:0 18px 34px -14px rgba(0,0,0,0.6);
+    box-shadow:0 18px 34px -14px var(--shadow-panel);
     z-index:30;
     padding:10px;
   }
@@ -771,6 +960,7 @@
     font-size:12.5px;
     margin-bottom:8px;
     font-family:'Inter',sans-serif;
+    background:var(--paper);
     color:var(--ink);
   }
   .msel-actions{display:flex; gap:8px; margin-bottom:8px;}
@@ -813,7 +1003,7 @@
   }
   .btn-primary{
     background:var(--accent);
-    color:#fff;
+    color:var(--on-accent);
   }
   .btn-primary:hover{background:var(--accent-dark);}
   .btn-ghost{
@@ -836,8 +1026,8 @@
   }
   thead th{
     position:sticky; top:0;
-    background:#0D120E;
-    color:#F4F1EA;
+    background:var(--thead-bg);
+    color:var(--thead-ink);
     text-align:left;
     padding:10px 12px;
     font-size:11px;
@@ -857,9 +1047,9 @@
     white-space:nowrap;
     vertical-align:top;
   }
-  #viewMonitoring tbody tr:hover{background:#1B2419;}
-  #viewMonitoring tbody tr:nth-child(even){background:#101510;}
-  #viewMonitoring tbody tr:nth-child(even):hover{background:#1B2419;}
+  #viewMonitoring tbody tr:hover{background:var(--row-hover);}
+  #viewMonitoring tbody tr:nth-child(even){background:var(--row-even);}
+  #viewMonitoring tbody tr:nth-child(even):hover{background:var(--row-hover);}
   .col-name{white-space:normal; min-width:220px; max-width:320px;}
   .badge{
     display:inline-block;
@@ -873,13 +1063,13 @@
   }
   .badge-completed{background:var(--ok-bg); color:var(--ok);}
   .badge-canceled{background:var(--warn-bg); color:var(--warn);}
-  .badge-shipped{background:#12233A; color:#6FA8DC;}
+  .badge-shipped{background:var(--badge-ship-bg); color:var(--badge-ship-fg);}
   .badge-processing{background:var(--amber-bg); color:var(--amber);}
-  .badge-returned{background:#2A1836; color:#C79AE8;}
-  .badge-pending{background:#242A26; color:#9AA39C;}
+  .badge-returned{background:var(--badge-ret-bg); color:var(--badge-ret-fg);}
+  .badge-pending{background:var(--badge-pend-bg); color:var(--badge-pend-fg);}
   .badge-paid{background:var(--ok-bg); color:var(--ok);}
   .pill-match{color:var(--ok); font-weight:600;}
-  .pill-empty{color:#C7C2B6;}
+  .pill-empty{color:var(--ink-dim);}
   .amt{text-align:right; font-family:'IBM Plex Mono',monospace;}
 
   .pager{
@@ -889,7 +1079,7 @@
     font-size:12.5px;
     color:var(--muted);
     flex-wrap:wrap;
-    background:#0E120E;
+    background:var(--surface-sunken);
   }
   .pager .spacer{flex:1 1 auto;}
   .pager button{
@@ -929,12 +1119,12 @@
     text-align:center;
     font-size:12.5px;
     color:var(--muted);
-    background:#0E120E;
+    background:var(--surface-sunken);
     transition:border-color .15s, background .15s, color .15s;
   }
   .drop-zone.drag{
     border-color:var(--accent);
-    background:#16211A;
+    background:var(--accent-soft);
     color:var(--accent);
   }
   .upload-log{display:none;}
@@ -947,9 +1137,9 @@
   }
   .log-item .log-icon{font-size:14px; flex:0 0 auto;}
   .log-item .log-text b{font-family:'IBM Plex Mono',monospace; font-weight:600;}
-  .log-item.ok{background:var(--ok-bg); border-color:#1F5C3A; color:#6FDB9A;}
-  .log-item.warn{background:var(--warn-bg); border-color:#6B2323; color:#F19A94;}
-  .log-item.info{background:#16202E; border-color:#2A3D57; color:#8FB4E0;}
+  .log-item.ok{background:var(--ok-bg); border-color:var(--log-ok-bd); color:var(--log-ok-fg);}
+  .log-item.warn{background:var(--warn-bg); border-color:var(--log-wn-bd); color:var(--log-wn-fg);}
+  .log-item.info{background:var(--log-in-bg); border-color:var(--log-in-bd); color:var(--log-in-fg);}
 
   footer{
     max-width:1500px;
@@ -986,19 +1176,29 @@
                     display: ['Oswald', 'sans-serif'],
                     mono: ['IBM Plex Mono', 'monospace'],
                 },
+                // Setiap warna ditulis sebagai rgb(var(--x) / <alpha-value>) supaya:
+                //  1) nilainya bisa ditukar total lewat variabel CSS saat tema berganti, dan
+                //  2) modifier transparansi Tailwind (mis. bg-slate-900/40) tetap berfungsi.
                 colors: {
                     slate: {
-                        100: '#EDEFF1', 200: '#DDE1E4', 300: '#C3C9CE',
-                        400: '#9AA3AB', 500: '#7C8790', 600: '#59636C',
-                        700: '#3C454D', 800: '#2F373E', 850: '#242B31',
-                        900: '#1B2126', 950: '#14181C'
+                        100: 'rgb(var(--s-100) / <alpha-value>)',
+                        200: 'rgb(var(--s-200) / <alpha-value>)',
+                        300: 'rgb(var(--s-300) / <alpha-value>)',
+                        400: 'rgb(var(--s-400) / <alpha-value>)',
+                        500: 'rgb(var(--s-500) / <alpha-value>)',
+                        600: 'rgb(var(--s-600) / <alpha-value>)',
+                        700: 'rgb(var(--s-700) / <alpha-value>)',
+                        800: 'rgb(var(--s-800) / <alpha-value>)',
+                        850: 'rgb(var(--s-850) / <alpha-value>)',
+                        900: 'rgb(var(--s-900) / <alpha-value>)',
+                        950: 'rgb(var(--s-950) / <alpha-value>)'
                     },
-                    cyan:   { 300:'#A6E6B8', 400:'#5FCB7E', 450:'#3FBF63', 500:'#3FBF63', 600:'#1F7A34' },
-                    indigo: { 400:'#5FCB7E', 500:'#3FBF63', 600:'#1F7A34' },
-                    purple: { 300:'#8FDCB9', 400:'#34B583', 450:'#1E9E6B', 500:'#1E9E6B', 600:'#177C54' },
-                    emerald:{ 400:'#34B583', 500:'#1E9E6B', 600:'#177C54' },
-                    amber:  { 300:'#EFCB78', 400:'#D6A419', 450:'#D6A419', 500:'#D6A419', 600:'#B3860E' },
-                    rose:   { 300:'#F3A8A2', 400:'#E1685F', 450:'#D64545', 500:'#D64545', 600:'#B23333', 950:'#3A1210' }
+                    cyan:   { 300:'rgb(var(--c-300) / <alpha-value>)', 400:'rgb(var(--c-400) / <alpha-value>)', 450:'rgb(var(--c-450) / <alpha-value>)', 500:'rgb(var(--c-500) / <alpha-value>)', 600:'rgb(var(--c-600) / <alpha-value>)' },
+                    indigo: { 400:'rgb(var(--c-400) / <alpha-value>)', 500:'rgb(var(--c-500) / <alpha-value>)', 600:'rgb(var(--c-600) / <alpha-value>)' },
+                    purple: { 300:'rgb(var(--p-300) / <alpha-value>)', 400:'rgb(var(--p-400) / <alpha-value>)', 450:'rgb(var(--p-450) / <alpha-value>)', 500:'rgb(var(--p-500) / <alpha-value>)', 600:'rgb(var(--p-600) / <alpha-value>)' },
+                    emerald:{ 400:'rgb(var(--p-400) / <alpha-value>)', 500:'rgb(var(--p-500) / <alpha-value>)', 600:'rgb(var(--p-600) / <alpha-value>)' },
+                    amber:  { 300:'rgb(var(--a-300) / <alpha-value>)', 400:'rgb(var(--a-400) / <alpha-value>)', 450:'rgb(var(--a-450) / <alpha-value>)', 500:'rgb(var(--a-500) / <alpha-value>)', 600:'rgb(var(--a-600) / <alpha-value>)' },
+                    rose:   { 300:'rgb(var(--r-300) / <alpha-value>)', 400:'rgb(var(--r-400) / <alpha-value>)', 450:'rgb(var(--r-450) / <alpha-value>)', 500:'rgb(var(--r-500) / <alpha-value>)', 600:'rgb(var(--r-600) / <alpha-value>)', 950:'rgb(var(--r-950) / <alpha-value>)' }
                 }
             }
         }
@@ -1007,17 +1207,17 @@
 <style>
     .jadwal-theme {
         font-family: 'Inter', sans-serif;
-        background-color: #14181C;
-        color: #f1f5f9;
+        background-color: var(--paper);
+        color: var(--ink);
     }
     .jadwal-theme h1, .jadwal-theme h2, .jadwal-theme h3 {
         font-family: 'Oswald', sans-serif;
     }
 
     .custom-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
-    .custom-scroll::-webkit-scrollbar-track { background: #14181C; border-radius: 8px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background-color: #2F373E; border-radius: 8px; }
-    .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: #3C454D; }
+    .custom-scroll::-webkit-scrollbar-track { background: var(--paper); border-radius: 8px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); border-radius: 8px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
 
     /* Pengingat draft belum diterapkan — kedipan halus supaya menarik perhatian
        tanpa mengganggu. Dinonaktifkan bagi pengguna yang memilih kurangi animasi. */
@@ -1030,9 +1230,9 @@
       .animate-pulse-slow{ animation: none; }
     }
     .glass-card {
-        background: rgba(38, 44, 51, 0.65);
+        background: var(--glass-bg);
         backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--glass-border);
     }
     .shift-cell, .shift-cell-select { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
     .shift-cell:hover, .shift-cell-select:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(242, 118, 46, 0.18); }
@@ -1044,26 +1244,78 @@
 
     /* Pastikan baris tabel jadwal selalu gelap, tidak ada baris putih */
     .jadwal-theme tbody tr { background: transparent; }
-    .jadwal-theme tbody tr:nth-child(even) { background: rgba(255,255,255,0.015); }
-    .jadwal-theme tbody tr:hover { background: rgba(148,163,184,0.06); }
+    .jadwal-theme tbody tr:nth-child(even) { background: var(--row-even-soft); }
+    .jadwal-theme tbody tr:hover { background: var(--row-hover-soft); }
 
     /* Tab navigasi di hero gabungan */
     .view-tabs { display:flex; gap:8px; margin: 4px 0 22px; position:relative; z-index:1; flex-wrap:wrap; }
     .view-tab {
         font-family:'IBM Plex Mono',monospace;
         font-size:11.5px; letter-spacing:.05em; text-transform:uppercase;
-        background:rgba(255,255,255,0.045); border:1px solid rgba(255,255,255,0.14);
-        color:#C9C4B8; padding:9px 16px; border-radius:8px; cursor:pointer;
+        background:var(--hero-surface); border:1px solid var(--hero-border);
+        color:var(--hero-ink-soft); padding:9px 16px; border-radius:8px; cursor:pointer;
         transition:all .15s ease;
     }
-    .view-tab:hover { border-color:var(--accent); color:#F4F1EA; }
-    .view-tab.active { background:var(--accent); border-color:var(--accent); color:#1a0f08; font-weight:600; }
+    .view-tab:hover { border-color:var(--accent); color:var(--hero-ink); }
+    .view-tab.active { background:var(--accent); border-color:var(--accent); color:var(--tab-active-ink); font-weight:600; }
     .watermark-overlay{
         position:fixed; inset:0; z-index:9999; pointer-events:none;
-        opacity:0.055;
+        opacity:var(--watermark-op);
         background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='220'><text x='0' y='110' font-size='26' font-family='Oswald,sans-serif' font-weight='700' fill='%23ffffff' transform='rotate(-28 160 110)'>League_World</text></svg>");
         background-repeat:repeat;
     }
+
+    /* =====================================================================
+       KOREKSI TEMA TERANG untuk kelas Tailwind yang warnanya dipaku
+       (text-white, scrim modal, watermark). Semua hanya aktif saat terang.
+       ===================================================================== */
+
+    /* text-white hanya dipertahankan bila elemennya memang punya latar
+       berwarna pekat. Di luar itu teksnya dibalik jadi gelap. */
+    [data-theme="light"] .text-white:not([class*="bg-cyan"]):not([class*="bg-indigo"]):not([class*="bg-purple"]):not([class*="bg-rose"]):not([class*="bg-emerald"]):not([class*="bg-amber"]){
+        color:#12211A;
+    }
+    [data-theme="light"] .hover\:text-white:hover{ color:#12211A; }
+
+    /* Teks gelap di atas chip amber (bg-amber-500 + text-slate-950) */
+    [data-theme="light"] .bg-amber-500.text-slate-950,
+    [data-theme="light"] .bg-amber-450.text-slate-950{ color:#33260A; }
+
+    /* Lapisan gelap di belakang modal tetap gelap supaya isinya menonjol */
+    [data-theme="light"] .fixed.inset-0.bg-slate-950\/80{ background-color:var(--scrim); }
+
+    /* Watermark dibalik jadi tinta gelap agar tetap terbaca di latar terang */
+    [data-theme="light"] .watermark-overlay{
+        background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='220'><text x='0' y='110' font-size='26' font-family='Oswald,sans-serif' font-weight='700' fill='%2312211A' transform='rotate(-28 160 110)'>League_World</text></svg>");
+    }
+
+    /* Kartu kaca butuh bayangan halus di tema terang, bukan sekadar border */
+    [data-theme="light"] .glass-card{ box-shadow:0 1px 3px rgba(31,45,36,0.06), 0 8px 24px -16px rgba(31,45,36,0.18); }
+    [data-theme="light"] .shadow-2xl{ box-shadow:0 18px 40px -24px rgba(31,45,36,0.30) !important; }
+
+    /* ---------------- Tombol pengalih tema ---------------- */
+    .theme-toggle{
+        display:inline-flex; align-items:center; gap:7px;
+        font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
+        letter-spacing:.06em; text-transform:uppercase;
+        padding:6px 12px; border-radius:20px; cursor:pointer;
+        background:var(--hero-chip);
+        border:1px solid var(--hero-border-strong);
+        color:var(--hero-ink);
+        transition:border-color .15s ease, color .15s ease, background .15s ease;
+        white-space:nowrap;
+    }
+    .theme-toggle:hover{ border-color:var(--accent); color:var(--accent); }
+    .theme-toggle .tt-icon{ font-size:13px; line-height:1; }
+    .theme-toggle .tt-text{ line-height:1; }
+    @media (max-width:520px){ .theme-toggle .tt-text{ display:none; } }
+
+    /* Versi di dalam kartu login (latar kartu, bukan latar hero) */
+    .login-card .theme-toggle{
+        width:100%; justify-content:center; margin-top:12px;
+        background:transparent; border-color:var(--line); color:var(--muted);
+    }
+    .login-card .theme-toggle:hover{ border-color:var(--accent); color:var(--accent); }
 </style>
 </head>
 <body>
@@ -1114,6 +1366,9 @@
     </form>
     <button type="button" class="login-forgot" id="toggleAuthMode">Belum punya akun? Daftar di sini</button>
     <div class="login-note" id="loginNote">Setiap pengguna diberi peran <b>Owner</b>, <b>Super Admin</b>, <b>Admin</b>, <b>Team</b>, atau <b>Toko</b> yang menentukan hak akses di dashboard ini.</div>
+    <button type="button" class="theme-toggle" data-theme-toggle aria-label="Ganti tema tampilan">
+      <span class="tt-icon" data-tt-icon>🌙</span><span class="tt-text" data-tt-text>Gelap</span>
+    </button>
   </div>
 </div>
 
@@ -1226,6 +1481,9 @@
       <span class="hero-clock-sep">·</span>
       <span class="hero-clock-time" id="heroClockTime">–</span>
     </div>
+    <button type="button" class="theme-toggle" data-theme-toggle aria-label="Ganti tema tampilan">
+      <span class="tt-icon" data-tt-icon>🌙</span><span class="tt-text" data-tt-text>Gelap</span>
+    </button>
   </div>
   <h1>Monitoring Jubelio</h1>
   <p class="hero-sub">Menggabungkan data pesanan marketplace (<b>Jubelio</b>) dengan bukti serah barang gudang
@@ -2521,6 +2779,28 @@
     ctx.closePath();
   }
 
+  /* Grafik digambar manual di <canvas>, jadi warnanya tidak bisa ikut CSS
+     begitu saja. Helper ini membaca nilai variabel tema yang sedang aktif
+     supaya grafik ikut berubah saat tema gelap/terang ditukar. */
+  function themeVal(name, fallback){
+    try {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+      v = v && v.trim();
+      return v ? v : fallback;
+    } catch(e){ return fallback; }
+  }
+  var CHART = {
+    get grid(){  return themeVal('--line',        '#233028'); },
+    get axis(){  return themeVal('--line',        '#233028'); },
+    get label(){ return themeVal('--muted',       '#8AA091'); },
+    get ink(){   return themeVal('--ink',         '#EAF3EC'); },
+    get inkSoft(){return themeVal('--ink-soft',   '#CFE0D4'); },
+    get hole(){  return themeVal('--paper-raised','#12160F'); },
+    get bar(){   return themeVal('--accent',      '#3FBF63'); },
+    get ok(){    return themeVal('--ok',          '#3FBF63'); },
+    get warn(){  return themeVal('--warn',        '#D64545'); }
+  };
+
   function setupCanvas(canvas, cssWidth, cssHeight){
     var dpr = window.devicePixelRatio || 1;
     canvas.style.width = cssWidth + 'px';
@@ -2540,7 +2820,7 @@
     var ctx = setupCanvas(canvas, cssWidth, cssHeight);
 
     if(!labels.length){
-      ctx.fillStyle = '#6B7280';
+      ctx.fillStyle = CHART.label;
       ctx.font = '13px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Tidak ada data tanggal untuk ditampilkan.', cssWidth/2, cssHeight/2);
@@ -2561,17 +2841,17 @@
     for(var i=0;i<=ticks;i++){
       var v = niceMax / ticks * i;
       var y = padding.top + chartH - (v/niceMax)*chartH;
-      ctx.strokeStyle = '#EDEAE0';
+      ctx.strokeStyle = CHART.grid;
       ctx.beginPath();
       ctx.moveTo(padding.left, y);
       ctx.lineTo(padding.left+chartW, y);
       ctx.stroke();
-      ctx.fillStyle = '#6B7280';
+      ctx.fillStyle = CHART.label;
       ctx.fillText(opts.formatY ? opts.formatY(v) : Math.round(v).toLocaleString('id-ID'), padding.left-10, y);
     }
 
     // axis line
-    ctx.strokeStyle = '#C9C4B8';
+    ctx.strokeStyle = CHART.axis;
     ctx.beginPath();
     ctx.moveTo(padding.left, padding.top);
     ctx.lineTo(padding.left, padding.top+chartH);
@@ -2587,12 +2867,12 @@
       var barH = niceMax ? (val/niceMax)*chartH : 0;
       var x = padding.left + slot*idx + (slot-barW)/2;
       var y = padding.top + chartH - barH;
-      ctx.fillStyle = opts.color || '#3FBF63';
+      ctx.fillStyle = opts.color || CHART.bar;
       roundRectTop(ctx, x, y, barW, barH, 4);
       ctx.fill();
 
       ctx.save();
-      ctx.fillStyle = '#6B7280';
+      ctx.fillStyle = CHART.label;
       ctx.font = '10.5px Inter, sans-serif';
       var lx = x + barW/2, ly = padding.top + chartH + 10;
       ctx.translate(lx, ly);
@@ -2628,17 +2908,17 @@
 
     ctx.beginPath();
     ctx.arc(cx, cy, rInner, 0, Math.PI*2);
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = CHART.hole;
     ctx.fill();
 
     var pct = Math.round(values[0]/total*100);
-    ctx.fillStyle = '#14181C';
+    ctx.fillStyle = CHART.ink;
     ctx.font = '600 24px Oswald, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(pct + '%', cx, cy-6);
     ctx.font = '11px Inter, sans-serif';
-    ctx.fillStyle = '#6B7280';
+    ctx.fillStyle = CHART.label;
     ctx.fillText(labels[0], cx, cy+16);
 
     // legend
@@ -2651,7 +2931,7 @@
     itemTexts.forEach(function(t, i){
       ctx.fillStyle = colors[i];
       ctx.fillRect(lx, legendY-6, 12, 12);
-      ctx.fillStyle = '#262C33';
+      ctx.fillStyle = CHART.inkSoft;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillText(t, lx+18, legendY);
@@ -2701,7 +2981,7 @@
       titleEl.textContent = labelMap[kind] + ' per Bulan';
       noteEl.textContent = 'Dihitung dari kolom Tanggal (Jubelio), dikelompokkan per bulan, sesuai baris yang sedang tampil di filter.';
       drawBarChart(canvas, grouped.keys, data, {
-        color:'#3FBF63',
+        color:CHART.bar,
         formatY: kind === 'omzet' ? fmtMoney : null
       });
     } else if(kind === 'lph' || kind === 'tii'){
@@ -2712,7 +2992,7 @@
       var unmatched = rows.length - matched;
       titleEl.textContent = cardTitle;
       noteEl.textContent = 'Proporsi baris yang sudah cocok vs belum cocok ke ' + labelName + ', sesuai baris yang sedang tampil di filter.';
-      drawDonutChart(canvas, [matched, unmatched], ['Sudah match', 'Belum match'], ['#1E9E6B', '#D64545']);
+      drawDonutChart(canvas, [matched, unmatched], ['Sudah match', 'Belum match'], [CHART.ok, CHART.warn]);
     }
   }
 
@@ -2731,6 +3011,15 @@
     if(lastChartKind && document.getElementById('chartOverlay').classList.contains('open')){
       renderChart(lastChartKind);
     }
+  });
+
+  /* Saat tema ditukar, canvas perlu digambar ulang karena warnanya sudah
+     terlanjur "dibakar" ke dalam gambar dan tidak ikut berubah sendiri. */
+  window.addEventListener('themechange', function(){
+    if(lastChartKind && document.getElementById('chartOverlay').classList.contains('open')){
+      renderChart(lastChartKind);
+    }
+    try { if(state && state.filtered) renderTrend(state.filtered); } catch(e){}
   });
 
   // ---------- filters ----------
@@ -2989,7 +3278,7 @@
     var ctx = setupCanvas(canvas, lebar, tinggi);
 
     if(keys.length < 2){
-      ctx.fillStyle = '#6B7280';
+      ctx.fillStyle = CHART.label;
       ctx.font = '12.5px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Belum cukup data mingguan untuk menggambar tren.', lebar / 2, tinggi / 2);
@@ -3002,7 +3291,7 @@
 
     // garis bantu 0/25/50/75/100%
     ctx.strokeStyle = 'rgba(140,140,140,.18)';
-    ctx.fillStyle = '#8A8A8A';
+    ctx.fillStyle = CHART.label;
     ctx.font = '10px "IBM Plex Mono", monospace';
     ctx.textAlign = 'right';
     ctx.lineWidth = 1;
@@ -3032,7 +3321,7 @@
     nilai.forEach(function(v, i){
       if(i === 0) ctx.moveTo(xOf(i), yOf(v)); else ctx.lineTo(xOf(i), yOf(v));
     });
-    ctx.strokeStyle = '#3FBF63';
+    ctx.strokeStyle = CHART.bar;
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -3042,16 +3331,16 @@
     nilai.forEach(function(v, i){
       ctx.beginPath();
       ctx.arc(xOf(i), yOf(v), 3, 0, Math.PI * 2);
-      ctx.fillStyle = '#3FBF63';
+      ctx.fillStyle = CHART.bar;
       ctx.fill();
       if(keys.length <= 8 || i % 2 === 0){
-        ctx.fillStyle = '#8A8A8A';
+        ctx.fillStyle = CHART.label;
         ctx.fillText(v + '%', xOf(i), yOf(v) - 8);
       }
     });
 
     // label tanggal
-    ctx.fillStyle = '#8A8A8A';
+    ctx.fillStyle = CHART.label;
     ctx.font = '9.5px "IBM Plex Mono", monospace';
     keys.forEach(function(k, i){
       if(keys.length > 8 && i % 2 !== 0) return;
@@ -5176,5 +5465,86 @@ function updateLiveClocks(){
 }
 updateLiveClocks();
 setInterval(updateLiveClocks, 1000);
+</script>
+
+<script>
+/* =========================================================================
+   PENGALIH TEMA GELAP / TERANG
+   - Pilihan disimpan di localStorage (kunci: jubelioTheme).
+   - Bila pengguna belum pernah memilih, tema mengikuti pengaturan sistem
+     dan ikut berubah otomatis saat pengaturan sistem berubah.
+   - Semua tombol ber-atribut [data-theme-toggle] otomatis ikut bekerja.
+   ========================================================================= */
+(function(){
+  var KEY  = 'jubelioTheme';
+  var root = document.documentElement;
+
+  function stored(){
+    try {
+      var v = localStorage.getItem(KEY);
+      return (v === 'light' || v === 'dark') ? v : null;
+    } catch(e){ return null; }
+  }
+
+  function current(){
+    return root.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  }
+
+  /* Label tombol menampilkan tema yang SEDANG aktif. */
+  function paintButtons(){
+    var light = current() === 'light';
+    var icon  = light ? '☀️' : '🌙';
+    var text  = light ? 'Terang' : 'Gelap';
+    var tip   = light ? 'Beralih ke tema gelap' : 'Beralih ke tema terang';
+
+    document.querySelectorAll('[data-theme-toggle]').forEach(function(btn){
+      var i = btn.querySelector('[data-tt-icon]');
+      var t = btn.querySelector('[data-tt-text]');
+      if (i) i.textContent = icon;
+      if (t) t.textContent = text;
+      btn.setAttribute('title', tip);
+      btn.setAttribute('aria-pressed', light ? 'true' : 'false');
+    });
+
+    /* Warna bilah alamat di browser HP ikut menyesuaikan. */
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', light ? '#E9F2EB' : '#0B120C');
+  }
+
+  function apply(theme, animate){
+    if (animate) {
+      root.classList.add('theme-anim');
+      clearTimeout(apply._t);
+      apply._t = setTimeout(function(){ root.classList.remove('theme-anim'); }, 300);
+    }
+    root.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
+    paintButtons();
+    /* Beri tahu bagian lain aplikasi (mis. grafik Chart.js) bahwa tema berubah. */
+    window.dispatchEvent(new CustomEvent('themechange', { detail:{ theme: current() } }));
+  }
+
+  window.setTheme    = function(t){ try{ localStorage.setItem(KEY, t); }catch(e){} apply(t, true); };
+  window.toggleTheme = function(){ window.setTheme(current() === 'light' ? 'dark' : 'light'); };
+  window.getTheme    = current;
+
+  document.addEventListener('click', function(ev){
+    var btn = ev.target.closest && ev.target.closest('[data-theme-toggle]');
+    if (btn) { ev.preventDefault(); window.toggleTheme(); }
+  });
+
+  /* Ikuti pengaturan sistem selama pengguna belum menentukan pilihan sendiri. */
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: light)');
+    var onSys = function(e){ if (!stored()) apply(e.matches ? 'light' : 'dark', true); };
+    if (mq.addEventListener) mq.addEventListener('change', onSys);
+    else if (mq.addListener) mq.addListener(onSys);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', paintButtons);
+  } else {
+    paintButtons();
+  }
+})();
 </script>
 </body></html>
