@@ -1911,7 +1911,7 @@
       <div class="spacer"></div>
       <button class="btn btn-ghost" id="resetBtn">Reset filter</button>
       <button class="btn btn-primary" id="downloadBtn">⬇ Unduh Excel</button>
-      <button class="btn btn-primary" id="downloadSalesBtn" data-role-hide="admin,viewer,toko" title="Unduh penjualan hari ini sesuai template Data Sales Harian">📅 Unduh Sales Harian</button>
+      <button class="btn btn-primary" id="downloadSalesBtn" data-role-hide="admin,viewer,toko" title="Unduh data penjualan sesuai filter tabel, memakai template Data Sales Harian">📅 Unduh Data Sales</button>
     </div>
 
     <div class="table-wrap">
@@ -4522,14 +4522,28 @@
       return;
     }
 
-    var hariIni = tanggalHariIni();
-    var baris = RAW.filter(function(row){ return tanggalRow(row) === hariIni; });
+    // Mengikuti persis apa yang sedang tampil di tabel Monitoring Rekonsiliasi:
+    // filter tanggal, status, sumber, toko, lokasi, pencarian, dan kelompok umur.
+    var baris = state.filtered || [];
 
     if(!baris.length){
-      window.alert('Belum ada transaksi bertanggal ' + hariIni + ' di dalam data.\n\n' +
-                   'Unggah dulu file Jubelio terbaru, lalu coba lagi.');
+      window.alert('Tidak ada baris yang cocok dengan filter yang sedang aktif ' +
+                   'di tab Monitoring Rekonsiliasi.\n\n' +
+                   'Longgarkan filternya, lalu coba lagi.');
       return;
     }
+
+    // Rentang tanggal diambil dari hasil filter, dipakai untuk nama berkas.
+    var tglMin = null, tglMaks = null;
+    baris.forEach(function(row){
+      var t = tanggalRow(row);
+      if(!t) return;
+      if(tglMin === null || t < tglMin) tglMin = t;
+      if(tglMaks === null || t > tglMaks) tglMaks = t;
+    });
+    var rentang = (tglMin && tglMaks)
+      ? (tglMin === tglMaks ? tglMin : tglMin + ' sd ' + tglMaks)
+      : tanggalHariIni();
 
     var tanpaKelas = 0;
     var rows = baris.map(function(row){
@@ -4553,9 +4567,9 @@
     });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-    XLSX.writeFile(wb, 'Data sales harian ' + hariIni + '.xlsx');
+    XLSX.writeFile(wb, 'Data sales harian ' + rentang + '.xlsx');
 
-    var ket = baris.length.toLocaleString('id-ID') + ' baris tanggal ' + hariIni;
+    var ket = baris.length.toLocaleString('id-ID') + ' baris sesuai filter aktif, ' + rentang;
     if(tanpaKelas){
       ket += ' (' + tanpaKelas + ' baris PROD CLASS kosong \u2014 SKU belum ada di master)';
     }
