@@ -692,6 +692,51 @@
     .datastart-bar{flex-direction:column; align-items:flex-start;}
   }
   /* ---------- analitik penjualan ---------- */
+  /* Toolbar filter khusus tab Analitik — tampilannya sengaja dibuat sama
+     dengan toolbar Monitoring supaya kebiasaan pemakainya tidak berubah. */
+  .an-toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+    padding:12px 14px;
+    margin:0 0 14px;
+    border:1px solid var(--line);
+    border-radius:9px;
+    background:var(--surface-sunken);
+  }
+  .an-toolbar label.chk{
+    display:flex; align-items:center; gap:6px;
+    font-size:12.5px; color:var(--ink-soft);
+    padding:5px 2px;
+    white-space:nowrap;
+  }
+  .an-toolbar label.chk input[type=date]{
+    padding:7px 8px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    font-size:12.5px;
+    font-family:'Inter',sans-serif;
+    background:var(--paper-raised);
+    color:var(--ink);
+    color-scheme: var(--scheme);
+  }
+  .an-toolbar .spacer{flex:1 1 auto;}
+  .an-reset{
+    padding:8px 12px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    background:var(--paper-raised);
+    color:var(--ink-soft);
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    cursor:pointer;
+  }
+  .an-reset:hover{border-color:var(--accent); color:var(--accent-dark);}
+  @media (max-width:720px){
+    .an-toolbar .msel{width:100%;}
+    .an-toolbar .msel-btn{width:100%; justify-content:space-between;}
+  }
   .an-head{
     display:flex; align-items:flex-start; justify-content:space-between;
     gap:14px; flex-wrap:wrap; margin-bottom:14px;
@@ -1761,7 +1806,7 @@
 
   <div class="view-tabs">
     <button type="button" class="view-tab active" id="tabMonitoringBtn" onclick="switchAppView('monitoring')">📊 Monitoring Rekonsiliasi</button>
-    <button type="button" class="view-tab" id="tabAnalitikBtn" onclick="switchAppView('analitik')">📈 Analitik Penjualan</button>
+    <button type="button" class="view-tab" id="tabAnalitikBtn" data-role-hide="toko" onclick="switchAppView('analitik')">📈 Analitik Penjualan</button>
     <button type="button" class="view-tab" id="tabJadwalBtn" data-role-hide="toko" onclick="switchAppView('jadwal')">🗓 Jadwal &amp; Tugas Tim</button>
   </div>
 
@@ -1978,6 +2023,44 @@
                 title="Unduh seluruh peringkat lokasi, artikel, dan SKU ke Excel">⬇ Unduh Excel</button>
       </div>
     </div>
+    <div class="an-toolbar" id="anToolbar">
+      <label class="chk" for="anDateFrom">Dari <input type="date" id="anDateFrom"></label>
+      <label class="chk" for="anDateTo">Sampai <input type="date" id="anDateTo"></label>
+      <div class="msel" id="anMselStatus" data-key="status">
+        <button type="button" class="msel-btn" id="anMselStatusBtn">Semua Status <span class="msel-caret">▾</span></button>
+        <div class="msel-panel">
+          <input type="text" class="msel-search-input" placeholder="Cari status…">
+          <div class="msel-actions"><button type="button" data-action="all">Pilih semua</button><button type="button" data-action="clear">Bersihkan</button></div>
+          <div class="msel-options" id="anMselStatusOptions"></div>
+        </div>
+      </div>
+      <div class="msel" id="anMselSumber" data-key="sumber">
+        <button type="button" class="msel-btn" id="anMselSumberBtn">Semua Sumber <span class="msel-caret">▾</span></button>
+        <div class="msel-panel">
+          <input type="text" class="msel-search-input" placeholder="Cari sumber…">
+          <div class="msel-actions"><button type="button" data-action="all">Pilih semua</button><button type="button" data-action="clear">Bersihkan</button></div>
+          <div class="msel-options" id="anMselSumberOptions"></div>
+        </div>
+      </div>
+      <div class="msel" id="anMselToko" data-key="toko">
+        <button type="button" class="msel-btn" id="anMselTokoBtn">Semua Toko <span class="msel-caret">▾</span></button>
+        <div class="msel-panel">
+          <input type="text" class="msel-search-input" placeholder="Cari toko…">
+          <div class="msel-actions"><button type="button" data-action="all">Pilih semua</button><button type="button" data-action="clear">Bersihkan</button></div>
+          <div class="msel-options" id="anMselTokoOptions"></div>
+        </div>
+      </div>
+      <div class="msel" id="anMselLokasi" data-key="lokasi">
+        <button type="button" class="msel-btn" id="anMselLokasiBtn">Semua Lokasi <span class="msel-caret">▾</span></button>
+        <div class="msel-panel">
+          <input type="text" class="msel-search-input" placeholder="Cari lokasi…">
+          <div class="msel-actions"><button type="button" data-action="all">Pilih semua</button><button type="button" data-action="clear">Bersihkan</button></div>
+          <div class="msel-options" id="anMselLokasiOptions"></div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <button type="button" class="an-reset" id="anResetBtn" title="Kembalikan seluruh filter analitik ke semula">↺ Reset Filter</button>
+    </div>
     <div id="anKonten"></div>
   </section>
 </main>
@@ -2114,7 +2197,10 @@
     pageSize: 50,
     agingBucket: null,
     analitik: { status: 'sah', metrik: 'omzet', bagian: 'lokasi' },
-    msel: { status: [], sumber: [], toko: [], lokasi: [] }
+    msel: { status: [], sumber: [], toko: [], lokasi: [] },
+    // Filter tab Analitik — sengaja dipisah dari state.msel supaya filter di
+    // Monitoring dan di Analitik tidak saling mengubah.
+    anMsel: { status: [], sumber: [], toko: [], lokasi: [] }
   };
 
   // ---------- sinkronisasi cloud (Firebase Firestore) ----------
@@ -2172,6 +2258,26 @@
     var lok = window.lockedLokasi;
     var root = document.getElementById('mselLokasi');
     var btn = document.getElementById('mselLokasiBtn');
+    if(!root || !btn) return;
+    if(lok){
+      root.classList.remove('open');
+      btn.textContent = '🔒 ' + lok;
+      btn.disabled = true;
+      btn.title = 'Akun Anda dibatasi hanya untuk lokasi ' + lok;
+      root.style.opacity = '.75';
+      root.style.pointerEvents = 'none';
+    } else {
+      btn.disabled = false;
+      root.style.opacity = '';
+      root.style.pointerEvents = '';
+    }
+  }
+
+  // Kunci filter Lokasi di toolbar Analitik untuk akun yang dibatasi lokasi.
+  function lockLokasiAnalitik(){
+    var lok = window.lockedLokasi;
+    var root = document.getElementById('anMselLokasi');
+    var btn = document.getElementById('anMselLokasiBtn');
     if(!root || !btn) return;
     if(lok){
       root.classList.remove('open');
@@ -2267,6 +2373,7 @@
     // Data sudah dimuat? bangun ulang supaya pembatasan lokasi langsung berlaku
     if(appStarted && typeof refreshAll === 'function'){ try{ refreshAll(); }catch(e){ console.error(e); } }
     lockLokasiUI();
+    lockLokasiAnalitik();
 
     // Catat akses ke dashboard, sekali saja per sesi browser
     try{
@@ -3452,9 +3559,9 @@
   });
 
   // ---------- filters ----------
-  function uniqueValues(key){
+  function uniqueValues(key, sumber){
     var set = {};
-    RAW.forEach(function(r){ if(r[key]) set[r[key]] = true; });
+    (sumber || RAW).forEach(function(r){ if(r[key]) set[r[key]] = true; });
     return Object.keys(set).sort();
   }
 
@@ -3462,16 +3569,38 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // Setiap konfigurasi menyebut sendiri "gudang" state-nya (bucket) dan apa
+  // yang harus dijalankan setelah pilihan berubah, supaya satu mesin multi
+  // select bisa dipakai dua toolbar sekaligus: Monitoring dan Analitik.
   var MSEL_CONFIGS = [
-    {key:'status', field:'Status', btnId:'mselStatusBtn', optId:'mselStatusOptions', allLabel:'Semua Status', shortLabel:'Status'},
-    {key:'sumber', field:'Sumber', btnId:'mselSumberBtn', optId:'mselSumberOptions', allLabel:'Semua Sumber', shortLabel:'Sumber'},
-    {key:'toko', field:'Nama Toko', btnId:'mselTokoBtn', optId:'mselTokoOptions', allLabel:'Semua Toko', shortLabel:'Toko'},
-    {key:'lokasi', field:'Lokasi', btnId:'mselLokasiBtn', optId:'mselLokasiOptions', allLabel:'Semua Lokasi', shortLabel:'Lokasi'}
+    {key:'status', field:'Status', bucket:'msel', rootId:'mselStatus', btnId:'mselStatusBtn', optId:'mselStatusOptions', allLabel:'Semua Status', shortLabel:'Status'},
+    {key:'sumber', field:'Sumber', bucket:'msel', rootId:'mselSumber', btnId:'mselSumberBtn', optId:'mselSumberOptions', allLabel:'Semua Sumber', shortLabel:'Sumber'},
+    {key:'toko', field:'Nama Toko', bucket:'msel', rootId:'mselToko', btnId:'mselTokoBtn', optId:'mselTokoOptions', allLabel:'Semua Toko', shortLabel:'Toko'},
+    {key:'lokasi', field:'Lokasi', bucket:'msel', rootId:'mselLokasi', btnId:'mselLokasiBtn', optId:'mselLokasiOptions', allLabel:'Semua Lokasi', shortLabel:'Lokasi'}
   ];
 
+  // Toolbar tab Analitik. Pilihannya diambil dari RAW_SEMUA (tanpa potongan
+  // batas periode), sama seperti data yang dihitung tabel analitik.
+  var AN_MSEL_CONFIGS = [
+    {key:'status', field:'Status', bucket:'anMsel', rootId:'anMselStatus', btnId:'anMselStatusBtn', optId:'anMselStatusOptions', allLabel:'Semua Status', shortLabel:'Status', semua:true},
+    {key:'sumber', field:'Sumber', bucket:'anMsel', rootId:'anMselSumber', btnId:'anMselSumberBtn', optId:'anMselSumberOptions', allLabel:'Semua Sumber', shortLabel:'Sumber', semua:true},
+    {key:'toko', field:'Nama Toko', bucket:'anMsel', rootId:'anMselToko', btnId:'anMselTokoBtn', optId:'anMselTokoOptions', allLabel:'Semua Toko', shortLabel:'Toko', semua:true},
+    {key:'lokasi', field:'Lokasi', bucket:'anMsel', rootId:'anMselLokasi', btnId:'anMselLokasiBtn', optId:'anMselLokasiOptions', allLabel:'Semua Lokasi', shortLabel:'Lokasi', semua:true}
+  ];
+
+  // Yang dijalankan setelah pilihan pada toolbar tertentu berubah.
+  function mselTerapkan(cfg){
+    if(cfg.bucket === 'anMsel'){
+      renderAnalytics(RAW_SEMUA || []);
+    } else {
+      applyFilters();
+    }
+  }
+
   function renderMselButton(cfg){
-    var sel = state.msel[cfg.key];
+    var sel = state[cfg.bucket][cfg.key];
     var btn = document.getElementById(cfg.btnId);
+    if(!btn) return;
     if(!sel.length){
       btn.innerHTML = cfg.allLabel + ' <span class="msel-caret">▾</span>';
     } else if(sel.length === 1){
@@ -3482,16 +3611,17 @@
   }
 
   function populateMultiSelect(cfg){
-    var values = uniqueValues(cfg.field);
-    var sel = state.msel[cfg.key];
+    var values = uniqueValues(cfg.field, cfg.semua ? (RAW_SEMUA || []) : RAW);
+    var sel = state[cfg.bucket][cfg.key];
     // buang pilihan yang sudah tidak ada di data terbaru
-    state.msel[cfg.key] = sel.filter(function(v){ return values.indexOf(v) !== -1; });
+    state[cfg.bucket][cfg.key] = sel.filter(function(v){ return values.indexOf(v) !== -1; });
     var box = document.getElementById(cfg.optId);
+    if(!box) return;
     if(!values.length){
       box.innerHTML = '<div class="msel-empty">Tidak ada data.</div>';
     } else {
       box.innerHTML = values.map(function(v){
-        var checked = state.msel[cfg.key].indexOf(v) !== -1 ? 'checked' : '';
+        var checked = state[cfg.bucket][cfg.key].indexOf(v) !== -1 ? 'checked' : '';
         return '<label class="msel-opt"><input type="checkbox" value="' + escHtml(v) + '" ' + checked + '><span>' + escHtml(v) + '</span></label>';
       }).join('');
     }
@@ -3500,6 +3630,7 @@
 
   function initFilters(){
     MSEL_CONFIGS.forEach(populateMultiSelect);
+    AN_MSEL_CONFIGS.forEach(populateMultiSelect);
 
     var dates = RAW.map(function(r){ return r.Tanggal ? String(r.Tanggal).slice(0,10) : null; }).filter(Boolean).sort();
     if(dates.length){
@@ -3508,13 +3639,26 @@
       document.getElementById('dateTo').min = dates[0];
       document.getElementById('dateTo').max = dates[dates.length-1];
     }
+
+    // Batas tanggal toolbar Analitik memakai RAW_SEMUA, jadi bisa mundur lebih
+    // jauh daripada Monitoring yang dipotong batas awal periode.
+    var dSemua = (RAW_SEMUA || []).map(function(r){ return r.Tanggal ? String(r.Tanggal).slice(0,10) : null; }).filter(Boolean).sort();
+    if(dSemua.length){
+      ['anDateFrom','anDateTo'].forEach(function(id){
+        var el = document.getElementById(id);
+        if(!el) return;
+        el.min = dSemua[0];
+        el.max = dSemua[dSemua.length-1];
+      });
+    }
   }
 
   function wireMultiSelects(){
-    MSEL_CONFIGS.forEach(function(cfg){
-      var root = document.getElementById('msel' + cfg.key.charAt(0).toUpperCase() + cfg.key.slice(1));
+    MSEL_CONFIGS.concat(AN_MSEL_CONFIGS).forEach(function(cfg){
+      var root = document.getElementById(cfg.rootId);
       var btn = document.getElementById(cfg.btnId);
       var box = document.getElementById(cfg.optId);
+      if(!root || !btn || !box) return;
       var searchInput = root.querySelector('.msel-search-input');
 
       btn.addEventListener('click', function(e){
@@ -3527,9 +3671,9 @@
       box.addEventListener('change', function(e){
         if(e.target.tagName !== 'INPUT') return;
         var checked = Array.prototype.slice.call(box.querySelectorAll('input:checked')).map(function(i){ return i.value; });
-        state.msel[cfg.key] = checked;
+        state[cfg.bucket][cfg.key] = checked;
         renderMselButton(cfg);
-        applyFilters();
+        mselTerapkan(cfg);
       });
 
       root.querySelectorAll('.msel-actions button').forEach(function(actionBtn){
@@ -3544,9 +3688,9 @@
             visibleInputs.forEach(function(inp){ inp.checked = false; });
           }
           var checked = Array.prototype.slice.call(box.querySelectorAll('input:checked')).map(function(i){ return i.value; });
-          state.msel[cfg.key] = checked;
+          state[cfg.bucket][cfg.key] = checked;
           renderMselButton(cfg);
-          applyFilters();
+          mselTerapkan(cfg);
         });
       });
 
@@ -3601,6 +3745,59 @@
     return rows.filter(function(r){
       return !STATUS_BATAL[String(r['Status'] || '').trim().toUpperCase()];
     });
+  }
+
+  // ---------- filter toolbar Analitik ----------
+  // Menyaring RAW_SEMUA memakai rentang tanggal + empat multi-select di toolbar
+  // Analitik. Dijalankan LEBIH DULU daripada barisPenjualan(), jadi urutannya:
+  // seluruh data -> toolbar Analitik -> tombol Penjualan Sah / Semua Status.
+  function filterAnalitik(rows){
+    var st  = state.anMsel.status;
+    var sm  = state.anMsel.sumber;
+    var tk  = state.anMsel.toko;
+    var lok = state.anMsel.lokasi;
+
+    var elDari = document.getElementById('anDateFrom');
+    var elSampai = document.getElementById('anDateTo');
+    var dari = elDari ? elDari.value : '';
+    var sampai = elSampai ? elSampai.value : '';
+
+    if(!st.length && !sm.length && !tk.length && !lok.length && !dari && !sampai){
+      return rows;
+    }
+
+    return rows.filter(function(r){
+      if(dari || sampai){
+        var tgl = tanggalRow(r);
+        if(!tgl) return false;
+        if(dari && tgl < dari) return false;
+        if(sampai && tgl > sampai) return false;
+      }
+      if(st.length  && st.indexOf(r['Status']) === -1) return false;
+      if(sm.length  && sm.indexOf(r['Sumber']) === -1) return false;
+      if(tk.length  && tk.indexOf(r['Nama Toko']) === -1) return false;
+      if(lok.length && lok.indexOf(r['Lokasi']) === -1) return false;
+      return true;
+    });
+  }
+
+  // Ringkasan filter yang sedang aktif, untuk ditampilkan di bawah judul.
+  function ringkasFilterAnalitik(){
+    var bagian = [];
+    var elDari = document.getElementById('anDateFrom');
+    var elSampai = document.getElementById('anDateTo');
+    var dari = elDari ? elDari.value : '';
+    var sampai = elSampai ? elSampai.value : '';
+    if(dari || sampai){
+      bagian.push('tanggal ' + (dari ? fmtTanggalID(dari) : 'awal') +
+                  ' \u2013 ' + (sampai ? fmtTanggalID(sampai) : 'akhir'));
+    }
+    [['status','Status'], ['sumber','Sumber'], ['toko','Toko'], ['lokasi','Lokasi']].forEach(function(p){
+      var sel = state.anMsel[p[0]];
+      if(!sel.length) return;
+      bagian.push(p[1] + ': ' + (sel.length === 1 ? sel[0] : sel.length + ' pilihan'));
+    });
+    return bagian;
   }
 
   // Menjumlahkan qty & omzet per kunci tertentu.
@@ -3719,7 +3916,20 @@
     var kotak = document.getElementById('anKonten');
     if(!kotak) return;
 
-    var data = barisPenjualan(rows);
+    // Peran Toko tidak berhak melihat Analitik Penjualan — tabelnya sama sekali
+    // tidak digambar, jadi angkanya tidak pernah masuk ke DOM.
+    if(window.currentRole === 'toko'){
+      kotak.innerHTML = '';
+      var subTk = document.getElementById('anSub');
+      if(subTk) subTk.textContent = 'Akses ditolak.';
+      var diagTk = document.getElementById('anDiag');
+      if(diagTk) diagTk.textContent = '';
+      var catTk = document.getElementById('anCatatan');
+      if(catTk){ catTk.style.display = 'none'; catTk.innerHTML = ''; }
+      return;
+    }
+
+    var data = barisPenjualan(filterAnalitik(rows));
     var metrik = state.analitik.metrik;
     var totalOmzet = data.reduce(function(a, r){ return a + (Number(r['amount']) || 0); }, 0);
     var totalQty = data.reduce(function(a, r){ return a + (Number(r['QTY']) || 0); }, 0);
@@ -3749,7 +3959,14 @@
     var catatan = document.getElementById('anCatatan');
     if(catatan){
       var batas = window.dataStartDate;
-      if(batas && tglMin && tglMin < batas){
+      var ringkas = ringkasFilterAnalitik();
+      if(ringkas.length){
+        // Filter toolbar sedang aktif — itu yang paling penting dijelaskan,
+        // supaya tidak ada yang salah membaca angka sebagai total keseluruhan.
+        catatan.innerHTML = '\u2691 Angka di bawah <b>sudah difilter</b> \u2014 ' +
+          esc(ringkas.join(' \u00b7 ')) + '. Tekan <b>Reset Filter</b> untuk melihat seluruh data.';
+        catatan.style.display = '';
+      } else if(batas && tglMin && tglMin < batas){
         var luar = data.filter(function(r){
           var t = tanggalRow(r);
           return t && t < batas;
@@ -3820,9 +4037,15 @@
   // Berbeda dengan yang tampil di layar (dibatasi 20 teratas), file Excel
   // memuat SELURUH baris tiap kelompok supaya bisa diolah lebih lanjut.
   function downloadAnalitikExcel(){
-    var data = barisPenjualan(RAW_SEMUA || []);
+    if(window.currentRole === 'toko'){
+      window.alert('Analitik Penjualan hanya dapat diakses oleh peran Team ke atas.');
+      return;
+    }
+    // Unduhan mengikuti filter toolbar Analitik, supaya isi file sama persis
+    // dengan angka yang sedang dilihat di layar.
+    var data = barisPenjualan(filterAnalitik(RAW_SEMUA || []));
     if(!data.length){
-      window.alert('Belum ada data penjualan untuk diunduh.');
+      window.alert('Tidak ada data penjualan pada filter ini. Longgarkan filter atau tekan Reset Filter.');
       return;
     }
 
@@ -3887,9 +4110,11 @@
     var stamp = (tglMin && tglMaks) ? ' ' + tglMin + ' sd ' + tglMaks : '';
     XLSX.writeFile(wb, 'Analitik Penjualan' + stamp + '.xlsx');
 
+    var ringkasUnduh = ringkasFilterAnalitik();
     var ket = data.length.toLocaleString('id-ID') + ' baris ' +
       (state.analitik.status === 'sah' ? 'penjualan sah' : 'seluruh status') +
-      (stamp ? ',' + stamp : '');
+      (stamp ? ',' + stamp : '') +
+      (ringkasUnduh.length ? ' \u00b7 filter: ' + ringkasUnduh.join(' \u00b7 ') : '');
     logMsg('ok', '\u2713', 'Analitik diunduh ke Excel \u2014 ' + ket + '.');
     recordActivity('Unduh Analitik Penjualan', ket + '.', 'akses');
   }
@@ -4462,6 +4687,7 @@
     applyFilters();
     renderAnalytics(RAW_SEMUA);   // seluruh data, lepas dari filter maupun batas periode
     lockLokasiUI();
+    lockLokasiAnalitik();
     renderDataStartBar();
     var newLok = document.getElementById('newLokasi');
     if(newLok){
@@ -5047,6 +5273,33 @@
 
     var anUnduh = document.getElementById('anUnduhBtn');
     if(anUnduh) anUnduh.addEventListener('click', downloadAnalitikExcel);
+
+    // ----- toolbar filter Analitik -----
+    ['anDateFrom','anDateTo'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.addEventListener('change', function(){ renderAnalytics(RAW_SEMUA || []); });
+    });
+
+    var anReset = document.getElementById('anResetBtn');
+    if(anReset){
+      anReset.addEventListener('click', function(){
+        ['anDateFrom','anDateTo'].forEach(function(id){
+          var el = document.getElementById(id);
+          if(el) el.value = '';
+        });
+        AN_MSEL_CONFIGS.forEach(function(cfg){
+          state.anMsel[cfg.key] = [];
+          var box = document.getElementById(cfg.optId);
+          if(box){
+            Array.prototype.forEach.call(box.querySelectorAll('input'), function(i){ i.checked = false; });
+          }
+          renderMselButton(cfg);
+        });
+        // Lokasi yang dikunci tetap dipaksa aktif kembali setelah reset.
+        lockLokasiAnalitik();
+        renderAnalytics(RAW_SEMUA || []);
+      });
+    }
 
     document.getElementById('backlogTrigger').addEventListener('click', bukaBacklog);
     document.getElementById('backlogModalClose').addEventListener('click', tutupBacklog);
@@ -6347,8 +6600,9 @@ function switchAppView(view){
   var bJad = document.getElementById('tabJadwalBtn');
   var bAna = document.getElementById('tabAnalitikBtn');
 
-  // Peran Toko tidak boleh membuka halaman Jadwal. Team boleh membuka, tapi read-only.
-  if(view === 'jadwal' && window.currentRole === 'toko'){
+  // Peran Toko tidak boleh membuka halaman Jadwal maupun Analitik Penjualan.
+  // Team boleh membuka Jadwal (read-only) dan Analitik.
+  if((view === 'jadwal' || view === 'analitik') && window.currentRole === 'toko'){
     view = 'monitoring';
   }
 
