@@ -765,6 +765,15 @@
   @media (max-width:720px){
     .an-toolbar .msel{width:100%;}
     .an-toolbar .msel-btn{width:100%; justify-content:space-between;}
+    /* Judul, ringkasan, dan tombol ditumpuk supaya tidak saling berdesakan. */
+    .an-head{flex-direction:column; gap:10px;}
+    .an-controls{width:100%;}
+    .an-toggle{flex:1 1 auto;}
+    .an-toggle button{flex:1 1 0; min-height:38px; font-size:12px;}
+    .an-controls > .btn{width:100%; justify-content:center; min-height:42px;}
+    .an-sub, .an-catatan{max-width:none;}
+    .an-row{gap:7px; font-size:11.5px;}
+    .an-row .r-bar{flex:0 0 44px;}
   }
   .an-head{
     display:flex; align-items:flex-start; justify-content:space-between;
@@ -817,7 +826,9 @@
   .an-table-wrap{overflow-x:auto;}
   .an-table-wrap::-webkit-scrollbar{width:8px;}
   .an-table-wrap::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
-  .an-table{width:100%; border-collapse:collapse; table-layout:fixed;}
+  /* min-width:0 membatalkan aturan global table{min-width:1500px} yang dipakai
+     tabel Monitoring — tanpa ini tabel analitik ikut melebar di layar sempit. */
+  .an-table{width:100%; min-width:0; border-collapse:collapse; table-layout:fixed;}
   .an-table td{
     padding:5px 4px; border-bottom:1px solid var(--line);
     font-size:12px; vertical-align:middle;
@@ -1049,7 +1060,7 @@
     letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
     margin:0 0 8px;
   }
-  .backlog-table{width:100%; border-collapse:collapse;}
+  .backlog-table{width:100%; min-width:0; border-collapse:collapse;}
   .backlog-table td{
     padding:7px 8px; font-size:12.5px; border-bottom:1px solid var(--line);
     color:var(--ink);
@@ -1098,39 +1109,9 @@
   /* ---------- tampilan tabel di layar kecil ----------
      Tabel 16 kolom mustahil dibaca di HP, jadi tiap baris diubah
      menjadi kartu dengan label di kiri dan nilainya di kanan. */
-  @media (max-width: 760px){
-    .table-wrap{overflow:visible;}
-    #dataTable thead{display:none;}
-    #dataTable, #dataTable tbody, #dataTable tr, #dataTable td{display:block; width:100%;}
-    #dataTable tr{
-      background:var(--paper-raised);
-      border:1px solid var(--line);
-      border-left:3px solid var(--amber);
-      border-radius:10px;
-      margin-bottom:10px;
-      padding:6px 2px;
-    }
-    #dataTable tr.dup-band{border-left-color:var(--warn);}
-    #dataTable td{
-      display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
-      border:none; border-bottom:1px dashed var(--line);
-      padding:7px 12px; text-align:right; white-space:normal;
-    }
-    #dataTable tr td:last-child{border-bottom:none;}
-    #dataTable td::before{
-      content:attr(data-label);
-      font-family:'IBM Plex Mono',monospace;
-      font-size:9.5px; font-weight:700; letter-spacing:.06em;
-      text-transform:uppercase; color:var(--muted);
-      text-align:left; flex:0 0 38%; padding-top:2px;
-    }
-    #dataTable td:empty{display:none;}
-    .toolbar{flex-direction:column; align-items:stretch;}
-    .toolbar input[type="search"], .toolbar select, .toolbar .msel{width:100%;}
-    .stats{grid-template-columns:repeat(2, 1fr);}
-    .backlog-head{flex-direction:column;}
-    .backlog-total{text-align:left;}
-  }
+  /* Tampilan layar kecil ditangani di stylesheet terakhir (cari
+     "MODE LAYAR KECIL"), supaya aturannya tidak tertimpa gaya dasar
+     yang kebetulan ditulis lebih ke bawah di berkas ini. */
   .users-msg{font-size:12px; margin-top:8px; min-height:16px;}
   /* ---------- riwayat update data ---------- */
   .activity-toolbar{
@@ -1651,6 +1632,135 @@
         background:transparent; border-color:var(--line); color:var(--muted);
     }
     .login-card .theme-toggle:hover{ border-color:var(--accent); color:var(--accent); }
+</style>
+
+<!-- ===================== MODE LAYAR KECIL =====================
+     Sengaja ditaruh paling akhir. Sebagian gaya dasar (.toolbar, .pager, table)
+     ditulis di bawah media query lama, sehingga aturan lama itu selalu kalah.
+     Dengan berada di urutan terakhir, penyesuaian di bawah ini pasti menang
+     tanpa perlu !important di mana-mana. -->
+<style>
+@media (max-width: 760px){
+  /* ---------- tabel Monitoring jadi kartu ----------
+     BIANG MASALAH SEBELUMNYA: table{min-width:1500px} dipakai supaya 16 kolom
+     muat di desktop. Di mode kartu, aturan itu membuat tiap baris tetap
+     selebar 1500px — label menempel di tepi kiri layar dan nilainya terlempar
+     jauh ke kanan sampai harus digeser. Dinolkan di sini. */
+  #dataTable{min-width:0; width:100%; font-size:13px;}
+  .table-wrap{overflow-x:hidden; max-height:none; overflow-y:visible; padding:10px 10px 2px;}
+  #dataTable thead{display:none;}
+  #dataTable, #dataTable tbody, #dataTable tr, #dataTable td{display:block; width:100%;}
+  #dataTable tr{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-left:3px solid var(--amber);
+    border-radius:10px;
+    margin-bottom:12px;
+    padding:0 0 4px;
+    overflow:hidden;
+  }
+  #dataTable tr.dup-band{border-left-color:var(--warn);}
+  #dataTable td{
+    display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    border:none; border-bottom:1px dashed var(--line);
+    padding:6px 13px; text-align:right; white-space:normal;
+    word-break:break-word; line-height:1.45;
+  }
+  #dataTable tr td:last-child{border-bottom:none;}
+  #dataTable td::before{
+    content:attr(data-label);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px; font-weight:700; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--muted);
+    text-align:left; flex:0 0 34%; min-width:0;
+  }
+  #dataTable td:empty{display:none;}
+
+  /* SKU & Nama Barang dijadikan kepala kartu: tanpa label, rata kiri, supaya
+     sekali pandang langsung ketahuan kartu ini barang apa. */
+  #dataTable td:nth-child(1),
+  #dataTable td:nth-child(2){
+    display:block; text-align:left; border-bottom:none; padding:0 13px;
+  }
+  #dataTable td:nth-child(1)::before,
+  #dataTable td:nth-child(2)::before{display:none;}
+  #dataTable td:nth-child(1){
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700;
+    color:var(--accent-dark); padding-top:11px; letter-spacing:.02em;
+  }
+  #dataTable td:nth-child(2){
+    font-size:13.5px; font-weight:600; color:var(--ink);
+    padding-bottom:9px; margin-bottom:4px;
+    border-bottom:1px solid var(--line);
+  }
+
+  /* Tombol Aksi diberi bidang sentuh yang layak untuk jari. */
+  #dataTable td.aksi-cell{
+    justify-content:flex-end; gap:8px; padding-top:10px; padding-bottom:4px;
+  }
+  #dataTable td.aksi-cell::before{margin-right:auto; align-self:center;}
+  #dataTable td.aksi-cell .aksi-btn{
+    min-width:46px; min-height:36px; font-size:15px; margin:0;
+  }
+
+  /* ---------- toolbar: kisi 2 kolom, bukan satu tumpukan panjang ---------- */
+  .toolbar, .an-toolbar{
+    display:grid; grid-template-columns:1fr 1fr; gap:9px;
+    align-items:stretch; padding:13px 12px;
+  }
+  .toolbar > #searchBox,
+  .toolbar > #dupFilter,
+  .toolbar > #dupInfo,
+  .toolbar > #bersihkanDupBtn,
+  .toolbar > label.chk:not([for]){grid-column:1 / -1;}
+  .toolbar input[type=text], .toolbar select,
+  .toolbar .msel, .an-toolbar .msel{width:100%; min-width:0;}
+  .toolbar input[type=text], .toolbar select{min-height:42px;}
+  .toolbar .msel-btn, .an-toolbar .msel-btn{
+    width:100%; justify-content:space-between; min-height:40px;
+  }
+  /* Label ber-atribut for= adalah pasangan tanggal Dari/Sampai — teksnya
+     dinaikkan ke atas kotaknya supaya dua kolom tetap muat. */
+  .toolbar label.chk[for], .an-toolbar label.chk[for]{
+    padding:0; gap:4px; font-size:11px;
+    flex-direction:column; align-items:stretch;
+  }
+  .toolbar label.chk[for] input[type=date],
+  .an-toolbar label.chk[for] input[type=date]{width:100%; min-height:38px;}
+  .toolbar > label.chk:not([for]){padding:2px 0; font-size:12.5px;}
+  .toolbar .spacer, .an-toolbar .spacer{display:none;}
+  .toolbar .btn, .toolbar .an-reset, .an-toolbar .an-reset{
+    width:100%; justify-content:center; min-height:42px; padding:10px 12px;
+  }
+
+  /* Panel pilihan dibuat selebar dua kolom — nama seperti
+     "LEAGUE ACTIFIT GRAND CITY LG33" tidak muat di kolom separuh. */
+  .msel-panel{width:calc(200% + 9px); max-width:calc(100vw - 34px);}
+  #mselSumber .msel-panel, #mselLokasi .msel-panel,
+  #anMselSumber .msel-panel, #anMselLokasi .msel-panel{left:auto; right:0;}
+  .msel-opt{padding:9px 6px; font-size:13px;}
+  .msel-options{max-height:250px;}
+
+  /* ---------- sisanya ---------- */
+  .stats{grid-template-columns:repeat(2, 1fr);}
+  .backlog-head{flex-direction:column;}
+  .backlog-total{text-align:left;}
+  .pager{padding:12px 13px; gap:8px; justify-content:center;}
+  .pager select{min-height:38px;}
+  .pager .btn{min-height:38px; padding:8px 12px;}
+
+  /* Tab tampilan digulir mendatar, bukan dipatahkan jadi beberapa baris. */
+  .view-tabs{
+    flex-wrap:nowrap; overflow-x:auto; gap:6px;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  .view-tabs::-webkit-scrollbar{display:none;}
+  .view-tab{flex:0 0 auto; white-space:nowrap; padding:9px 13px;}
+
+  .ds-right{width:100%;}
+  .upload-panel .btn{width:100%; justify-content:center; min-height:44px;}
+  .chart-modal{width:100%; max-height:88vh;}
+}
 </style>
 </head>
 <body>
