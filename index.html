@@ -691,6 +691,35 @@
   @media (max-width:720px){
     .datastart-bar{flex-direction:column; align-items:flex-start;}
   }
+  /* ---------- koreksi data (hapus duplikat / ubah status) ---------- */
+  .aksi-cell{white-space:nowrap; text-align:center;}
+  .aksi-btn{
+    border:1px solid var(--line);
+    background:var(--paper-raised);
+    color:var(--ink-soft);
+    border-radius:6px;
+    padding:3px 7px;
+    font-size:12px;
+    line-height:1.4;
+    cursor:pointer;
+    margin:0 1px;
+  }
+  .aksi-btn:hover{border-color:var(--accent); color:var(--accent-dark);}
+  .aksi-btn.bahaya:hover{border-color:var(--warn); color:var(--warn);}
+  .tag-koreksi{
+    display:inline-block; margin-left:6px; padding:1px 6px;
+    border-radius:20px; font-size:10px; font-weight:600;
+    background:var(--accent-soft); color:var(--accent-dark);
+    border:1px solid var(--accent);
+  }
+  .koreksi-info{
+    font-size:12px; color:var(--ink-soft);
+    margin:0 0 10px; line-height:1.55;
+  }
+  .koreksi-kunci{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    color:var(--muted); word-break:break-all;
+  }
   /* ---------- analitik penjualan ---------- */
   /* Toolbar filter khusus tab Analitik — tampilannya sengaja dibuat sama
      dengan toolbar Monitoring supaya kebiasaan pemakainya tidak berubah. */
@@ -1754,6 +1783,37 @@
   </div>
 </div>
 
+<div class="chart-overlay users-modal" id="koreksiOverlay">
+  <div class="chart-modal">
+    <div class="chart-modal-head">
+      <div>
+        <h3>Koreksi Data</h3>
+        <div class="sub">Baris yang dihapus atau diubah statusnya — berlaku permanen, ikut terpasang lagi walau data diunggah ulang</div>
+      </div>
+      <button class="chart-modal-close" id="koreksiModalClose" aria-label="Tutup">✕</button>
+    </div>
+    <div class="chart-modal-body">
+      <p class="koreksi-info">
+        Koreksi disimpan terpisah dari data mentah. Setiap kali data diunggah ulang, baris
+        yang cocok dengan daftar di bawah akan <b>otomatis dihapus lagi</b> atau
+        <b>statusnya dipasang ulang</b> — jadi kamu tidak perlu mengulang pekerjaan ini.
+        Tekan <b>Pulihkan</b> untuk membatalkan sebuah koreksi.
+      </p>
+      <div class="activity-toolbar">
+        <button type="button" class="btn btn-ghost" id="koreksiHapusSemua"
+                style="border-color:var(--warn); color:var(--warn);">↺ Pulihkan Seluruh Koreksi</button>
+      </div>
+      <div class="users-table-wrap" style="max-height:48vh;">
+        <table class="users-table activity-table">
+          <thead><tr><th>Tindakan</th><th>Baris</th><th>Oleh</th><th>Waktu</th><th></th></tr></thead>
+          <tbody id="koreksiTableBody"><tr><td colspan="5">Memuat…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="users-msg" id="koreksiMsg"></div>
+    </div>
+  </div>
+</div>
+
 <div class="chart-overlay users-modal" id="backupOverlay">
   <div class="chart-modal">
     <div class="chart-modal-head">
@@ -1801,6 +1861,7 @@
     <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko">👤 Kelola Pengguna</button>
     <button type="button" id="activityLogBtn" data-role-hide="admin,viewer,toko">🕘 Riwayat Update Data</button>
     <button type="button" id="backupBtn" data-role-hide="admin,viewer,toko">💾 Cadangan Data</button>
+    <button type="button" id="koreksiBtn" data-role-hide="admin,viewer,toko">🧹 Koreksi Data</button>
     <button type="button" id="logoutBtn">Keluar</button>
   </div>
 
@@ -1953,6 +2014,9 @@
         <option value="__COMBO__">Duplikat — Pesanan + SO + TI + TO sama</option>
       </select>
       <span class="dup-info" id="dupInfo" hidden=""></span>
+      <button class="btn btn-ghost" id="bersihkanDupBtn" hidden="" data-role-hide="admin,viewer,toko"
+              style="border-color:var(--warn); color:var(--warn);"
+              title="Hapus seluruh baris kembar, sisakan satu per kelompok">🧹 Bersihkan Duplikat</button>
       <div class="spacer"></div>
       <button class="btn btn-ghost" id="resetBtn">Reset filter</button>
       <button class="btn btn-primary" id="downloadBtn">⬇ Unduh Excel</button>
@@ -3200,9 +3264,69 @@
     return (v === null || v === undefined) ? '' : String(v).slice(0, 10);
   }
 
+  // ---------- koreksi data (permanen, lintas unggahan) ----------
+  // KOREKSI menyimpan keputusan manual: baris mana yang dihapus dan baris mana
+  // yang statusnya diganti. Kuncinya BUKAN nomor baris (itu berubah tiap unggah),
+  // melainkan "sidik jari" dari isi barisnya sendiri. Dengan begitu, ketika data
+  // yang sama diunggah ulang, baris itu dikenali lagi dan koreksinya dipasang
+  // kembali secara otomatis — tanpa perlu diulang manual.
+  var KOREKSI = {};
+
+  function korNorm(v){
+    return (v === null || v === undefined) ? '' : String(v).trim().toUpperCase();
+  }
+
+  // Sidik jari = gabungan kolom yang menentukan identitas sebuah transaksi.
+  // Sengaja TIDAK memakai Status, supaya baris yang statusnya sudah dikoreksi
+  // tetap dikenali sebagai baris yang sama pada unggahan berikutnya.
+  function sidikJari(r){
+    return [
+      korNorm(r['No Pesanan']),
+      korNorm(r['SKU']),
+      String(r['Tanggal'] || '').slice(0, 19),
+      korNorm(r['QTY']),
+      korNorm(r['amount']),
+      korNorm(r['Lokasi'])
+    ].join('|');
+  }
+
+  // Dua baris bisa benar-benar kembar identik. Supaya "hapus yang kedua" tetap
+  // bermakna, kunci diberi nomor urut kemunculan: sidikjari#1, sidikjari#2, dst.
+  function bubuhiKunci(rows){
+    var hitung = {};
+    rows.forEach(function(r){
+      var fp = sidikJari(r);
+      hitung[fp] = (hitung[fp] || 0) + 1;
+      r.__fp = fp;
+      r.__kunci = fp + '#' + hitung[fp];
+    });
+    return rows;
+  }
+
+  // Ringkasan baris untuk ditampilkan di daftar koreksi.
+  function ringkasBaris(r){
+    return [r['No Pesanan'] || '(tanpa no. pesanan)', r['SKU'] || '(tanpa SKU)',
+            String(r['Tanggal'] || '').slice(0, 10)].filter(Boolean).join(' · ');
+  }
+
   function rebuildRaw(){
     rebuildProdClassIndex();
-    var semua = jubelioRows.map(joinRow);
+    var semua = bubuhiKunci(jubelioRows.map(joinRow));
+
+    // Koreksi dipasang paling awal supaya SELURUH turunannya ikut bersih:
+    // tabel, statistik, pipeline, grafik, analitik, dan seluruh unduhan.
+    semua = semua.filter(function(r){
+      var k = KOREKSI[r.__kunci];
+      return !(k && k.aksi === 'hapus');
+    });
+    semua.forEach(function(r){
+      var k = KOREKSI[r.__kunci];
+      if(k && k.aksi === 'status'){
+        r.__statusAsli = r['Status'];
+        r['Status'] = k.status;
+        r.__dikoreksi = true;
+      }
+    });
 
     // Akun yang dikunci ke satu lokasi: seluruh aplikasi (tabel, statistik,
     // pipeline, grafik, unduhan Excel) hanya melihat baris lokasi tersebut.
@@ -4473,6 +4597,11 @@
       if(dupSel) dupSel.classList.remove('on');
     }
 
+    // Tombol bersih-bersih massal hanya masuk akal saat mode duplikat menyala,
+    // dan hanya untuk peran yang berhak mengubah data.
+    var btnBersih = document.getElementById('bersihkanDupBtn');
+    if(btnBersih) btnBersih.hidden = !(dupMode && bolehMengoreksiData());
+
     // Panel tunggakan dihitung SEBELUM penyaringan kelompok umur,
     // supaya angkanya tidak ikut menyusut saat sebuah kartu diklik.
     renderBacklog(state.filtered);
@@ -4519,11 +4648,15 @@
       if(state.sortKey === c.key) arrow = '<span class="arrow-sort">' + (state.sortDir===1?'▲':'▼') + '</span>';
       return '<th data-key="' + c.key + '">' + c.label + arrow + '</th>';
     }).join('');
+    if(bolehMengoreksiData()){
+      html += '<th data-key="" style="cursor:default;" title="Hapus baris atau ubah statusnya secara permanen">Aksi</th>';
+    }
     document.getElementById('headRow').innerHTML = html;
 
     Array.prototype.forEach.call(document.querySelectorAll('#headRow th'), function(th){
+      var key = th.getAttribute('data-key');
+      if(!key) return;   // kolom Aksi tidak bisa diurutkan
       th.addEventListener('click', function(){
-        var key = th.getAttribute('data-key');
         if(state.sortKey === key) state.sortDir *= -1;
         else { state.sortKey = key; state.sortDir = 1; }
         sortRows();
@@ -4571,13 +4704,31 @@
            (c.key === dupMode || (dupMode === '__COMBO__' && c.key === 'No Pesanan'))){
           content += '<span class="dup-count" title="Nomor ini muncul ' + rowDupCount + ' kali">×' + rowDupCount + '</span>';
         }
+        // Tandai kolom Status kalau nilainya hasil koreksi manual, bukan data asli
+        if(c.key === 'Status' && r.__dikoreksi){
+          content += '<span class="tag-koreksi" title="Status ini diubah manual dari &quot;' +
+                     esc(r.__statusAsli || '(kosong)') + '&quot;">dikoreksi</span>';
+        }
         return '<td class="' + cellCls + '" data-label="' + esc(c.label) + '">' + content + '</td>';
-      }).join('') + '</tr>';
+      }).join('') + aksiSel(r) + '</tr>';
     }).join('');
 
-    document.getElementById('bodyRows').innerHTML = html || '<tr><td colspan="' + COLUMNS.length + '" style="text-align:center;padding:30px;color:#999;">Tidak ada data yang cocok dengan filter.</td></tr>';
+    var jmlKolom = COLUMNS.length + (bolehMengoreksiData() ? 1 : 0);
+    document.getElementById('bodyRows').innerHTML = html || '<tr><td colspan="' + jmlKolom + '" style="text-align:center;padding:30px;color:#999;">Tidak ada data yang cocok dengan filter.</td></tr>';
 
     renderPager();
+  }
+
+  // Sel tombol aksi per baris — hanya untuk peran yang berhak mengoreksi data.
+  function aksiSel(r){
+    if(!bolehMengoreksiData()) return '';
+    var k = esc(r.__kunci || '');
+    return '<td class="aksi-cell" data-label="Aksi">' +
+      '<button type="button" class="aksi-btn" data-aksi="status" data-kunci="' + k + '" ' +
+        'title="Ubah status baris ini secara permanen">\u270e</button>' +
+      '<button type="button" class="aksi-btn bahaya" data-aksi="hapus" data-kunci="' + k + '" ' +
+        'title="Hapus baris ini secara permanen">\uD83D\uDDD1</button>' +
+    '</td>';
   }
 
   function renderPager(){
@@ -4649,6 +4800,134 @@
     });
   }
 
+  // ---------- penyimpanan koreksi ke cloud ----------
+  // Disimpan sebagai satu dokumen meta/koreksi berisi array. Array dipilih
+  // (bukan map) karena kunci sidik jari boleh mengandung karakter apa pun,
+  // sementara nama field di Firestore punya batasan.
+  function bolehMengoreksiData(){
+    return window.currentRole === 'owner' || window.currentRole === 'superadmin';
+  }
+
+  function simpanKoreksi(pesanLog){
+    var daftar = Object.keys(KOREKSI).map(function(k){
+      var v = KOREKSI[k];
+      return {
+        k: k, aksi: v.aksi, status: v.status || '', statusLama: v.statusLama || '',
+        ringkas: v.ringkas || '', oleh: v.oleh || '', at: v.at || Date.now()
+      };
+    });
+
+    return db.collection('meta').doc('koreksi').set({
+      daftar: daftar, jumlah: daftar.length, updatedAt: Date.now()
+    }).then(function(){
+      if(pesanLog) logMsg('ok', '\u2713', pesanLog);
+    })['catch'](function(err){
+      logMsg('warn', '\u26a0',
+        'Koreksi berlaku di layar ini, tapi gagal disimpan ke cloud: ' + err.message +
+        ' \u2014 koreksi akan hilang saat halaman dimuat ulang.');
+    });
+  }
+
+  function pantauKoreksi(){
+    db.collection('meta').doc('koreksi').onSnapshot(function(snap){
+      var daftar = (snap.exists && Array.isArray(snap.data().daftar)) ? snap.data().daftar : [];
+      var baru = {};
+      daftar.forEach(function(d){
+        if(!d || !d.k) return;
+        baru[d.k] = {
+          aksi: d.aksi, status: d.status || '', statusLama: d.statusLama || '',
+          ringkas: d.ringkas || '', oleh: d.oleh || '', at: d.at || 0
+        };
+      });
+      KOREKSI = baru;
+      if(appStarted) refreshAll();
+      renderKoreksiTabel();
+    }, function(err){
+      console.warn('Gagal memantau meta/koreksi:', err && err.message);
+    });
+  }
+
+  // Menghapus satu baris secara permanen.
+  function koreksiHapusBaris(kunci, ringkas){
+    KOREKSI[kunci] = {
+      aksi: 'hapus', ringkas: ringkas,
+      oleh: window.currentUsername || '', at: Date.now()
+    };
+    refreshAll();
+    renderKoreksiTabel();
+    recordActivity('Hapus baris', ringkas + ' dihapus permanen.', 'data');
+    return simpanKoreksi('Baris dihapus permanen \u2014 ' + ringkas + '.');
+  }
+
+  // Mengganti status satu baris secara permanen.
+  function koreksiUbahStatus(kunci, ringkas, statusBaru, statusLama){
+    KOREKSI[kunci] = {
+      aksi: 'status', status: statusBaru, statusLama: statusLama || '',
+      ringkas: ringkas, oleh: window.currentUsername || '', at: Date.now()
+    };
+    refreshAll();
+    renderKoreksiTabel();
+    recordActivity('Ubah status',
+      ringkas + ': ' + (statusLama || '(kosong)') + ' \u2192 ' + statusBaru + '.', 'data');
+    return simpanKoreksi('Status diubah menjadi <b>' + esc(statusBaru) + '</b> \u2014 ' + ringkas + '.');
+  }
+
+  function koreksiPulihkan(kunci){
+    var k = KOREKSI[kunci];
+    if(!k) return Promise.resolve();
+    delete KOREKSI[kunci];
+    refreshAll();
+    renderKoreksiTabel();
+    recordActivity('Pulihkan koreksi', (k.ringkas || kunci) + ' dikembalikan ke data asli.', 'data');
+    return simpanKoreksi('Koreksi dibatalkan \u2014 ' + (k.ringkas || kunci) + ' kembali ke data asli.');
+  }
+
+  // Membersihkan duplikat massal: tiap kelompok kembar disisakan SATU baris.
+  function bersihkanDuplikat(){
+    var mode = state.dupKey || '';
+    if(!mode){
+      window.alert('Pilih dulu jenis duplikat di kotak "Duplikat" pada toolbar.');
+      return;
+    }
+
+    // Bekerja pada hasil filter yang sedang tampil, supaya yang dibersihkan
+    // benar-benar yang sedang dilihat pengguna.
+    var terlihat = state.filtered || [];
+    var pertama = {}, buang = [];
+    terlihat.forEach(function(r){
+      var dk = dupKeyOf(r, mode);
+      if(!dk) return;
+      if(!pertama[dk]){ pertama[dk] = r; return; }
+      buang.push(r);
+    });
+
+    if(!buang.length){
+      window.alert('Tidak ada baris kembar yang perlu dibersihkan pada tampilan saat ini.');
+      return;
+    }
+
+    if(!window.confirm(
+      'Hapus ' + buang.length.toLocaleString('id-ID') + ' baris kembar?\n\n' +
+      'Satu baris per kelompok tetap disimpan. Penghapusan ini permanen dan akan ' +
+      'dipasang ulang otomatis kalau data yang sama diunggah lagi.\n\n' +
+      'Kamu masih bisa membatalkannya lewat menu Koreksi Data.')) return;
+
+    var pengguna = window.currentUsername || '';
+    var waktu = Date.now();
+    buang.forEach(function(r){
+      KOREKSI[r.__kunci] = {
+        aksi: 'hapus', ringkas: ringkasBaris(r), oleh: pengguna, at: waktu
+      };
+    });
+
+    refreshAll();
+    renderKoreksiTabel();
+    recordActivity('Bersihkan duplikat',
+      buang.length + ' baris kembar dihapus permanen (mode: ' + mode + ').', 'data');
+    simpanKoreksi(buang.length.toLocaleString('id-ID') +
+      ' baris kembar dihapus permanen \u2014 satu baris per kelompok tetap disimpan.');
+  }
+
   function pantauDataStart(){
     db.collection('meta').doc('config').onSnapshot(function(snap){
       var nilai = snap.exists ? (snap.data().dataStartDate || '') : null;
@@ -4686,6 +4965,7 @@
     initFilters();
     applyFilters();
     renderAnalytics(RAW_SEMUA);   // seluruh data, lepas dari filter maupun batas periode
+    renderHead();                 // kolom Aksi ikut muncul/hilang mengikuti peran
     lockLokasiUI();
     lockLokasiAnalitik();
     renderDataStartBar();
@@ -5186,6 +5466,113 @@
     });
   }
 
+  // ---------- daftar koreksi di modal ----------
+  function renderKoreksiTabel(){
+    var body = document.getElementById('koreksiTableBody');
+    if(!body) return;
+
+    var kunci = Object.keys(KOREKSI).sort(function(a, b){
+      return (KOREKSI[b].at || 0) - (KOREKSI[a].at || 0);
+    });
+
+    if(!kunci.length){
+      body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted);">' +
+        'Belum ada koreksi. Gunakan tombol \u270e atau \uD83D\uDDD1 di kolom Aksi pada tabel.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = kunci.map(function(k){
+      var d = KOREKSI[k];
+      var tindakan = d.aksi === 'hapus'
+        ? '<span style="color:var(--warn);font-weight:600;">\uD83D\uDDD1 Dihapus</span>'
+        : '<span style="color:var(--accent-dark);font-weight:600;">\u270e ' +
+          esc(d.statusLama || '(kosong)') + ' \u2192 ' + esc(d.status) + '</span>';
+      return '<tr>' +
+        '<td>' + tindakan + '</td>' +
+        '<td>' + esc(d.ringkas || '') +
+          '<br><span class="koreksi-kunci">' + esc(k) + '</span></td>' +
+        '<td>' + esc(d.oleh || '\u2014') + '</td>' +
+        '<td>' + (d.at ? fmtLogTime(d.at) : '\u2014') + '</td>' +
+        '<td><button type="button" class="aksi-btn" data-pulihkan="' + esc(k) + '">\u21ba Pulihkan</button></td>' +
+      '</tr>';
+    }).join('');
+
+    Array.prototype.forEach.call(body.querySelectorAll('[data-pulihkan]'), function(btn){
+      btn.addEventListener('click', function(){
+        koreksiPulihkan(btn.getAttribute('data-pulihkan'));
+      });
+    });
+  }
+
+  // ---------- tombol aksi di tabel (delegasi event) ----------
+  document.getElementById('bodyRows').addEventListener('click', function(e){
+    var btn = e.target.closest ? e.target.closest('.aksi-btn') : null;
+    if(!btn || !btn.getAttribute('data-aksi')) return;
+    if(!bolehMengoreksiData()){
+      window.alert('Hanya peran Owner dan Super Admin yang dapat mengoreksi data.');
+      return;
+    }
+
+    var kunci = btn.getAttribute('data-kunci');
+    var baris = (state.filtered || []).filter(function(r){ return r.__kunci === kunci; })[0];
+    if(!baris){ window.alert('Baris tidak ditemukan. Coba muat ulang halaman.'); return; }
+    var ringkas = ringkasBaris(baris);
+
+    if(btn.getAttribute('data-aksi') === 'hapus'){
+      if(!window.confirm(
+        'Hapus baris ini secara permanen?\n\n' + ringkas + '\n\n' +
+        'Baris akan hilang dari seluruh tabel, statistik, grafik, dan unduhan. ' +
+        'Kalau data yang sama diunggah lagi, baris ini otomatis dihapus kembali.\n\n' +
+        'Bisa dibatalkan lewat menu Koreksi Data.')) return;
+      koreksiHapusBaris(kunci, ringkas);
+      return;
+    }
+
+    // Ubah status
+    var statusSaatIni = baris.__statusAsli || baris['Status'] || '';
+    var pilihan = uniqueValues('Status', RAW_SEMUA || []);
+    var daftar = pilihan.length ? pilihan.join(', ') : 'COMPLETED, CANCELED, RETURNED';
+    var jawab = window.prompt(
+      'Ubah status untuk:\n' + ringkas + '\n\n' +
+      'Status sekarang: ' + (statusSaatIni || '(kosong)') + '\n' +
+      'Pilihan yang ada: ' + daftar + '\n\n' +
+      'Ketik status baru:', statusSaatIni);
+    if(jawab === null) return;
+    jawab = String(jawab).trim().toUpperCase();
+    if(!jawab){ window.alert('Status tidak boleh kosong.'); return; }
+    if(jawab === String(statusSaatIni).trim().toUpperCase()){
+      window.alert('Status tidak berubah.');
+      return;
+    }
+    koreksiUbahStatus(kunci, ringkas, jawab, statusSaatIni);
+  });
+
+  document.getElementById('koreksiBtn').addEventListener('click', function(){
+    document.getElementById('koreksiOverlay').classList.add('open');
+    renderKoreksiTabel();
+  });
+  document.getElementById('koreksiModalClose').addEventListener('click', function(){
+    document.getElementById('koreksiOverlay').classList.remove('open');
+  });
+  document.getElementById('koreksiOverlay').addEventListener('click', function(e){
+    if(e.target === this) this.classList.remove('open');
+  });
+  document.getElementById('koreksiHapusSemua').addEventListener('click', function(){
+    var n = Object.keys(KOREKSI).length;
+    if(!n){ window.alert('Belum ada koreksi yang perlu dipulihkan.'); return; }
+    if(!window.confirm(
+      'Pulihkan seluruh ' + n + ' koreksi?\n\n' +
+      'Semua baris yang dihapus akan muncul kembali dan semua status yang diubah ' +
+      'kembali ke nilai asli dari data mentah.')) return;
+    KOREKSI = {};
+    refreshAll();
+    renderKoreksiTabel();
+    recordActivity('Pulihkan seluruh koreksi', n + ' koreksi dibatalkan sekaligus.', 'data');
+    simpanKoreksi('Seluruh koreksi dipulihkan \u2014 data kembali ke bentuk aslinya.');
+  });
+
+  document.getElementById('bersihkanDupBtn').addEventListener('click', bersihkanDuplikat);
+
   document.getElementById('backupBtn').addEventListener('click', function(){
     document.getElementById('backupOverlay').classList.add('open');
     renderDaftarCadangan();
@@ -5208,6 +5595,7 @@
 
   function init(){
     pantauDataStart();
+    pantauKoreksi();
     refreshAll();
     renderHead();
     wireMultiSelects();
