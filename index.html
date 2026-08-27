@@ -1421,7 +1421,6 @@
      bawaan panel dinolkan supaya tidak menumpuk dua kali. */
   #uploadOverlay .upload-head{padding:0 0 14px;}
   #uploadOverlay .drop-zone{margin:0;}
-  .upload-log{margin-bottom:18px;}
   .upload-head{
     display:flex; align-items:flex-start; justify-content:space-between; gap:18px;
     padding:18px 20px 14px;
@@ -1451,18 +1450,51 @@
   /* Log ini sebelumnya display:none permanen, sehingga pesan penting —
      termasuk peringatan "koreksi gagal disimpan ke cloud" — tidak pernah
      terlihat siapa pun. Sekarang muncul hanya kalau memang ada isinya. */
-  .upload-log{display:none;}
-  .upload-log:not(:empty){
-    display:flex; flex-direction:column; gap:8px;
-    padding:0;
+  /* ---------- notifikasi (toast) ----------
+     Dulu pesan-pesan ini menumpuk sebagai kotak log di badan halaman dan
+     mendorong isi dashboard ke bawah. Sekarang mengambang di kanan atas,
+     lalu menghilang sendiri. Pesar bertipe "warn" TIDAK ikut hilang — itu
+     yang biasanya perlu dibaca dan ditindaklanjuti. */
+  #toastWrap{
+    position:fixed;
+    top:16px; right:16px;
+    z-index:9998;
+    display:flex; flex-direction:column; gap:9px;
+    width:min(360px, calc(100vw - 32px));
+    pointer-events:none;
   }
   .log-item{
-    display:flex; align-items:center; gap:10px;
+    display:flex; align-items:flex-start; gap:10px;
     font-size:12.5px;
-    padding:9px 12px;
-    border-radius:7px;
+    padding:11px 13px;
+    border-radius:9px;
     border:1px solid var(--line);
+    background:var(--paper-raised);
+    box-shadow:0 14px 30px -12px var(--shadow-panel);
+    pointer-events:auto;
+    animation:toastMasuk .22s ease-out;
   }
+  .log-item.pergi{animation:toastKeluar .22s ease-in forwards;}
+  @keyframes toastMasuk{
+    from{opacity:0; transform:translateX(18px);}
+    to{opacity:1; transform:none;}
+  }
+  @keyframes toastKeluar{
+    from{opacity:1; transform:none;}
+    to{opacity:0; transform:translateX(18px);}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .log-item{animation:none;}
+    .log-item.pergi{animation:none; opacity:0;}
+  }
+  .log-item .log-text{flex:1 1 auto; min-width:0; line-height:1.45; word-break:break-word;}
+  .toast-tutup{
+    flex:0 0 auto;
+    background:none; border:none; cursor:pointer;
+    color:inherit; opacity:.6;
+    font-size:13px; line-height:1; padding:2px 0 0;
+  }
+  .toast-tutup:hover{opacity:1;}
   .log-item .log-icon{font-size:14px; flex:0 0 auto;}
   .log-item .log-text b{font-family:'IBM Plex Mono',monospace; font-weight:600;}
   .log-item.ok{background:var(--ok-bg); border-color:var(--log-ok-bd); color:var(--log-ok-fg);}
@@ -1772,12 +1804,18 @@
 
   .ds-right{width:100%;}
 
+  /* Notifikasi melebar penuh di HP dan menempel ke atas layar. */
+  #toastWrap{
+    top:10px; right:10px; left:10px;
+    width:auto;
+  }
+  .log-item{font-size:12.5px; padding:11px 12px;}
+
   /* Isi popup unggah dirapikan untuk layar sempit. */
   #uploadOverlay .btn,
   #uploadOverlay label.btn{width:100%; justify-content:center; min-height:44px;}
   .upload-head{flex-direction:column; align-items:stretch; gap:12px; padding:0 0 12px;}
   .drop-zone{margin:0;}
-  .upload-log:not(:empty){padding:0;}
   .chart-modal{width:100%; max-height:88vh;}
 }
 </style>
@@ -2106,10 +2144,9 @@
   </div>
 </div>
 
-  <!-- Kotak log tetap di halaman utama, di luar popup. Di sinilah hasil unggah,
-       koreksi, penghapusan, dan peringatan "gagal simpan ke cloud" muncul —
-       harus tetap terbaca setelah popup ditutup. Tanpa isi, tidak tampil. -->
-  <div id="uploadLog" class="upload-log"></div>
+  <!-- Wadah notifikasi. Mengambang di kanan atas dan tidak ikut mendorong isi
+       halaman. Pesan biasa hilang sendiri; peringatan menetap sampai ditutup. -->
+  <div id="toastWrap" aria-live="polite" aria-atomic="false"></div>
 
   <section class="panel">
     <div class="toolbar">
@@ -5245,14 +5282,18 @@
     var bundleEl = document.getElementById('dataBundle');
     bundleEl.textContent = JSON.stringify(updatedBundle);
 
-    // riwayat upload tidak ikut disimpan ke file snapshot, tapi tetap tampil di layar saat ini
-    var uploadLogEl = document.getElementById('uploadLog');
-    var savedLogHtml = uploadLogEl.innerHTML;
-    uploadLogEl.innerHTML = '';
+    // Notifikasi yang sedang tampil tidak ikut tersimpan ke file snapshot.
+    // Simpulnya dipindahkan sementara (bukan disalin lewat innerHTML) supaya
+    // tombol tutup dan hitungan mundurnya tetap hidup setelah dikembalikan.
+    var toastEl = document.getElementById('toastWrap');
+    var simpanan = document.createDocumentFragment();
+    if(toastEl){
+      while(toastEl.firstChild) simpanan.appendChild(toastEl.firstChild);
+    }
 
     var htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
 
-    uploadLogEl.innerHTML = savedLogHtml;
+    if(toastEl) toastEl.appendChild(simpanan);
 
     var blob = new Blob([htmlContent], {type:'text/html'});
     var url = URL.createObjectURL(blob);
@@ -5312,12 +5353,61 @@
     return null;
   }
 
+  // Berapa lama notifikasi bertahan sebelum menghilang sendiri.
+  var TOAST_DETIK = 5000;
+  // Paling banyak sekian yang tampil sekaligus; yang paling lama dibuang dulu
+  // supaya proses unggah yang ramai pesan tidak memenuhi layar.
+  var TOAST_MAKS = 4;
+
+  function tutupToast(el){
+    if(!el || el.dataset.pergi) return;
+    el.dataset.pergi = '1';
+    el.classList.add('pergi');
+    window.setTimeout(function(){
+      if(el.parentNode) el.parentNode.removeChild(el);
+    }, 240);
+  }
+
   function logMsg(type, icon, html){
-    var el = document.getElementById('uploadLog');
+    var wrap = document.getElementById('toastWrap');
+    if(!wrap) return;
+
     var div = document.createElement('div');
     div.className = 'log-item ' + type;
-    div.innerHTML = '<span class="log-icon">' + icon + '</span><span class="log-text">' + html + '</span>';
-    el.prepend(div);
+    div.setAttribute('role', type === 'warn' ? 'alert' : 'status');
+    div.innerHTML = '<span class="log-icon">' + icon + '</span>' +
+                    '<span class="log-text">' + html + '</span>';
+
+    // Peringatan diberi tombol tutup karena tidak hilang sendiri.
+    if(type === 'warn'){
+      var tutup = document.createElement('button');
+      tutup.type = 'button';
+      tutup.className = 'toast-tutup';
+      tutup.setAttribute('aria-label', 'Tutup notifikasi');
+      tutup.textContent = '\u2715';
+      tutup.addEventListener('click', function(){ tutupToast(div); });
+      div.appendChild(tutup);
+    }
+
+    wrap.appendChild(div);
+
+    // Batasi tumpukan — hitung hanya yang belum dalam proses menghilang.
+    var hidup = Array.prototype.filter.call(wrap.children, function(el){
+      return !el.dataset.pergi;
+    });
+    while(hidup.length > TOAST_MAKS){
+      tutupToast(hidup.shift());
+    }
+
+    if(type !== 'warn'){
+      var timer = window.setTimeout(function(){ tutupToast(div); }, TOAST_DETIK);
+      // Hitungan mundur ditahan selama kursor berada di atas notifikasi,
+      // supaya pesan panjang sempat dibaca sampai habis.
+      div.addEventListener('mouseenter', function(){ window.clearTimeout(timer); });
+      div.addEventListener('mouseleave', function(){
+        timer = window.setTimeout(function(){ tutupToast(div); }, TOAST_DETIK);
+      });
+    }
   }
 
   function existingJubelioIndex(){
