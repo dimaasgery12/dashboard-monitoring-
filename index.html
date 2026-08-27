@@ -2230,6 +2230,7 @@
         <option value="No TI (TII)">Duplikat — No TI (TO TI DETAIL) sama</option>
         <option value="No TO (TII)">Duplikat — No TO (TO TI DETAIL) sama</option>
         <option value="__COMBO__">Duplikat — Pesanan + SO + TI + TO sama</option>
+        <option value="__STATUS_BEDA__">Duplikat — Pesanan sama, status berbeda</option>
       </select>
       <span class="dup-info" id="dupInfo" hidden=""></span>
       <button class="btn btn-ghost" id="bersihkanDupBtn" hidden="" data-role-hide="admin,viewer,toko"
@@ -4074,6 +4075,12 @@
       var adaIsi = parts.some(function(p){ return p !== ''; });
       return adaIsi ? parts.join(' | ') : '';
     }
+    // Satu pesanan bisa memuat beberapa SKU, jadi SKU ikut jadi kunci —
+    // tanpa itu, pesanan berisi dua barang berbeda akan salah dianggap kembar.
+    if(mode === '__STATUS_BEDA__'){
+      var pes = dupNorm(r['No Pesanan']);
+      return pes ? pes + ' | ' + dupNorm(r['SKU']) : '';
+    }
     return dupNorm(r[mode]);
   }
 
@@ -4792,18 +4799,32 @@
 
     if(dupMode){
       var counts = {};
+      var statusPerGrup = {};
       state.filtered.forEach(function(r){
         var k = dupKeyOf(r, dupMode);
-        if(k) counts[k] = (counts[k] || 0) + 1;
+        if(!k) return;
+        counts[k] = (counts[k] || 0) + 1;
+        if(dupMode === '__STATUS_BEDA__'){
+          var st = dupNorm(r['Status']);
+          (statusPerGrup[k] = statusPerGrup[k] || {})[st] = true;
+        }
       });
+
+      // Mode "status berbeda" bukan sekadar kembar: grup yang seluruh barisnya
+      // berstatus sama justru wajar (mis. satu pesanan dua SKU), jadi dibuang.
+      function grupLolos(k){
+        if(!k || counts[k] <= 1) return false;
+        if(dupMode !== '__STATUS_BEDA__') return true;
+        return Object.keys(statusPerGrup[k] || {}).length > 1;
+      }
+
       state.filtered = state.filtered.filter(function(r){
-        var k = dupKeyOf(r, dupMode);
-        return k && counts[k] > 1;
+        return grupLolos(dupKeyOf(r, dupMode));
       });
       state.dupCounts = counts;
 
       var nGrup = 0;
-      Object.keys(counts).forEach(function(k){ if(counts[k] > 1) nGrup++; });
+      Object.keys(counts).forEach(function(k){ if(grupLolos(k)) nGrup++; });
       if(dupInfo){
         dupInfo.hidden = false;
         dupInfo.textContent = '⚠ ' + state.filtered.length.toLocaleString('id-ID') + ' baris kembar · ' +
@@ -4817,8 +4838,13 @@
 
     // Tombol bersih-bersih massal hanya masuk akal saat mode duplikat menyala,
     // dan hanya untuk peran yang berhak mengubah data.
+    // Mode "status berbeda" sengaja dikecualikan: memilih baris mana yang
+    // dipertahankan bergantung pada tahap hidup pesanan, dan itu penilaian
+    // manusia — bukan sesuatu yang boleh ditebak sistem secara massal.
     var btnBersih = document.getElementById('bersihkanDupBtn');
-    if(btnBersih) btnBersih.hidden = !(dupMode && bolehMengoreksiData());
+    if(btnBersih){
+      btnBersih.hidden = !(dupMode && dupMode !== '__STATUS_BEDA__' && bolehMengoreksiData());
+    }
 
     // Panel tunggakan dihitung SEBELUM penyaringan kelompok umur,
     // supaya angkanya tidak ikut menyusut saat sebuah kartu diklik.
@@ -4919,7 +4945,8 @@
           content = (v === null || v === undefined) ? '' : String(v);
         }
         if(dupMode && rowDupCount > 1 &&
-           (c.key === dupMode || (dupMode === '__COMBO__' && c.key === 'No Pesanan'))){
+           (c.key === dupMode ||
+            ((dupMode === '__COMBO__' || dupMode === '__STATUS_BEDA__') && c.key === 'No Pesanan'))){
           content += '<span class="dup-count" title="Nomor ini muncul ' + rowDupCount + ' kali">×' + rowDupCount + '</span>';
         }
         // Tandai kolom Status kalau nilainya hasil koreksi manual, bukan data asli
@@ -5455,9 +5482,28 @@
     return map;
   }
 
+  // Kunci tanpa No Invoice. Dipakai sebagai jaring pengaman saat menggabungkan:
+  // No Invoice baru terbit setelah barang dikirim, sehingga satu pesanan yang
+  // diekspor dua kali (sebelum dan sesudah invoice) punya kunci penuh yang
+  // berbeda dan dulu terbaca sebagai dua baris berbeda.
+  function kunciTanpaInvoice(r){
+    return trimKey(r['SKU']) + '|' + trimKey(r['No Pesanan']);
+  }
+
+  function indexTanpaInvoice(){
+    var map = {};
+    jubelioRows.forEach(function(r, idx){
+      var k = kunciTanpaInvoice(r);
+      if(!k || k === '|') return;
+      (map[k] = map[k] || []).push(idx);
+    });
+    return map;
+  }
+
   function mergeJubelioSheet(json, fileName){
     var index = existingJubelioIndex();
-    var added = 0, updated = 0, unchanged = 0;
+    var indexTanpaInv = indexTanpaInvoice();
+    var added = 0, updated = 0, unchanged = 0, dilengkapi = 0, diabaikan = 0;
     json.forEach(function(row){
       var rec = {};
       JUBELIO_COLS.forEach(function(c){
@@ -5481,13 +5527,45 @@
         }
         return;
       }
+
+      // Tidak ketemu lewat kunci penuh. Sebelum menyimpulkan ini baris baru,
+      // periksa apakah pesanan+SKU yang sama sudah ada dengan No Invoice
+      // berbeda. Kalau ya, ini pesanan yang sama pada tahap hidup berbeda.
+      var kTanpa = kunciTanpaInvoice(rec);
+      var kandidat = (kTanpa && kTanpa !== '|') ? (indexTanpaInv[kTanpa] || []) : [];
+      var invBaru = trimKey(rec['No Invoice']);
+
+      if(kandidat.length){
+        // (a) Baris lama belum berinvoice, yang baru sudah → lengkapi di tempat.
+        var idxKosong = -1;
+        for(var i = 0; i < kandidat.length; i++){
+          if(trimKey(jubelioRows[kandidat[i]]['No Invoice']) === ''){ idxKosong = kandidat[i]; break; }
+        }
+        if(invBaru && idxKosong !== -1){
+          jubelioRows[idxKosong] = rec;
+          index[key] = idxKosong;
+          dilengkapi++;
+          return;
+        }
+        // (b) Baris baru belum berinvoice padahal yang tersimpan sudah →
+        //     berkasnya lebih lama dari data yang ada. Jangan ditambahkan,
+        //     jangan pula menimpa data yang lebih mutakhir.
+        if(!invBaru){
+          diabaikan++;
+          return;
+        }
+      }
+
       index[key] = jubelioRows.length;
+      (indexTanpaInv[kTanpa] = indexTanpaInv[kTanpa] || []).push(jubelioRows.length);
       jubelioRows.push(rec);
       added++;
     });
     var parts = [];
     parts.push(added + ' baris baru ditambahkan');
     if(updated) parts.push(updated + ' baris diperbarui (termasuk perubahan status)');
+    if(dilengkapi) parts.push(dilengkapi + ' baris dilengkapi nomor invoice (bukan baris baru)');
+    if(diabaikan) parts.push(diabaikan + ' baris lama diabaikan karena data tersimpan lebih baru');
     if(unchanged) parts.push(unchanged + ' baris tidak berubah');
     logMsg('ok', '✓', '<b>' + fileName + '</b> dikenali sebagai <b>Jubelio</b> — ' + parts.join(', ') + '.');
     recordActivity('Unggah Jubelio', fileName + ' — ' + parts.join(', ') + '.');
