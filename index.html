@@ -1415,7 +1415,13 @@
   }
 
   /* ---------- upload panel ---------- */
-  .upload-panel{margin-bottom:18px;}
+  /* Panel unggah lama sudah menjadi popup (#uploadOverlay); yang tersisa di
+     halaman hanyalah kotak log. Gaya pemicunya dihapus agar tidak menumpuk. */
+  /* Di dalam popup, jarak tepi sudah diurus .chart-modal-body — padding
+     bawaan panel dinolkan supaya tidak menumpuk dua kali. */
+  #uploadOverlay .upload-head{padding:0 0 14px;}
+  #uploadOverlay .drop-zone{margin:0;}
+  .upload-log{margin-bottom:18px;}
   .upload-head{
     display:flex; align-items:flex-start; justify-content:space-between; gap:18px;
     padding:18px 20px 14px;
@@ -1442,7 +1448,14 @@
     background:var(--accent-soft);
     color:var(--accent);
   }
+  /* Log ini sebelumnya display:none permanen, sehingga pesan penting —
+     termasuk peringatan "koreksi gagal disimpan ke cloud" — tidak pernah
+     terlihat siapa pun. Sekarang muncul hanya kalau memang ada isinya. */
   .upload-log{display:none;}
+  .upload-log:not(:empty){
+    display:flex; flex-direction:column; gap:8px;
+    padding:0;
+  }
   .log-item{
     display:flex; align-items:center; gap:10px;
     font-size:12.5px;
@@ -1758,7 +1771,13 @@
   .view-tab{flex:0 0 auto; white-space:nowrap; padding:9px 13px;}
 
   .ds-right{width:100%;}
-  .upload-panel .btn{width:100%; justify-content:center; min-height:44px;}
+
+  /* Isi popup unggah dirapikan untuk layar sempit. */
+  #uploadOverlay .btn,
+  #uploadOverlay label.btn{width:100%; justify-content:center; min-height:44px;}
+  .upload-head{flex-direction:column; align-items:stretch; gap:12px; padding:0 0 12px;}
+  .drop-zone{margin:0;}
+  .upload-log:not(:empty){padding:0;}
   .chart-modal{width:100%; max-height:88vh;}
 }
 </style>
@@ -1893,6 +1912,33 @@
   </div>
 </div>
 
+<div class="chart-overlay users-modal" id="uploadOverlay">
+  <div class="chart-modal">
+    <div class="chart-modal-head">
+      <div>
+        <h3>Tambah Data Baru</h3>
+        <div class="sub">Unggah file Excel untuk digabungkan ke data yang sudah ada</div>
+      </div>
+      <button class="chart-modal-close" id="uploadModalClose" aria-label="Tutup">✕</button>
+    </div>
+    <div class="chart-modal-body">
+    <div class="upload-head">
+      <div>
+        <div class="up-sub">Unggah file <b>jubelio_data.xlsx</b>, <b>LPH_2.xlsx</b>, <b>TO TI DETAIL</b> (TII_DETAIL.xlsx), dan/atau file <b>master PROD CLASS</b> (kolom <b>Generic</b> + <b>PROD CLASS</b>) — formatnya
+        harus sama persis dengan file awal. Sistem akan otomatis mengenali jenis file, menggabungkannya ke data yang sudah ada,
+        dan menghitung ulang pencocokan.</div>
+      </div>
+      <label class="btn btn-primary" for="fileInput">⬆ Pilih File</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" multiple="" hidden="">
+      <button class="btn btn-ghost" id="clearDataBtn" type="button" data-role-hide="admin,viewer,superadmin,toko" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
+    </div>
+    <div id="dropZone" class="drop-zone">
+      Seret &amp; letakkan file .xlsx di sini, atau klik "Pilih File" di atas
+    </div>
+    </div>
+  </div>
+</div>
+
 <div class="chart-overlay users-modal" id="koreksiOverlay">
   <div class="chart-modal">
     <div class="chart-modal-head">
@@ -1968,6 +2014,7 @@
 
   <div class="userbar">
     <span class="who">Masuk sebagai <b id="whoName">–</b><span class="role-tag" id="whoRole">–</span></span>
+    <button type="button" id="uploadBtn" data-role-hide="viewer,toko">⬆ Tambah Data Baru</button>
     <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko">👤 Kelola Pengguna</button>
     <button type="button" id="activityLogBtn" data-role-hide="admin,viewer,toko">🕘 Riwayat Update Data</button>
     <button type="button" id="backupBtn" data-role-hide="admin,viewer,toko">💾 Cadangan Data</button>
@@ -2059,23 +2106,10 @@
   </div>
 </div>
 
-  <section class="panel upload-panel" id="uploadPanel" data-role-hide="viewer,toko">
-    <div class="upload-head">
-      <div>
-        <div class="up-title">Tambah Data Baru</div>
-        <div class="up-sub">Unggah file <b>jubelio_data.xlsx</b>, <b>LPH_2.xlsx</b>, <b>TO TI DETAIL</b> (TII_DETAIL.xlsx), dan/atau file <b>master PROD CLASS</b> (kolom <b>Generic</b> + <b>PROD CLASS</b>) — formatnya
-        harus sama persis dengan file awal. Sistem akan otomatis mengenali jenis file, menggabungkannya ke data yang sudah ada,
-        dan menghitung ulang pencocokan.</div>
-      </div>
-      <label class="btn btn-primary" for="fileInput">⬆ Pilih File</label>
-      <input type="file" id="fileInput" accept=".xlsx,.xls" multiple="" hidden="">
-      <button class="btn btn-ghost" id="clearDataBtn" type="button" data-role-hide="admin,viewer,superadmin,toko" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
-    </div>
-    <div id="dropZone" class="drop-zone">
-      Seret &amp; letakkan file .xlsx di sini, atau klik "Pilih File" di atas
-    </div>
-    <div id="uploadLog" class="upload-log"></div>
-  </section>
+  <!-- Kotak log tetap di halaman utama, di luar popup. Di sinilah hasil unggah,
+       koreksi, penghapusan, dan peringatan "gagal simpan ke cloud" muncul —
+       harus tetap terbaca setelah popup ditutup. Tanpa isi, tidak tampil. -->
+  <div id="uploadLog" class="upload-log"></div>
 
   <section class="panel">
     <div class="toolbar">
@@ -5831,7 +5865,25 @@
     var fileInput = document.getElementById('fileInput');
     var dropZone = document.getElementById('dropZone');
 
+    // ----- popup unggah -----
+    // Kontrol unggah hidup di dalam popup, dan popup selalu mulai tertutup.
+    // Efek sampingnya disengaja: area seret-letakkan baru ada setelah popup
+    // dibuka, jadi file yang tidak sengaja terseret ke jendela tidak terproses.
+    var uploadOverlay = document.getElementById('uploadOverlay');
+
+    function bukaPopupUnggah(){ uploadOverlay.classList.add('open'); }
+    function tutupPopupUnggah(){ uploadOverlay.classList.remove('open'); }
+
+    document.getElementById('uploadBtn').addEventListener('click', bukaPopupUnggah);
+    document.getElementById('uploadModalClose').addEventListener('click', tutupPopupUnggah);
+    uploadOverlay.addEventListener('click', function(e){
+      if(e.target === this) tutupPopupUnggah();
+    });
+
     fileInput.addEventListener('change', function(){
+      // Popup ditutup lebih dulu supaya kotak log di halaman utama langsung
+      // terlihat saat proses berjalan.
+      tutupPopupUnggah();
       handleFiles(this.files);
       this.value = '';
     });
@@ -5849,6 +5901,7 @@
       });
     });
     dropZone.addEventListener('drop', function(e){
+      tutupPopupUnggah();
       handleFiles(e.dataTransfer.files);
     });
 
@@ -5858,7 +5911,7 @@
       if(e.target === this) closeStatChart();
     });
     document.addEventListener('keydown', function(e){
-      if(e.key === 'Escape'){ closeStatChart(); tutupBacklog(); }
+      if(e.key === 'Escape'){ closeStatChart(); tutupBacklog(); tutupPopupUnggah(); }
     });
   }
 
