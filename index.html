@@ -602,6 +602,39 @@
   }
   .userbar button:hover{border-color:var(--accent); color:var(--accent);}
 
+  /* ---------- tombol bar atas: ikon saja ----------
+     Namanya tetap ditulis di dalam .ub-label, hanya disembunyikan secara
+     visual. Ini disengaja: teksnya masih dibacakan pembaca layar dan masih
+     bisa dicari lewat Ctrl+F, sesuatu yang hilang kalau labelnya dihapus.
+     Nama lengkapnya juga muncul sebagai tooltip lewat atribut title. */
+  .userbar button.ub-ikon{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:36px; height:36px; padding:0; border-radius:50%;
+    transition:border-color .15s, background .15s, transform .12s;
+  }
+  .userbar button.ub-ikon:hover{
+    background:var(--hero-chip);
+    transform:translateY(-1px);
+  }
+  .userbar button.ub-ikon:active{transform:none;}
+  .userbar button.ub-ikon:focus-visible{
+    outline:2px solid var(--accent); outline-offset:2px;
+  }
+  .userbar .ub-glyph{font-size:15px; line-height:1;}
+  /* Teknik sembunyi-tapi-tetap-ada; jangan diganti display:none. */
+  .userbar .ub-label{
+    position:absolute; width:1px; height:1px;
+    margin:-1px; padding:0; border:0;
+    clip:rect(0 0 0 0); clip-path:inset(50%);
+    overflow:hidden; white-space:nowrap;
+  }
+  /* Keluar dibedakan sedikit karena akibatnya paling besar. */
+  #logoutBtn.ub-ikon:hover{border-color:var(--warn); color:var(--warn);}
+  @media (prefers-reduced-motion: reduce){
+    .userbar button.ub-ikon{transition:none;}
+    .userbar button.ub-ikon:hover{transform:none;}
+  }
+
   /* ---------- MANAGE USERS MODAL ---------- */
   .users-modal .chart-modal{width:min(720px, 100%);}
   /* Tabel punya area gesernya SENDIRI, jadi header modal tetap di tempat
@@ -1804,6 +1837,10 @@
 
   .ds-right{width:100%;}
 
+  /* Bidang sentuh diperbesar sedikit untuk jari. */
+  .userbar button.ub-ikon{width:40px; height:40px;}
+  .userbar .ub-glyph{font-size:16px;}
+
   /* Notifikasi melebar penuh di HP dan menempel ke atas layar. */
   #toastWrap{
     top:10px; right:10px; left:10px;
@@ -2052,12 +2089,12 @@
 
   <div class="userbar">
     <span class="who">Masuk sebagai <b id="whoName">–</b><span class="role-tag" id="whoRole">–</span></span>
-    <button type="button" id="uploadBtn" data-role-hide="viewer,toko">⬆ Tambah Data Baru</button>
-    <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko">👤 Kelola Pengguna</button>
-    <button type="button" id="activityLogBtn" data-role-hide="admin,viewer,toko">🕘 Riwayat Update Data</button>
-    <button type="button" id="backupBtn" data-role-hide="admin,viewer,toko">💾 Cadangan Data</button>
-    <button type="button" id="koreksiBtn" data-role-hide="admin,viewer,toko">🧹 Koreksi Data</button>
-    <button type="button" id="logoutBtn">Keluar</button>
+    <button type="button" id="uploadBtn" data-role-hide="viewer,toko" class="ub-ikon" title="Tambah Data Baru" aria-label="Tambah Data Baru"><span class="ub-glyph" aria-hidden="true">⬆</span><span class="ub-label">Tambah Data Baru</span></button>
+    <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Kelola Pengguna" aria-label="Kelola Pengguna"><span class="ub-glyph" aria-hidden="true">👤</span><span class="ub-label">Kelola Pengguna</span></button>
+    <button type="button" id="activityLogBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Riwayat Update Data" aria-label="Riwayat Update Data"><span class="ub-glyph" aria-hidden="true">🕘</span><span class="ub-label">Riwayat Update Data</span></button>
+    <button type="button" id="backupBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Cadangan Data" aria-label="Cadangan Data"><span class="ub-glyph" aria-hidden="true">💾</span><span class="ub-label">Cadangan Data</span></button>
+    <button type="button" id="koreksiBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Koreksi Data" aria-label="Koreksi Data"><span class="ub-glyph" aria-hidden="true">🧹</span><span class="ub-label">Koreksi Data</span></button>
+    <button type="button" id="logoutBtn" class="ub-ikon" title="Keluar" aria-label="Keluar"><span class="ub-glyph" aria-hidden="true">🚪</span><span class="ub-label">Keluar</span></button>
   </div>
 
   <div class="view-tabs">
