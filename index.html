@@ -24,6 +24,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- ExcelJS dipakai KHUSUS untuk berkas "Data Sales", karena SheetJS versi
+     gratis tidak bisa menulis warna, tebal huruf, garis tabel, maupun freeze
+     panes. Unduhan lain tetap memakai SheetJS yang sudah ada. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -633,6 +637,29 @@
   @media (prefers-reduced-motion: reduce){
     .userbar button.ub-ikon{transition:none;}
     .userbar button.ub-ikon:hover{transform:none;}
+  }
+
+  /* ---------- tabel Perubahan Data ---------- */
+  .pb-baris{
+    display:flex; align-items:baseline; gap:7px; flex-wrap:wrap;
+    font-size:11.5px; padding:3px 0;
+  }
+  .pb-baris + .pb-baris{border-top:1px dashed var(--line);}
+  .pb-kolom{
+    font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
+    flex:0 0 86px;
+  }
+  .pb-dari{color:var(--muted); text-decoration:line-through;}
+  .pb-panah{color:var(--muted);}
+  .pb-ke{color:var(--accent-dark); font-weight:600;}
+  .pb-sku{font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;}
+  .pb-nama{font-size:11px; color:var(--muted); line-height:1.35;}
+  tr.pb-mundur td{background:var(--warn-bg);}
+  .pb-tag{
+    display:inline-block; font-size:9px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; padding:1px 6px; border-radius:9px;
+    background:var(--warn); color:var(--hero-ink); margin-left:5px;
   }
 
   /* ---------- MANAGE USERS MODAL ---------- */
@@ -1987,6 +2014,19 @@
   </div>
 </div>
 
+<div class="chart-overlay users-modal" id="perubahanOverlay">
+  <div class="chart-modal">
+    <div class="chart-modal-head">
+      <div>
+        <h3>Perubahan Data</h3>
+        <div class="sub" id="perubahanMeta"></div>
+      </div>
+      <button class="chart-modal-close" id="perubahanModalClose" aria-label="Tutup">✕</button>
+    </div>
+    <div class="chart-modal-body" id="perubahanIsi"></div>
+  </div>
+</div>
+
 <div class="chart-overlay users-modal" id="uploadOverlay">
   <div class="chart-modal">
     <div class="chart-modal-head">
@@ -2090,6 +2130,7 @@
   <div class="userbar">
     <span class="who">Masuk sebagai <b id="whoName">–</b><span class="role-tag" id="whoRole">–</span></span>
     <button type="button" id="uploadBtn" data-role-hide="viewer,toko" class="ub-ikon" title="Tambah Data Baru" aria-label="Tambah Data Baru"><span class="ub-glyph" aria-hidden="true">⬆</span><span class="ub-label">Tambah Data Baru</span></button>
+    <button type="button" id="perubahanBtn" data-role-hide="viewer,toko" class="ub-ikon" title="Perubahan Data" aria-label="Perubahan Data"><span class="ub-glyph" aria-hidden="true">🔁</span><span class="ub-label">Perubahan Data</span></button>
     <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Kelola Pengguna" aria-label="Kelola Pengguna"><span class="ub-glyph" aria-hidden="true">👤</span><span class="ub-label">Kelola Pengguna</span></button>
     <button type="button" id="activityLogBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Riwayat Update Data" aria-label="Riwayat Update Data"><span class="ub-glyph" aria-hidden="true">🕘</span><span class="ub-label">Riwayat Update Data</span></button>
     <button type="button" id="backupBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Cadangan Data" aria-label="Cadangan Data"><span class="ub-glyph" aria-hidden="true">💾</span><span class="ub-label">Cadangan Data</span></button>
@@ -5053,6 +5094,95 @@
     return window.currentRole === 'owner' || window.currentRole === 'superadmin';
   }
 
+  // ---------- riwayat perubahan data ----------
+  // Dibatasi supaya dokumen Firestore tidak menembus batas 1 MB per dokumen.
+  var BATAS_CATATAN_PERUBAHAN = 400;
+  var PERUBAHAN = null;
+
+  function catatPerubahan(fileName, daftar, ringkas){
+    var rekaman = {
+      berkas: fileName,
+      oleh: window.currentUsername || '',
+      at: Date.now(),
+      ringkas: ringkas,
+      terpotong: (ringkas.updated > daftar.length) ? 1 : 0,
+      daftar: daftar
+    };
+    PERUBAHAN = rekaman;
+    renderPerubahanTabel();
+
+    db.collection('meta').doc('perubahan').set(rekaman)['catch'](function(err){
+      logMsg('warn', '\u26a0',
+        'Rincian perubahan tidak tersimpan ke cloud: ' + err.message +
+        ' \u2014 daftarnya masih bisa dilihat sampai halaman dimuat ulang.');
+    });
+  }
+
+  function pantauPerubahan(){
+    db.collection('meta').doc('perubahan').onSnapshot(function(snap){
+      PERUBAHAN = snap.exists ? snap.data() : null;
+      renderPerubahanTabel();
+    }, function(err){
+      console.warn('Gagal memantau meta/perubahan:', err && err.message);
+    });
+  }
+
+  function renderPerubahanTabel(){
+    var box = document.getElementById('perubahanIsi');
+    var meta = document.getElementById('perubahanMeta');
+    if(!box) return;
+
+    if(!PERUBAHAN || !PERUBAHAN.daftar || !PERUBAHAN.daftar.length){
+      if(meta) meta.textContent = '';
+      box.innerHTML = '<div class="users-msg">Belum ada perubahan tercatat. ' +
+                      'Daftar ini terisi setiap kali data Jubelio diunggah.</div>';
+      return;
+    }
+
+    var r = PERUBAHAN.ringkas || {};
+    if(meta){
+      meta.innerHTML =
+        'Berkas <b>' + esc(PERUBAHAN.berkas || '-') + '</b> \u00b7 ' +
+        fmtWaktuID(PERUBAHAN.at) +
+        (PERUBAHAN.oleh ? ' \u00b7 oleh <b>' + esc(PERUBAHAN.oleh) + '</b>' : '') +
+        '<br>' +
+        (r.added || 0).toLocaleString('id-ID') + ' baris baru \u00b7 ' +
+        (r.updated || 0).toLocaleString('id-ID') + ' diperbarui \u00b7 ' +
+        (r.unchanged || 0).toLocaleString('id-ID') + ' tidak berubah' +
+        (r.mundur ? ' \u00b7 <b style="color:var(--warn)">' + r.mundur + ' status mundur</b>' : '');
+    }
+
+    var baris = PERUBAHAN.daftar.map(function(p){
+      var isi = (p.beda || []).map(function(b){
+        return '<div class="pb-baris"><span class="pb-kolom">' + esc(b.kolom) + '</span>' +
+               '<span class="pb-dari">' + esc(b.dari || '(kosong)') + '</span>' +
+               '<span class="pb-panah">\u2192</span>' +
+               '<span class="pb-ke">' + esc(b.ke || '(kosong)') + '</span></div>';
+      }).join('');
+      return '<tr' + (p.mundur ? ' class="pb-mundur"' : '') + '>' +
+             '<td>' + esc(p.pes) + (p.mundur ? ' <span class="pb-tag">status mundur</span>' : '') + '</td>' +
+             '<td><div class="pb-sku">' + esc(p.sku) + '</div>' +
+             '<div class="pb-nama">' + esc(p.nama || '') + '</div></td>' +
+             '<td>' + isi + '</td></tr>';
+    }).join('');
+
+    box.innerHTML =
+      '<div class="users-table-wrap" style="max-height:52vh;">' +
+      '<table class="users-table"><thead><tr>' +
+      '<th style="width:26%">No Pesanan</th><th style="width:30%">Barang</th>' +
+      '<th>Yang berubah</th></tr></thead><tbody>' + baris + '</tbody></table></div>' +
+      (PERUBAHAN.terpotong
+        ? '<div class="users-msg">Hanya ' + BATAS_CATATAN_PERUBAHAN.toLocaleString('id-ID') +
+          ' perubahan pertama yang dirinci di sini; sisanya tetap diterapkan ke data.</div>'
+        : '');
+  }
+
+  function fmtWaktuID(ms){
+    if(!ms) return '-';
+    var d = new Date(ms);
+    return d.toLocaleString('id-ID', {dateStyle: 'medium', timeStyle: 'short'});
+  }
+
   function simpanKoreksi(pesanLog){
     var daftar = Object.keys(KOREKSI).map(function(k){
       var v = KOREKSI[k];
@@ -5266,6 +5396,397 @@
     return s;
   }
 
+  // ============================================================
+  // Pembangun berkas "Data Sales" — dipakai apa adanya di dashboard.
+  // Ditulis tanpa fitur ES6 supaya seragam dengan kode lain di index.html.
+  // ============================================================
+  function buatWorkbookSales(baris, rentang){
+    var EJS = window.ExcelJS;
+
+    var FONT = 'Arial';
+    var INK = 'FF1A1A1A';
+    var AKSEN = 'FF1F6F3F';
+    var RP = '"Rp" #,##0;("Rp" #,##0);"-"';
+    var NUM = '#,##0;(#,##0);"-"';
+    var PCT = '0.0%';
+    var TGL_FMT = 'yyyy-mm-dd hh:mm:ss';
+
+    var KOLOM = ['SKU', 'Nama Barang', 'No Pesanan', 'No Invoice', 'Lokasi', 'Tanggal',
+                 'Pelanggan', 'QTY', 'amount', 'Sumber', 'Nama Toko', 'Status',
+                 'PROD CLASS', 'Dihitung'];
+
+    // ---------- siapkan data ----------
+    function tk(v){ return (v === null || v === undefined) ? '' : String(v).trim(); }
+    function norm(v){ return tk(v).toUpperCase(); }
+
+    var data = baris.map(function(r){
+      return {
+        'SKU': tk(r['SKU']),
+        'Nama Barang': tk(r['Nama Barang']),
+        'No Pesanan': tk(r['No Pesanan']),
+        'No Invoice': tk(r['No Invoice']),
+        'Lokasi': tk(r['Lokasi']),
+        'Tanggal': r['Tanggal'],
+        'Pelanggan': tk(r['Pelanggan']),
+        'QTY': Number(r['QTY']) || 0,
+        'amount': Number(r['amount']) || 0,
+        'Sumber': tk(r['Sumber']),
+        'Nama Toko': tk(r['Nama Toko']),
+        'Status': tk(r['Status']),
+        'PROD CLASS': tk(r['PROD CLASS'])
+      };
+    });
+
+    // Tandai baris kembar. Yang dipertahankan adalah yang punya No Invoice,
+    // karena catatannya lebih lengkap.
+    var lihat = {};
+    data.forEach(function(r){
+      var k = norm(r['No Pesanan']) + '|' + norm(r['SKU']) + '|' +
+              tk(r['Tanggal']) + '|' + r['amount'];
+      (lihat[k] = lihat[k] || []).push(r);
+    });
+    Object.keys(lihat).forEach(function(k){
+      var g = lihat[k];
+      if(g.length === 1){ g[0].Dihitung = 1; return; }
+      var simpan = -1;
+      for(var i = 0; i < g.length; i++){ if(g[i]['No Invoice']){ simpan = i; break; } }
+      if(simpan === -1) simpan = 0;
+      g.forEach(function(r, i){ r.Dihitung = (i === simpan) ? 1 : 0; r.__grup = k; });
+    });
+
+    var N = data.length;
+    var R1 = 2, R2 = N + 1;
+    var kembar = data.filter(function(r){ return r.__grup; });
+
+    var wb = new EJS.Workbook();
+    wb.creator = 'Monitoring Jubelio';
+    wb.created = new Date();
+
+    // ---------- pembantu gaya ----------
+    function tulisJudul(ws, teks, catatan){
+      var c = ws.getCell('A1');
+      c.value = teks;
+      c.font = {name: FONT, size: 14, bold: true, color: {argb: AKSEN}};
+      var b = 3;
+      if(catatan){
+        var c2 = ws.getCell('A2');
+        c2.value = catatan;
+        c2.font = {name: FONT, size: 9, italic: true, color: {argb: 'FF666666'}};
+        b = 4;
+      }
+      return b;
+    }
+
+    function tulisHead(ws, baris_, kolom){
+      var row = ws.getRow(baris_);
+      kolom.forEach(function(nama, i){
+        var c = row.getCell(i + 1);
+        c.value = nama;
+        c.font = {name: FONT, size: 10, bold: true, color: {argb: 'FFFFFFFF'}};
+        c.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: AKSEN}};
+        c.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
+        c.border = garis();
+      });
+      row.height = 28;
+    }
+
+    function garis(){
+      var t = {style: 'thin', color: {argb: 'FFD0D5D2'}};
+      return {top: t, left: t, bottom: t, right: t};
+    }
+
+    function rapikan(ws, r0, r1, nKol, fmt){
+      for(var r = r0; r <= r1; r++){
+        for(var c = 1; c <= nKol; c++){
+          var sel = ws.getRow(r).getCell(c);
+          sel.font = {name: FONT, size: 10, color: {argb: INK}};
+          sel.border = garis();
+          if(r % 2 === 0){
+            sel.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFF2F7F4'}};
+          }
+          if(fmt[c]) sel.numFmt = fmt[c];
+        }
+      }
+    }
+
+    function barisTotal(ws, r, nKol){
+      for(var c = 1; c <= nKol; c++){
+        var sel = ws.getRow(r).getCell(c);
+        sel.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
+        sel.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFE3EDE7'}};
+      }
+    }
+
+    // 1 -> A, 14 -> N
+    function kolomHuruf(n){
+      var s = '';
+      while(n > 0){ var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; }
+      return s;
+    }
+
+    function lebar(ws, ukuran){
+      ukuran.forEach(function(w, i){ ws.getColumn(i + 1).width = w; });
+    }
+
+    // ---------- 1. Ringkasan ----------
+    var ws = wb.addWorksheet('Ringkasan', {views: [{showGridLines: false}]});
+    var b = tulisJudul(ws, 'Rekap Penjualan' + (rentang ? ' \u2014 ' + rentang : ''),
+      'Seluruh angka di berkas ini adalah rumus yang menunjuk ke sheet "Data". ' +
+      'Mengubah kolom Dihitung di sana akan memperbarui semua sheet.');
+
+    var metrik = [
+      ['Jumlah transaksi',       '=SUMIFS(Data!$N$' + R1 + ':$N$' + R2 + ',Data!$N$' + R1 + ':$N$' + R2 + ',1)', NUM],
+      ['Total kuantitas (pcs)',  '=SUMIFS(Data!$H$' + R1 + ':$H$' + R2 + ',Data!$N$' + R1 + ':$N$' + R2 + ',1)', NUM],
+      ['Total omzet',            '=SUMIFS(Data!$I$' + R1 + ':$I$' + R2 + ',Data!$N$' + R1 + ':$N$' + R2 + ',1)', RP],
+      ['Rata-rata nilai order',  '=IFERROR(B' + (b + 2) + '/B' + b + ',0)', RP],
+      ['Nilai order tertinggi',  '=MAX(Data!$I$' + R1 + ':$I$' + R2 + ')', RP],
+      ['Nilai order terendah',   '=MIN(Data!$I$' + R1 + ':$I$' + R2 + ')', RP]
+    ];
+    metrik.forEach(function(m, i){
+      var r = b + i;
+      var c1 = ws.getRow(r).getCell(1);
+      c1.value = m[0];
+      c1.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
+      c1.border = garis();
+      var c2 = ws.getRow(r).getCell(2);
+      c2.value = {formula: m[1].substring(1)};
+      c2.font = {name: FONT, size: 10, color: {argb: INK}};
+      c2.numFmt = m[2];
+      c2.alignment = {horizontal: 'right'};
+      c2.border = garis();
+    });
+
+    var bd = b + metrik.length + 2;
+    var cd = ws.getRow(bd).getCell(1);
+    cd.value = 'Catatan duplikat';
+    cd.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
+
+    var ket = ws.getRow(bd + 1).getCell(1);
+    ket.value = kembar.length
+      ? 'Ditemukan ' + (kembar.length / 2 | 0) + ' pesanan yang tercatat lebih dari sekali. ' +
+        'Baris tanpa No Invoice diberi tanda Dihitung = 0 sehingga tidak ikut dijumlahkan. ' +
+        'Rinciannya ada di sheet "Cek Duplikat".'
+      : 'Tidak ditemukan baris kembar pada data ini. Kolom Dihitung tetap disediakan ' +
+        'di sheet Data sebagai saklar manual bila suatu saat diperlukan.';
+    ket.font = {name: FONT, size: 10, color: {argb: INK}};
+    ket.alignment = {wrapText: true, vertical: 'top'};
+    ket.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFFFF6CC'}};
+    ws.mergeCells(bd + 1, 1, bd + 3, 2);
+
+    var l1 = ws.getRow(bd + 5).getCell(1);
+    l1.value = 'Omzet jika duplikat ikut dihitung';
+    l1.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
+    var l1v = ws.getRow(bd + 5).getCell(2);
+    l1v.value = {formula: 'SUM(Data!$I$' + R1 + ':$I$' + R2 + ')'};
+    l1v.numFmt = RP;
+    l1v.font = {name: FONT, size: 10, color: {argb: INK}};
+    l1v.alignment = {horizontal: 'right'};
+
+    var l2 = ws.getRow(bd + 6).getCell(1);
+    l2.value = 'Selisih akibat duplikat';
+    l2.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
+    var l2v = ws.getRow(bd + 6).getCell(2);
+    l2v.value = {formula: 'B' + (bd + 5) + '-B' + (b + 2)};
+    l2v.numFmt = RP;
+    l2v.font = {name: FONT, size: 10, color: {argb: INK}};
+    l2v.alignment = {horizontal: 'right'};
+
+    lebar(ws, [34, 22]);
+
+    // ---------- sheet rekap per dimensi ----------
+    var HURUF = {'Lokasi': 'E', 'Sumber': 'J', 'Status': 'L',
+                 'PROD CLASS': 'M', 'Nama Toko': 'K'};
+
+    function sheetRekap(namaSheet, judulTeks, kolomKunci, catatan){
+      var w = wb.addWorksheet(namaSheet, {views: [{showGridLines: false}]});
+      var bb = tulisJudul(w, judulTeks, catatan);
+      tulisHead(w, bb, [kolomKunci, 'Transaksi', 'QTY', 'Omzet', '% Omzet']);
+
+      var jml = {};
+      data.forEach(function(r){
+        if(r.Dihitung !== 1) return;
+        var k = r[kolomKunci] || '(kosong)';
+        jml[k] = (jml[k] || 0) + r.amount;
+      });
+      var kunci = Object.keys(jml).sort(function(a, c){ return jml[c] - jml[a]; });
+
+      var h = HURUF[kolomKunci];
+      var r0 = bb + 1;
+      var rt = r0 + kunci.length;
+
+      kunci.forEach(function(k, i){
+        var r = r0 + i;
+        w.getRow(r).getCell(1).value = k;
+        w.getRow(r).getCell(2).value = {formula:
+          'COUNTIFS(Data!$' + h + '$' + R1 + ':$' + h + '$' + R2 + ',$A' + r +
+          ',Data!$N$' + R1 + ':$N$' + R2 + ',1)'};
+        w.getRow(r).getCell(3).value = {formula:
+          'SUMIFS(Data!$H$' + R1 + ':$H$' + R2 + ',Data!$' + h + '$' + R1 + ':$' + h + '$' + R2 +
+          ',$A' + r + ',Data!$N$' + R1 + ':$N$' + R2 + ',1)'};
+        w.getRow(r).getCell(4).value = {formula:
+          'SUMIFS(Data!$I$' + R1 + ':$I$' + R2 + ',Data!$' + h + '$' + R1 + ':$' + h + '$' + R2 +
+          ',$A' + r + ',Data!$N$' + R1 + ':$N$' + R2 + ',1)'};
+        w.getRow(r).getCell(5).value = {formula: 'IFERROR(D' + r + '/$D$' + rt + ',0)'};
+      });
+
+      w.getRow(rt).getCell(1).value = 'TOTAL';
+      [2, 3, 4].forEach(function(c){
+        var hu = String.fromCharCode(64 + c);
+        w.getRow(rt).getCell(c).value = {formula: 'SUM(' + hu + r0 + ':' + hu + (rt - 1) + ')'};
+      });
+      w.getRow(rt).getCell(5).value = {formula: 'IFERROR(D' + rt + '/$D$' + rt + ',0)'};
+
+      rapikan(w, r0, rt, 5, {2: NUM, 3: NUM, 4: RP, 5: PCT});
+      barisTotal(w, rt, 5);
+      lebar(w, [36, 12, 10, 16, 11]);
+      w.views = [{state: 'frozen', ySplit: r0 - 1, showGridLines: false}];
+    }
+
+    sheetRekap('Per Lokasi', 'Penjualan per Lokasi', 'Lokasi');
+    sheetRekap('Per Sumber', 'Penjualan per Sumber (Marketplace)', 'Sumber');
+    sheetRekap('Per Status', 'Penjualan per Status Pesanan', 'Status',
+              'Perhatikan status CANCELED dan RETURNED bila ada \u2014 keduanya ikut '
+              + 'terhitung di sini karena berkas ini merekam apa adanya.');
+    sheetRekap('Per Prod Class', 'Penjualan per PROD CLASS', 'PROD CLASS');
+    sheetRekap('Per Toko', 'Penjualan per Nama Toko', 'Nama Toko');
+
+    // ---------- Per Produk ----------
+    var wp = wb.addWorksheet('Per Produk', {views: [{showGridLines: false}]});
+    var bp = tulisJudul(wp, 'Penjualan per Produk (SKU)', 'Diurutkan dari omzet terbesar.');
+    tulisHead(wp, bp, ['SKU', 'Nama Barang', 'PROD CLASS', 'QTY', 'Omzet', '% Omzet']);
+
+    var perSku = {};
+    data.forEach(function(r){
+      if(r.Dihitung !== 1) return;
+      var k = r['SKU'];
+      if(!perSku[k]) perSku[k] = {nama: r['Nama Barang'], kelas: r['PROD CLASS'], omzet: 0};
+      perSku[k].omzet += r.amount;
+    });
+    var skuUrut = Object.keys(perSku).sort(function(a, c){ return perSku[c].omzet - perSku[a].omzet; });
+
+    var rp0 = bp + 1, rpt = rp0 + skuUrut.length;
+    skuUrut.forEach(function(k, i){
+      var r = rp0 + i;
+      wp.getRow(r).getCell(1).value = k;
+      wp.getRow(r).getCell(2).value = perSku[k].nama;
+      wp.getRow(r).getCell(3).value = perSku[k].kelas;
+      wp.getRow(r).getCell(4).value = {formula:
+        'SUMIFS(Data!$H$' + R1 + ':$H$' + R2 + ',Data!$A$' + R1 + ':$A$' + R2 +
+        ',$A' + r + ',Data!$N$' + R1 + ':$N$' + R2 + ',1)'};
+      wp.getRow(r).getCell(5).value = {formula:
+        'SUMIFS(Data!$I$' + R1 + ':$I$' + R2 + ',Data!$A$' + R1 + ':$A$' + R2 +
+        ',$A' + r + ',Data!$N$' + R1 + ':$N$' + R2 + ',1)'};
+      wp.getRow(r).getCell(6).value = {formula: 'IFERROR(E' + r + '/$E$' + rpt + ',0)'};
+    });
+    wp.getRow(rpt).getCell(1).value = 'TOTAL';
+    [4, 5].forEach(function(c){
+      var hu = String.fromCharCode(64 + c);
+      wp.getRow(rpt).getCell(c).value = {formula: 'SUM(' + hu + rp0 + ':' + hu + (rpt - 1) + ')'};
+    });
+    wp.getRow(rpt).getCell(6).value = {formula: 'IFERROR(E' + rpt + '/$E$' + rpt + ',0)'};
+    rapikan(wp, rp0, rpt, 6, {4: NUM, 5: RP, 6: PCT});
+    barisTotal(wp, rpt, 6);
+    lebar(wp, [20, 52, 14, 10, 16, 11]);
+    wp.views = [{state: 'frozen', ySplit: rp0 - 1, showGridLines: false}];
+
+    // ---------- Per Jam ----------
+    var wj = wb.addWorksheet('Per Jam', {views: [{showGridLines: false}]});
+    var bj = tulisJudul(wj, 'Sebaran Penjualan per Jam',
+                        'Berdasarkan kolom Tanggal, memakai baris ber-Dihitung = 1.');
+    tulisHead(wj, bj, ['Jam', 'Transaksi', 'QTY', 'Omzet']);
+
+    var perJam = {};
+    data.forEach(function(r){
+      if(r.Dihitung !== 1) return;
+      var d = r['Tanggal'];
+      var jam = (d instanceof Date) ? d.getHours() : parseInt(String(d).substr(11, 2), 10);
+      if(isNaN(jam)) return;
+      if(!perJam[jam]) perJam[jam] = {n: 0, qty: 0, omzet: 0};
+      perJam[jam].n++; perJam[jam].qty += r.QTY; perJam[jam].omzet += r.amount;
+    });
+    var jamUrut = Object.keys(perJam).map(Number).sort(function(a, c){ return a - c; });
+    var rj0 = bj + 1, rjt = rj0 + jamUrut.length;
+    jamUrut.forEach(function(j, i){
+      var r = rj0 + i;
+      var dua = (j < 10 ? '0' : '') + j;
+      wj.getRow(r).getCell(1).value = dua + ':00\u2013' + dua + ':59';
+      wj.getRow(r).getCell(2).value = perJam[j].n;
+      wj.getRow(r).getCell(3).value = perJam[j].qty;
+      wj.getRow(r).getCell(4).value = perJam[j].omzet;
+    });
+    wj.getRow(rjt).getCell(1).value = 'TOTAL';
+    [2, 3, 4].forEach(function(c){
+      var hu = String.fromCharCode(64 + c);
+      wj.getRow(rjt).getCell(c).value = {formula: 'SUM(' + hu + rj0 + ':' + hu + (rjt - 1) + ')'};
+    });
+    rapikan(wj, rj0, rjt, 4, {2: NUM, 3: NUM, 4: RP});
+    barisTotal(wj, rjt, 4);
+    var cj = wj.getRow(rjt + 2).getCell(1);
+    cj.value = 'Angka pada tabel ini dihitung di luar Excel karena jam harus diambil ' +
+               'dari kolom Tanggal; sumbernya tetap baris ber-Dihitung = 1 di sheet Data.';
+    cj.font = {name: FONT, size: 9, italic: true, color: {argb: 'FF666666'}};
+    lebar(wj, [16, 12, 10, 16]);
+
+    // ---------- Cek Duplikat ----------
+    var wd = wb.addWorksheet('Cek Duplikat', {views: [{showGridLines: false}]});
+    var bdup = tulisJudul(wd, 'Pemeriksaan Duplikat',
+      'Dua baris dianggap kembar bila No Pesanan, SKU, Tanggal, dan amount sama persis.');
+    tulisHead(wd, bdup, ['No Pesanan', 'SKU', 'Tanggal', 'Pelanggan', 'No Invoice',
+                         'Status', 'Amount', 'Dihitung']);
+    var rd0 = bdup + 1;
+    if(kembar.length){
+      kembar.forEach(function(r, i){
+        var row = wd.getRow(rd0 + i);
+        row.getCell(1).value = r['No Pesanan'];
+        row.getCell(2).value = r['SKU'];
+        row.getCell(3).value = r['Tanggal'];
+        row.getCell(4).value = r['Pelanggan'];
+        row.getCell(5).value = r['No Invoice'] || '(kosong)';
+        row.getCell(6).value = r['Status'];
+        row.getCell(7).value = r.amount;
+        row.getCell(8).value = r.Dihitung;
+      });
+      rapikan(wd, rd0, rd0 + kembar.length - 1, 8, {3: TGL_FMT, 7: RP, 8: NUM});
+      var cat = wd.getRow(rd0 + kembar.length + 1).getCell(1);
+      cat.value = 'Baris yang dipertahankan adalah yang punya No Invoice, karena catatannya ' +
+                  'lebih lengkap. Bila menurut Anda justru baris satunya yang benar, ubah angka ' +
+                  'pada kolom Dihitung di sheet Data \u2014 seluruh rekap akan menyesuaikan sendiri.';
+      cat.font = {name: FONT, size: 10, color: {argb: INK}};
+      cat.alignment = {wrapText: true, vertical: 'top'};
+      cat.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFFFF6CC'}};
+      wd.mergeCells(rd0 + kembar.length + 1, 1, rd0 + kembar.length + 3, 8);
+    } else {
+      var kos = wd.getRow(rd0).getCell(1);
+      kos.value = 'Tidak ada baris kembar pada data ini.';
+      kos.font = {name: FONT, size: 10, color: {argb: INK}};
+    }
+    lebar(wd, [30, 20, 20, 24, 18, 14, 14, 11]);
+
+    // ---------- Data ----------
+    var wdt = wb.addWorksheet('Data', {views: [{state: 'frozen', ySplit: 1}]});
+    tulisHead(wdt, 1, KOLOM);
+    data.forEach(function(r, i){
+      var row = wdt.getRow(2 + i);
+      KOLOM.forEach(function(k, j){
+        row.getCell(j + 1).value = (k === 'Dihitung') ? r.Dihitung : r[k];
+      });
+    });
+    rapikan(wdt, 2, R2, KOLOM.length, {6: TGL_FMT, 8: NUM, 9: RP, 14: NUM});
+    // Baris yang tidak dihitung disorot kuning supaya langsung terlihat.
+    data.forEach(function(r, i){
+      if(r.Dihitung === 1) return;
+      for(var c = 1; c <= KOLOM.length; c++){
+        wdt.getRow(2 + i).getCell(c).fill =
+          {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFFFF6CC'}};
+      }
+    });
+    lebar(wdt, [20, 52, 30, 18, 32, 21, 26, 8, 14, 18, 26, 14, 14, 11]);
+    // Bentuk objek tidak ikut tertulis oleh ExcelJS; bentuk teks yang bekerja.
+    wdt.autoFilter = 'A1:' + kolomHuruf(KOLOM.length) + R2;
+
+    return wb;
+  }
+
   function downloadSalesHarian(){
     var r = window.currentRole;
     if(r !== 'owner' && r !== 'superadmin'){
@@ -5297,28 +5818,37 @@
       : tanggalHariIni();
 
     var tanpaKelas = 0;
-    var rows = baris.map(function(row){
-      return SALES_COLS.map(function(c){
-        if(c === 'PROD CLASS '){
-          var kelas = row['PROD CLASS'];
-          if(!kelas){ tanpaKelas++; return ''; }
-          return kelas;
-        }
-        if(c === 'Tanggal') return keDate(row['Tanggal']);
-        var v = row[c];
-        return (v === null || v === undefined) ? '' : v;
-      });
+    baris.forEach(function(row){ if(!row['PROD CLASS']) tanpaKelas++; });
+
+    if(!window.ExcelJS){
+      window.alert('Pustaka ExcelJS belum termuat. Periksa koneksi internet, '
+                 + 'lalu muat ulang halaman dan coba lagi.');
+      return;
+    }
+
+    // Tanggal diubah jadi objek Date supaya Excel memperlakukannya sebagai
+    // tanggal asli, bukan teks.
+    var baris2 = baris.map(function(row){
+      var salinan = {};
+      Object.keys(row).forEach(function(k){ salinan[k] = row[k]; });
+      salinan['Tanggal'] = keDate(row['Tanggal']);
+      return salinan;
     });
 
-    var ws = XLSX.utils.aoa_to_sheet([SALES_COLS].concat(rows), {cellDates:true});
-    ws['!cols'] = SALES_COLS.map(function(c){
-      if(c === 'Nama Barang') return {wch: 46};
-      if(c === 'Tanggal' || c === 'No Pesanan' || c === 'Lokasi') return {wch: 22};
-      return {wch: 16};
+    var wb = buatWorkbookSales(baris2, rentang);
+    wb.xlsx.writeBuffer().then(function(buf){
+      var blob = new Blob([buf], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'Data sales harian ' + rentang + '.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    })['catch'](function(err){
+      window.alert('Gagal menyusun berkas Excel: ' + err.message);
     });
-    var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-    XLSX.writeFile(wb, 'Data sales harian ' + rentang + '.xlsx');
 
     var ket = baris.length.toLocaleString('id-ID') + ' baris sesuai filter aktif, ' + rentang;
     if(tanpaKelas){
@@ -5474,36 +6004,54 @@
     }
   }
 
-  function existingJubelioIndex(){
-    var map = {};
-    jubelioRows.forEach(function(r, idx){
-      map[trimKey(r['No Invoice']) + '|' + trimKey(r['SKU']) + '|' + trimKey(r['No Pesanan'])] = idx;
-    });
-    return map;
-  }
-
-  // Kunci tanpa No Invoice. Dipakai sebagai jaring pengaman saat menggabungkan:
-  // No Invoice baru terbit setelah barang dikirim, sehingga satu pesanan yang
-  // diekspor dua kali (sebelum dan sesudah invoice) punya kunci penuh yang
-  // berbeda dan dulu terbaca sebagai dua baris berbeda.
-  function kunciTanpaInvoice(r){
+  // ---------- identitas baris Jubelio ----------
+  // Kunci identitas HANYA SKU + No Pesanan. No Invoice sengaja tidak ikut,
+  // karena isinya berubah sepanjang hidup pesanan: kosong saat belum dikirim,
+  // terisi setelah dikirim, bisa berganti nomor bila terbit ulang, dan pada
+  // sebagian pesanan Shopify tidak pernah terisi sama sekali walau sudah
+  // COMPLETED. Memakainya sebagai identitas membuat satu pesanan yang sama
+  // terbaca sebagai baris berbeda setiap kali nomornya berubah.
+  function kunciBaris(r){
     return trimKey(r['SKU']) + '|' + trimKey(r['No Pesanan']);
   }
 
-  function indexTanpaInvoice(){
+  function existingJubelioIndex(){
     var map = {};
     jubelioRows.forEach(function(r, idx){
-      var k = kunciTanpaInvoice(r);
-      if(!k || k === '|') return;
-      (map[k] = map[k] || []).push(idx);
+      map[kunciBaris(r)] = idx;
     });
     return map;
+  }
+
+  // Urutan wajar perjalanan sebuah pesanan. Dipakai hanya untuk mendeteksi
+  // status yang MUNDUR — pertanda berkas yang diunggah lebih lama daripada
+  // data yang sudah tersimpan. CANCELED & RETURNED bisa terjadi kapan saja,
+  // jadi diberi peringkat tinggi dan tidak pernah dihitung mundur.
+  var URUTAN_STATUS = {
+    'PENDING': 1, 'UNPAID': 1, 'WAITING PAYMENT': 1,
+    'PAID': 2, 'CONFIRMED': 2,
+    'PROCESSING': 3, 'IN PROCESS': 3, 'PACKED': 3,
+    'SHIPPED': 4, 'IN DELIVERY': 4, 'DELIVERED': 5,
+    'COMPLETED': 6, 'FINISHED': 6,
+    'CANCELED': 90, 'CANCELLED': 90, 'RETURNED': 91
+  };
+
+  function peringkatStatus(s){
+    return URUTAN_STATUS[dupNorm(s)] || 0;
+  }
+
+  function statusMundur(lama, baru){
+    var a = peringkatStatus(lama), b = peringkatStatus(baru);
+    if(!a || !b) return false;          // status tak dikenal — jangan menuduh
+    if(b >= 90) return false;           // batal/retur sah terjadi kapan saja
+    return b < a;
   }
 
   function mergeJubelioSheet(json, fileName){
     var index = existingJubelioIndex();
-    var indexTanpaInv = indexTanpaInvoice();
-    var added = 0, updated = 0, unchanged = 0, dilengkapi = 0, diabaikan = 0;
+    var added = 0, updated = 0, unchanged = 0, mundur = 0;
+    var perubahan = [];
+
     json.forEach(function(row){
       var rec = {};
       JUBELIO_COLS.forEach(function(c){
@@ -5511,64 +6059,64 @@
         if(c === 'Tanggal') v = excelDateToStr(v);
         rec[c] = (v === undefined || v === '') ? null : v;
       });
-      var key = trimKey(rec['No Invoice']) + '|' + trimKey(rec['SKU']) + '|' + trimKey(rec['No Pesanan']);
+
+      var key = kunciBaris(rec);
       var existingIdx = index[key];
-      if(existingIdx !== undefined){
-        var oldRow = jubelioRows[existingIdx];
-        var changed = false;
-        JUBELIO_COLS.forEach(function(c){
-          if(trimKey(oldRow[c]) !== trimKey(rec[c])){ changed = true; }
-        });
-        if(changed){
-          jubelioRows[existingIdx] = rec;
-          updated++;
-        } else {
-          unchanged++;
-        }
+
+      if(existingIdx === undefined){
+        index[key] = jubelioRows.length;
+        jubelioRows.push(rec);
+        added++;
         return;
       }
 
-      // Tidak ketemu lewat kunci penuh. Sebelum menyimpulkan ini baris baru,
-      // periksa apakah pesanan+SKU yang sama sudah ada dengan No Invoice
-      // berbeda. Kalau ya, ini pesanan yang sama pada tahap hidup berbeda.
-      var kTanpa = kunciTanpaInvoice(rec);
-      var kandidat = (kTanpa && kTanpa !== '|') ? (indexTanpaInv[kTanpa] || []) : [];
-      var invBaru = trimKey(rec['No Invoice']);
+      // Sudah ada: unggahan terbaru selalu menang, tapi setiap kolom yang
+      // berubah dicatat dulu supaya bisa ditelusuri lewat "Perubahan Data".
+      var oldRow = jubelioRows[existingIdx];
+      var beda = [];
+      JUBELIO_COLS.forEach(function(c){
+        if(trimKey(oldRow[c]) !== trimKey(rec[c])){
+          beda.push({kolom: c, dari: trimKey(oldRow[c]), ke: trimKey(rec[c])});
+        }
+      });
 
-      if(kandidat.length){
-        // (a) Baris lama belum berinvoice, yang baru sudah → lengkapi di tempat.
-        var idxKosong = -1;
-        for(var i = 0; i < kandidat.length; i++){
-          if(trimKey(jubelioRows[kandidat[i]]['No Invoice']) === ''){ idxKosong = kandidat[i]; break; }
-        }
-        if(invBaru && idxKosong !== -1){
-          jubelioRows[idxKosong] = rec;
-          index[key] = idxKosong;
-          dilengkapi++;
-          return;
-        }
-        // (b) Baris baru belum berinvoice padahal yang tersimpan sudah →
-        //     berkasnya lebih lama dari data yang ada. Jangan ditambahkan,
-        //     jangan pula menimpa data yang lebih mutakhir.
-        if(!invBaru){
-          diabaikan++;
-          return;
-        }
+      if(!beda.length){ unchanged++; return; }
+
+      var turun = statusMundur(oldRow['Status'], rec['Status']);
+      if(turun) mundur++;
+
+      if(perubahan.length < BATAS_CATATAN_PERUBAHAN){
+        perubahan.push({
+          pes: trimKey(rec['No Pesanan']),
+          sku: trimKey(rec['SKU']),
+          nama: trimKey(rec['Nama Barang']),
+          mundur: turun ? 1 : 0,
+          beda: beda
+        });
       }
 
-      index[key] = jubelioRows.length;
-      (indexTanpaInv[kTanpa] = indexTanpaInv[kTanpa] || []).push(jubelioRows.length);
-      jubelioRows.push(rec);
-      added++;
+      jubelioRows[existingIdx] = rec;
+      updated++;
     });
+
     var parts = [];
     parts.push(added + ' baris baru ditambahkan');
-    if(updated) parts.push(updated + ' baris diperbarui (termasuk perubahan status)');
-    if(dilengkapi) parts.push(dilengkapi + ' baris dilengkapi nomor invoice (bukan baris baru)');
-    if(diabaikan) parts.push(diabaikan + ' baris lama diabaikan karena data tersimpan lebih baru');
+    if(updated) parts.push(updated + ' baris diperbarui');
     if(unchanged) parts.push(unchanged + ' baris tidak berubah');
-    logMsg('ok', '✓', '<b>' + fileName + '</b> dikenali sebagai <b>Jubelio</b> — ' + parts.join(', ') + '.');
-    recordActivity('Unggah Jubelio', fileName + ' — ' + parts.join(', ') + '.');
+    logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>Jubelio</b> \u2014 ' + parts.join(', ') + '.');
+
+    if(mundur){
+      logMsg('warn', '\u26a0',
+        '<b>' + mundur.toLocaleString('id-ID') + ' pesanan statusnya mundur</b> setelah unggahan ini ' +
+        '\u2014 kemungkinan berkas <b>' + esc(fileName) + '</b> lebih lama daripada data tersimpan. ' +
+        'Periksa lewat tombol \uD83D\uDD01 Perubahan Data.');
+    }
+
+    catatPerubahan(fileName, perubahan, {
+      added: added, updated: updated, unchanged: unchanged, mundur: mundur
+    });
+    recordActivity('Unggah Jubelio', fileName + ' \u2014 ' + parts.join(', ') +
+                   (mundur ? ', ' + mundur + ' status mundur.' : '.'));
   }
 
   function mergeLphSheet(json, fileName){
@@ -5945,6 +6493,7 @@
   function init(){
     pantauDataStart();
     pantauKoreksi();
+    pantauPerubahan();
     refreshAll();
     renderHead();
     wireMultiSelects();
@@ -6080,6 +6629,21 @@
     function tutupPopupUnggah(){ uploadOverlay.classList.remove('open'); }
 
     document.getElementById('uploadBtn').addEventListener('click', bukaPopupUnggah);
+
+    // ----- popup Perubahan Data -----
+    var perubahanOverlay = document.getElementById('perubahanOverlay');
+    function tutupPerubahan(){ perubahanOverlay.classList.remove('open'); }
+    document.getElementById('perubahanBtn').addEventListener('click', function(){
+      renderPerubahanTabel();
+      perubahanOverlay.classList.add('open');
+    });
+    document.getElementById('perubahanModalClose').addEventListener('click', tutupPerubahan);
+    perubahanOverlay.addEventListener('click', function(e){
+      if(e.target === this) tutupPerubahan();
+    });
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape') tutupPerubahan();
+    });
     document.getElementById('uploadModalClose').addEventListener('click', tutupPopupUnggah);
     uploadOverlay.addEventListener('click', function(e){
       if(e.target === this) tutupPopupUnggah();
