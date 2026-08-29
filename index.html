@@ -28,6 +28,10 @@
      gratis tidak bisa menulis warna, tebal huruf, garis tabel, maupun freeze
      panes. Unduhan lain tetap memakai SheetJS yang sudah ada. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<!-- Chart.js dipakai KHUSUS untuk lapisan eksekutif di tab Analitik. Grafik
+     lama (bar & donut pada kartu statistik Monitoring) tetap digambar manual
+     di canvas dan tidak tersentuh. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -780,6 +784,224 @@
     font-family:'IBM Plex Mono',monospace; font-size:10.5px;
     color:var(--muted); word-break:break-all;
   }
+  /* ==================== LAPISAN EKSEKUTIF ====================
+     Ditaruh di atas isi analitik lama. Prinsip tampilannya: banyak ruang
+     kosong, satu warna aksen saja, angka besar dengan huruf tipis, dan
+     pembanding periode lalu selalu menempel pada angkanya — supaya sebuah
+     nilai tidak pernah berdiri tanpa konteks. */
+  .exec-wrap{display:flex; flex-direction:column; gap:16px; margin:0 0 20px;}
+
+  .exec-kpi{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));
+    gap:12px;
+  }
+  .kpi{
+    position:relative;
+    padding:17px 18px 15px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:var(--paper-raised);
+    overflow:hidden;
+  }
+  /* Garis aksen tipis di tepi kiri — penanda hierarki tanpa menambah warna. */
+  .kpi::before{
+    content:''; position:absolute; left:0; top:0; bottom:0; width:2px;
+    background:var(--accent); opacity:.55;
+  }
+  .kpi-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px; font-weight:700; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--muted);
+    margin-bottom:9px;
+  }
+  .kpi-nilai{
+    font-family:'Oswald',sans-serif;
+    font-size:27px; font-weight:500; line-height:1.05;
+    color:var(--ink); letter-spacing:-.01em;
+    font-variant-numeric:tabular-nums;
+  }
+  .kpi-kaki{
+    display:flex; align-items:baseline; gap:7px;
+    margin-top:9px; font-size:11px; color:var(--muted);
+  }
+  .kpi-delta{
+    display:inline-flex; align-items:center; gap:3px;
+    font-weight:700; font-size:11.5px;
+    font-variant-numeric:tabular-nums;
+  }
+  .kpi-delta.naik{color:var(--accent-dark);}
+  .kpi-delta.turun{color:var(--warn);}
+  .kpi-delta.rata{color:var(--muted);}
+
+  .exec-card{
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:var(--paper-raised);
+    padding:18px 20px 20px;
+  }
+  .exec-card-head{
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:16px;
+  }
+  .exec-card-head h3{
+    font-family:'Oswald',sans-serif; font-size:15px; font-weight:600;
+    text-transform:uppercase; letter-spacing:.05em; margin:0;
+    color:var(--ink);
+  }
+  .exec-sub{
+    font-size:11.5px; color:var(--muted); margin:5px 0 0;
+    max-width:520px; line-height:1.5;
+  }
+  /* Tinggi dikunci di wadahnya, bukan pada canvas, supaya Chart.js tidak
+     tumbuh tanpa henti saat jendela diubah ukurannya. */
+  .exec-canvas{position:relative; height:290px;}
+
+  @media (max-width:720px){
+    .exec-kpi{grid-template-columns:repeat(2, 1fr); gap:9px;}
+    .kpi{padding:13px 13px 11px;}
+    .kpi-nilai{font-size:20px;}
+    .kpi-label{font-size:8.5px; margin-bottom:6px;}
+    .exec-card{padding:14px 13px 16px;}
+    .exec-canvas{height:230px;}
+    .exec-card-head{margin-bottom:12px;}
+  }
+
+  /* ---------- tabel peringkat eksekutif ---------- */
+  .exec-rank-wrap{max-height:430px; overflow-y:auto; margin:0 -4px;}
+  .exec-rank{width:100%; border-collapse:collapse; min-width:0;}
+  .exec-rank th{
+    position:sticky; top:0; z-index:1;
+    background:var(--paper-raised);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px; font-weight:700; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--muted);
+    text-align:left; padding:0 8px 9px; white-space:nowrap;
+    border-bottom:1px solid var(--line);
+  }
+  .exec-rank th.ka, .exec-rank td.ka{text-align:right;}
+  .exec-rank td{
+    padding:10px 8px;
+    border-bottom:1px solid var(--line);
+    font-size:12.5px; color:var(--ink);
+    vertical-align:middle;
+  }
+  .exec-rank tr:last-child td{border-bottom:none;}
+  .exec-rank tr:hover td{background:var(--row-hover-soft);}
+  .xr-no{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    color:var(--muted); width:26px;
+  }
+  .xr-nama{font-weight:500; line-height:1.35;}
+  /* Batang kontribusi tipis di bawah nama — memberi rasa proporsi tanpa
+     menambah satu kolom lagi. */
+  .xr-bar{
+    height:3px; border-radius:2px; background:var(--line);
+    margin-top:5px; overflow:hidden; max-width:230px;
+  }
+  .xr-bar i{display:block; height:100%; background:var(--accent); opacity:.7;}
+  .xr-spark{width:104px; line-height:0;}
+  .xr-nilai{
+    font-family:'Oswald',sans-serif; font-size:14px; font-weight:500;
+    font-variant-numeric:tabular-nums; white-space:nowrap;
+  }
+  .xr-share{font-size:10.5px; color:var(--muted); margin-top:2px;}
+  .xr-delta{
+    font-size:11.5px; font-weight:700; white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+  .xr-delta.naik{color:var(--accent-dark);}
+  .xr-delta.turun{color:var(--warn);}
+  .xr-delta.rata, .xr-delta.baru{color:var(--muted); font-weight:500;}
+
+  @media (max-width:720px){
+    .exec-rank-wrap{max-height:none;}
+    .exec-rank .xr-spark{display:none;}
+    .exec-rank th.spark-col{display:none;}
+    .exec-rank td{padding:9px 5px; font-size:12px;}
+    .xr-nilai{font-size:13px;}
+  }
+
+  /* ---------- ringkasan bauran produk ---------- */
+  .mix-ringkas{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+    gap:9px; margin-bottom:16px;
+  }
+  .mix-chip{
+    padding:11px 12px;
+    border:1px solid var(--line);
+    border-radius:9px;
+    background:var(--surface-sunken);
+  }
+  .mix-kepala{display:flex; align-items:center; gap:6px; margin-bottom:7px;}
+  .mix-titik{width:9px; height:9px; border-radius:2px; flex:0 0 auto;}
+  .mix-nama{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .mix-porsi{
+    font-family:'Oswald',sans-serif; font-size:19px; font-weight:500;
+    color:var(--ink); font-variant-numeric:tabular-nums; line-height:1;
+  }
+  .mix-delta{font-size:10.5px; margin-top:5px; font-variant-numeric:tabular-nums;}
+  .mix-delta.naik{color:var(--accent-dark);}
+  .mix-delta.turun{color:var(--warn);}
+  .mix-delta.rata{color:var(--muted);}
+  /* CLEARANCE dibalik maknanya: porsinya yang NAIK justru sinyal buruk. */
+  .mix-delta.awas{color:var(--warn); font-weight:700;}
+
+  @media (max-width:720px){
+    .mix-ringkas{grid-template-columns:repeat(2, 1fr); gap:8px;}
+    .mix-porsi{font-size:16px;}
+  }
+
+  /* ---------- kesehatan kanal ---------- */
+  .kn-batang{
+    display:flex; height:7px; border-radius:4px; overflow:hidden;
+    background:var(--line); max-width:250px; margin-top:6px;
+  }
+  .kn-batang i{display:block; height:100%;}
+  .kn-legenda{
+    display:flex; flex-wrap:wrap; gap:14px; margin-bottom:14px;
+    font-size:11px; color:var(--muted);
+  }
+  .kn-legenda span{display:inline-flex; align-items:center; gap:6px;}
+  .kn-kotak{width:9px; height:9px; border-radius:2px;}
+
+  /* ---------- peta panas jam x hari ---------- */
+  .heat-grid{
+    display:grid;
+    grid-template-columns:34px repeat(24, minmax(0, 1fr));
+    gap:2px; align-items:center;
+  }
+  .heat-jam, .heat-hari{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:8.5px; color:var(--muted); letter-spacing:.03em;
+  }
+  .heat-hari{text-align:right; padding-right:6px;}
+  .heat-jam{text-align:center;}
+  .heat-sel{
+    aspect-ratio:1 / 1; border-radius:2px;
+    background:var(--accent);
+    min-height:13px;
+  }
+  .heat-kaki{
+    display:flex; align-items:center; gap:8px; justify-content:flex-end;
+    margin-top:12px; font-size:10.5px; color:var(--muted);
+  }
+  .heat-skala{display:flex; gap:2px;}
+  .heat-skala i{width:15px; height:9px; border-radius:2px; background:var(--accent);}
+
+  @media (max-width:720px){
+    /* 24 kolom mustahil terbaca di HP — digulir mendatar dengan lebar tetap. */
+    #execHeat{overflow-x:auto;}
+    .heat-grid{grid-template-columns:30px repeat(24, 15px); min-width:min-content;}
+    .heat-sel{min-height:15px;}
+  }
+
   /* ---------- analitik penjualan ---------- */
   /* Toolbar filter khusus tab Analitik — tampilannya sengaja dibuat sama
      dengan toolbar Monitoring supaya kebiasaan pemakainya tidak berubah. */
@@ -2385,6 +2607,76 @@
       <div class="spacer"></div>
       <button type="button" class="an-reset" id="anResetBtn" title="Kembalikan seluruh filter analitik ke semula">↺ Reset Filter</button>
     </div>
+    <!-- ===== lapisan eksekutif ===== -->
+    <div class="exec-wrap" id="execWrap">
+      <div class="exec-kpi" id="execKpi"></div>
+
+      <section class="exec-card">
+        <div class="exec-card-head">
+          <div>
+            <h3>Tren Penjualan</h3>
+            <p class="exec-sub" id="execTrenSub">Garis tipis adalah nilai per periode; garis tebal adalah rata-rata bergerak, supaya arah tren terbaca tanpa terganggu lonjakan harian.</p>
+          </div>
+          <div class="an-toggle" data-grup-tombol="granular">
+            <button type="button" data-val="hari" class="on">Harian</button>
+            <button type="button" data-val="minggu">Mingguan</button>
+            <button type="button" data-val="bulan">Bulanan</button>
+          </div>
+        </div>
+        <div class="exec-canvas"><canvas id="execTrenCanvas"></canvas></div>
+      </section>
+
+      <section class="exec-card">
+        <div class="exec-card-head">
+          <div>
+            <h3>Kinerja &amp; Pertumbuhan</h3>
+            <p class="exec-sub">Grafik mini menunjukkan pergerakan 6 bulan terakhir. Tiap baris diskalakan terhadap dirinya sendiri, jadi bentuknya menggambarkan <b>arah</b> — bukan besaran antar baris.</p>
+          </div>
+          <div class="an-toggle" data-grup-tombol="dimensi">
+            <button type="button" data-val="Lokasi" class="on">Lokasi</button>
+            <button type="button" data-val="Nama Toko">Toko</button>
+            <button type="button" data-val="Sumber">Kanal</button>
+          </div>
+        </div>
+        <div class="exec-rank-wrap"><div id="execRank"></div></div>
+      </section>
+
+      <section class="exec-card">
+        <div class="exec-card-head">
+          <div>
+            <h3>Bauran Produk</h3>
+            <p class="exec-sub">Porsi tiap PROD CLASS terhadap total per bulan. Yang perlu diawasi adalah <b>arah</b> porsinya: CLEARANCE yang membesar berarti omzet makin bergantung pada barang diskon, dan margin ikut tergerus.</p>
+          </div>
+          <div class="an-toggle" data-grup-tombol="bauran">
+            <button type="button" data-val="porsi" class="on">Porsi %</button>
+            <button type="button" data-val="nilai">Nilai</button>
+          </div>
+        </div>
+        <div id="execMixRingkas" class="mix-ringkas"></div>
+        <div class="exec-canvas"><canvas id="execMixCanvas"></canvas></div>
+      </section>
+
+      <section class="exec-card">
+        <div class="exec-card-head">
+          <div>
+            <h3>Kesehatan Pesanan per Kanal</h3>
+            <p class="exec-sub">Kartu ini sengaja memakai <b>seluruh status</b>, tidak mengikuti tombol Penjualan Sah — kalau pesanan batal dibuang lebih dulu, tingkat pembatalan mustahil dihitung.</p>
+          </div>
+        </div>
+        <div class="exec-rank-wrap"><div id="execKanal"></div></div>
+      </section>
+
+      <section class="exec-card">
+        <div class="exec-card-head">
+          <div>
+            <h3>Peta Waktu Belanja</h3>
+            <p class="exec-sub">Sebaran omzet menurut hari dan jam. Kotak makin pekat berarti makin ramai — berguna untuk menentukan jadwal iklan dan jam jaga.</p>
+          </div>
+        </div>
+        <div id="execHeat"></div>
+      </section>
+    </div>
+
     <div id="anKonten"></div>
   </section>
 </main>
@@ -3333,24 +3625,54 @@
   var cloudUpdatedAt = 0;
   var sedangMenyimpan = false;
 
+  // Firestore membatasi 500 operasi per batch. Dengan 1.000 baris per dokumen,
+  // batas itu tercapai di sekitar 498.000 baris — dan kegagalannya total, bukan
+  // sebagian. Antrean di bawah memecahnya jadi beberapa batch berurutan.
+  var BATAS_OPERASI_BATCH = 450;   // sisakan ruang untuk dokumen info & lookups
+
+  function komitBerurutan(operasi){
+    var potongan = [];
+    for(var i = 0; i < operasi.length; i += BATAS_OPERASI_BATCH){
+      potongan.push(operasi.slice(i, i + BATAS_OPERASI_BATCH));
+    }
+    // Dijalankan satu per satu, bukan serentak, supaya tidak membanjiri
+    // koneksi dan urutannya bisa ditelusuri kalau ada yang gagal.
+    return potongan.reduce(function(rantai, kelompok){
+      return rantai.then(function(){
+        var batch = db.batch();
+        kelompok.forEach(function(op){ op(batch); });
+        return batch.commit();
+      });
+    }, Promise.resolve());
+  }
+
   function saveToCloud(){
     var chunks = [];
     for(var i=0;i<jubelioRows.length;i+=CHUNK_SIZE){
       chunks.push(jubelioRows.slice(i, i+CHUNK_SIZE));
     }
-    var batch = db.batch();
+
+    var operasi = [];
     chunks.forEach(function(chunk, idx){
-      batch.set(chunkedRowsRef(idx), {rows: chunk});
+      operasi.push(function(batch){ batch.set(chunkedRowsRef(idx), {rows: chunk}); });
     });
     for(var j=chunks.length; j<lastChunkCount; j++){
-      batch.delete(chunkedRowsRef(j));
+      (function(k){
+        operasi.push(function(batch){ batch.delete(chunkedRowsRef(k)); });
+      })(j);
     }
+
     lastChunkCount = chunks.length;
     var stamp = Date.now();
-    batch.set(db.collection('meta').doc('info'), {chunkCount: chunks.length, updatedAt: stamp});
-    batch.set(db.collection('meta').doc('lookups'), {lphLookup: lphLookup, tiiLookupC: tiiLookupC, tiiLookupE: tiiLookupE, prodClassLookup: prodClassLookup});
+    operasi.push(function(batch){
+      batch.set(db.collection('meta').doc('info'), {chunkCount: chunks.length, updatedAt: stamp});
+    });
+    operasi.push(function(batch){
+      batch.set(db.collection('meta').doc('lookups'), {lphLookup: lphLookup, tiiLookupC: tiiLookupC, tiiLookupE: tiiLookupE, prodClassLookup: prodClassLookup});
+    });
+
     sedangMenyimpan = true;
-    return batch.commit().then(function(){
+    return komitBerurutan(operasi).then(function(){
       cloudUpdatedAt = stamp;      // versi kita kini jadi versi terbaru
       sedangMenyimpan = false;
     })['catch'](function(err){
@@ -4302,6 +4624,606 @@
     return '(' + porsi + '% dari ' + semua.length.toLocaleString('id-ID') + ' ' + satuan + ')';
   }
 
+  // ==================== LAPISAN EKSEKUTIF ====================
+  var execGranular = 'hari';
+  var execChart = null;
+
+  function fmtRp(n){
+    n = Math.round(Number(n) || 0);
+    if(Math.abs(n) >= 1e9) return 'Rp ' + (n / 1e9).toFixed(2).replace('.', ',') + ' M';
+    if(Math.abs(n) >= 1e6) return 'Rp ' + (n / 1e6).toFixed(1).replace('.', ',') + ' jt';
+    return 'Rp ' + n.toLocaleString('id-ID');
+  }
+
+  // Kunci periode dari sebuah baris. Minggu memakai hari Senin sebagai
+  // penanda, supaya satu minggu selalu jatuh di ember yang sama.
+  function kunciPeriode(tgl, mode){
+    if(!tgl) return null;
+    if(mode === 'bulan') return tgl.slice(0, 7);
+    if(mode === 'minggu'){
+      var d = new Date(tgl + 'T00:00:00');
+      if(isNaN(d)) return null;
+      var geser = (d.getDay() + 6) % 7;      // Senin = 0
+      d.setDate(d.getDate() - geser);
+      return d.getFullYear() + '-' +
+             String(d.getMonth() + 1).padStart(2, '0') + '-' +
+             String(d.getDate()).padStart(2, '0');
+    }
+    return tgl;
+  }
+
+  function labelPeriode(k, mode){
+    if(mode === 'bulan'){
+      var b = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+      var p = k.split('-');
+      return b[parseInt(p[1], 10) - 1] + ' ' + p[0].slice(2);
+    }
+    var q = k.split('-');
+    var lb = q[2] + '/' + q[1];
+    return mode === 'minggu' ? 'mgg ' + lb : lb;
+  }
+
+  // Rata-rata bergerak. Jendelanya menyesuaikan granularitas: 7 titik untuk
+  // harian (satu minggu penuh), 4 untuk mingguan, 3 untuk bulanan.
+  function rataBergerak(nilai, jendela){
+    return nilai.map(function(_, i){
+      var mulai = Math.max(0, i - jendela + 1);
+      var potong = nilai.slice(mulai, i + 1);
+      return potong.reduce(function(a, b){ return a + b; }, 0) / potong.length;
+    });
+  }
+
+  function agregatPeriode(rows, mode){
+    var ember = {};
+    rows.forEach(function(r){
+      var t = tanggalRow(r);
+      var k = kunciPeriode(t, mode);
+      if(!k) return;
+      if(!ember[k]) ember[k] = {omzet: 0, qty: 0, trx: 0};
+      ember[k].omzet += Number(r['amount']) || 0;
+      ember[k].qty += Number(r['QTY']) || 0;
+      ember[k].trx++;
+    });
+    var kunci = Object.keys(ember).sort();
+    return {kunci: kunci, ember: ember};
+  }
+
+  // Membandingkan dua periode terakhir yang setara. Untuk data harian,
+  // pembandingnya adalah bulan berjalan lawan bulan sebelumnya — itu yang
+  // dipakai manajemen, bukan hari lawan hari.
+  function bandingBulan(rows){
+    var a = agregatPeriode(rows, 'bulan');
+    var n = a.kunci.length;
+    if(!n) return null;
+    var kini = a.ember[a.kunci[n - 1]];
+    var lalu = n > 1 ? a.ember[a.kunci[n - 2]] : null;
+    return {
+      kini: kini, lalu: lalu,
+      labelKini: labelPeriode(a.kunci[n - 1], 'bulan'),
+      labelLalu: n > 1 ? labelPeriode(a.kunci[n - 2], 'bulan') : null
+    };
+  }
+
+  function kartuKpi(label, nilai, kini, lalu, fmt){
+    var kaki = '';
+    if(lalu === null || lalu === undefined || !lalu){
+      kaki = '<span>tidak ada pembanding</span>';
+    } else {
+      var d = ((kini - lalu) / lalu) * 100;
+      var kelas = Math.abs(d) < 0.05 ? 'rata' : (d > 0 ? 'naik' : 'turun');
+      var panah = kelas === 'rata' ? '\u2013' : (d > 0 ? '\u25b2' : '\u25bc');
+      kaki = '<span class="kpi-delta ' + kelas + '">' + panah + ' ' +
+             Math.abs(d).toFixed(1).replace('.', ',') + '%</span>' +
+             '<span>vs ' + fmt(lalu) + '</span>';
+    }
+    return '<div class="kpi">' +
+           '<div class="kpi-label">' + esc(label) + '</div>' +
+           '<div class="kpi-nilai">' + nilai + '</div>' +
+           '<div class="kpi-kaki">' + kaki + '</div></div>';
+  }
+
+  function renderExec(rows){
+    var kpiBox = document.getElementById('execKpi');
+    if(!kpiBox) return;
+
+    var b = bandingBulan(rows);
+    if(!b){
+      kpiBox.innerHTML = '<div class="users-msg">Belum ada data untuk dianalisa.</div>';
+      if(execChart){ execChart.destroy(); execChart = null; }
+      return;
+    }
+
+    var k = b.kini, l = b.lalu;
+    var aovKini = k.trx ? k.omzet / k.trx : 0;
+    var aovLalu = (l && l.trx) ? l.omzet / l.trx : 0;
+    var nRibu = function(v){ return Math.round(v).toLocaleString('id-ID'); };
+
+    kpiBox.innerHTML =
+      kartuKpi('Omzet ' + b.labelKini, fmtRp(k.omzet), k.omzet, l && l.omzet, fmtRp) +
+      kartuKpi('Transaksi', nRibu(k.trx), k.trx, l && l.trx, nRibu) +
+      kartuKpi('Unit terjual', nRibu(k.qty), k.qty, l && l.qty, nRibu) +
+      kartuKpi('Rata-rata per order', fmtRp(aovKini), aovKini, aovLalu, fmtRp);
+
+    gambarTrenExec(rows);
+    renderRankExec(rows);
+    renderBauranExec(rows);
+    renderHeatExec(rows);
+  }
+
+  function gambarTrenExec(rows){
+    var cv = document.getElementById('execTrenCanvas');
+    if(!cv || !window.Chart) return;
+
+    var a = agregatPeriode(rows, execGranular);
+    // Harian dibatasi 90 titik terakhir; lebih dari itu labelnya berdesakan
+    // dan tren jangka panjang lebih baik dilihat lewat mode Mingguan.
+    var kunci = a.kunci;
+    if(execGranular === 'hari' && kunci.length > 90) kunci = kunci.slice(-90);
+
+    var metrik = state.analitik.metrik;      // 'omzet' atau 'qty'
+    var nilai = kunci.map(function(x){ return a.ember[x][metrik]; });
+    var jendela = execGranular === 'hari' ? 7 : (execGranular === 'minggu' ? 4 : 3);
+    var halus = rataBergerak(nilai, jendela);
+
+    var aksen = themeVal('--accent', '#2E8B57');
+    var lembut = themeVal('--muted', '#8AA091');
+
+    if(execChart) execChart.destroy();
+    execChart = new Chart(cv.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: kunci.map(function(x){ return labelPeriode(x, execGranular); }),
+        datasets: [
+          {
+            label: metrik === 'omzet' ? 'Omzet' : 'Qty',
+            data: nilai,
+            borderColor: lembut,
+            backgroundColor: 'transparent',
+            borderWidth: 1,
+            pointRadius: 0,
+            tension: .25
+          },
+          {
+            label: 'Rata-rata ' + jendela + ' periode',
+            data: halus,
+            borderColor: aksen,
+            backgroundColor: 'transparent',
+            borderWidth: 2.5,
+            pointRadius: 0,
+            tension: .35
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {mode: 'index', intersect: false},
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              boxWidth: 18, boxHeight: 2, usePointStyle: false,
+              color: lembut, font: {family: 'Inter', size: 11}
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(ctx){
+                var v = ctx.parsed.y;
+                return ctx.dataset.label + ': ' +
+                       (metrik === 'omzet' ? fmtRp(v) : Math.round(v).toLocaleString('id-ID'));
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {display: false},
+            ticks: {color: lembut, font: {family: 'Inter', size: 10}, maxRotation: 0, autoSkipPadding: 18}
+          },
+          y: {
+            beginAtZero: true,
+            grid: {color: themeVal('--line', '#233028')},
+            ticks: {
+              color: lembut, font: {family: 'Inter', size: 10},
+              callback: function(v){
+                return metrik === 'omzet' ? fmtRp(v) : Math.round(v).toLocaleString('id-ID');
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ---------- peringkat & pertumbuhan ----------
+  var execDimensi = 'Lokasi';
+  var SPARK_BULAN = 6;
+
+  // Sparkline digambar sebagai SVG, bukan Chart.js. Tabel ini bisa berisi 30+
+  // baris; membuat 30 instance Chart.js akan berat dan boros memori, sementara
+  // satu polyline sudah cukup untuk menunjukkan arah.
+  function sparkline(nilai, naik){
+    var W = 104, H = 26, P = 3;
+    if(!nilai.length) return '';
+    var min = Math.min.apply(null, nilai);
+    var max = Math.max.apply(null, nilai);
+    var rentang = (max - min) || 1;
+    var langkah = nilai.length > 1 ? (W - P * 2) / (nilai.length - 1) : 0;
+
+    var titik = nilai.map(function(v, i){
+      var x = P + i * langkah;
+      var y = H - P - ((v - min) / rentang) * (H - P * 2);
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+
+    var warna = naik ? 'var(--accent)' : 'var(--warn)';
+    var akhir = titik[titik.length - 1].split(',');
+
+    return '<svg class="xr-spark" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" aria-hidden="true">' +
+           '<polyline points="' + titik.join(' ') + '" fill="none" stroke="' + warna +
+           '" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" opacity=".85"/>' +
+           '<circle cx="' + akhir[0] + '" cy="' + akhir[1] + '" r="2.2" fill="' + warna + '"/>' +
+           '</svg>';
+  }
+
+  // Deret bulanan per entitas, disamakan panjangnya supaya bulan tanpa
+  // penjualan tercatat sebagai 0 — bukan hilang dari deret.
+  function deretBulanan(rows, kolom, metrik){
+    var semuaBulan = {};
+    var peta = {};
+    rows.forEach(function(r){
+      var t = tanggalRow(r);
+      if(!t) return;
+      var bln = t.slice(0, 7);
+      var nama = trimKey(r[kolom]) || '(kosong)';
+      semuaBulan[bln] = true;
+      if(!peta[nama]) peta[nama] = {};
+      peta[nama][bln] = (peta[nama][bln] || 0) +
+        (metrik === 'qty' ? (Number(r['QTY']) || 0) : (Number(r['amount']) || 0));
+    });
+
+    var bulan = Object.keys(semuaBulan).sort().slice(-SPARK_BULAN);
+    var hasil = Object.keys(peta).map(function(nama){
+      var deret = bulan.map(function(b){ return peta[nama][b] || 0; });
+      var kini = deret[deret.length - 1] || 0;
+      var lalu = deret.length > 1 ? deret[deret.length - 2] : null;
+      return {nama: nama, deret: deret, kini: kini, lalu: lalu};
+    });
+    hasil.sort(function(a, b){ return b.kini - a.kini; });
+    return {bulan: bulan, baris: hasil};
+  }
+
+  function renderRankExec(rows){
+    var box = document.getElementById('execRank');
+    if(!box) return;
+
+    var metrik = state.analitik.metrik;
+    var fmt = metrik === 'qty'
+      ? function(v){ return Math.round(v).toLocaleString('id-ID'); }
+      : fmtRp;
+
+    var d = deretBulanan(rows, execDimensi, metrik);
+    if(!d.baris.length){
+      box.innerHTML = '<div class="users-msg">Tidak ada data pada filter ini.</div>';
+      return;
+    }
+
+    var total = d.baris.reduce(function(a, b){ return a + b.kini; }, 0);
+    var tertinggi = d.baris[0].kini || 1;
+    var labelBulan = d.bulan.length ? labelPeriode(d.bulan[d.bulan.length - 1], 'bulan') : '';
+
+    var baris = d.baris.map(function(r, i){
+      var delta, kelas, teks;
+      if(r.lalu === null || !r.lalu){
+        kelas = r.kini ? 'baru' : 'rata';
+        teks = r.kini ? 'baru' : '\u2013';
+      } else {
+        delta = ((r.kini - r.lalu) / r.lalu) * 100;
+        kelas = Math.abs(delta) < 0.05 ? 'rata' : (delta > 0 ? 'naik' : 'turun');
+        var panah = kelas === 'rata' ? '\u2013' : (delta > 0 ? '\u25b2' : '\u25bc');
+        teks = panah + ' ' + Math.abs(delta).toFixed(1).replace('.', ',') + '%';
+      }
+      var share = total ? (r.kini / total) * 100 : 0;
+      var lebarBar = tertinggi ? (r.kini / tertinggi) * 100 : 0;
+
+      return '<tr>' +
+        '<td class="xr-no">' + (i + 1) + '</td>' +
+        '<td><div class="xr-nama">' + esc(r.nama) + '</div>' +
+        '<div class="xr-bar"><i style="width:' + lebarBar.toFixed(1) + '%"></i></div></td>' +
+        '<td class="spark-col">' + sparkline(r.deret, kelas !== 'turun') + '</td>' +
+        '<td class="ka"><div class="xr-nilai">' + fmt(r.kini) + '</div>' +
+        '<div class="xr-share">' + share.toFixed(1).replace('.', ',') + '%</div></td>' +
+        '<td class="ka"><span class="xr-delta ' + kelas + '">' + teks + '</span></td>' +
+        '</tr>';
+    }).join('');
+
+    box.innerHTML =
+      '<table class="exec-rank"><thead><tr>' +
+      '<th></th><th>' + esc(execDimensi === 'Nama Toko' ? 'Toko' : execDimensi) + '</th>' +
+      '<th class="spark-col">' + SPARK_BULAN + ' bulan</th>' +
+      '<th class="ka">' + (metrik === 'qty' ? 'Qty' : 'Omzet') + ' ' + esc(labelBulan) + '</th>' +
+      '<th class="ka">vs bln lalu</th>' +
+      '</tr></thead><tbody>' + baris + '</tbody></table>';
+  }
+
+  // ---------- bauran produk (PROD CLASS) ----------
+  var execBauran = 'porsi';
+  var execMixChart = null;
+
+  // Warna dipilih semantis, bukan sekadar berbeda: CLEARANCE memakai warna
+  // peringatan karena porsinya yang membesar adalah kabar buruk, bukan netral.
+  function warnaKelas(nama){
+    var k = String(nama).toUpperCase();
+    if(k === 'CLEARANCE') return themeVal('--warn', '#D64545');
+    if(k === 'CORE') return themeVal('--accent', '#2E8B57');
+    if(k === 'GENERAL') return themeVal('--accent-dark', '#1F7A34');
+    if(k === 'TRAFFIC') return themeVal('--amber', '#D6A419');
+    return themeVal('--muted', '#8AA091');
+  }
+
+  function bauranBulanan(rows, metrik){
+    var semuaBulan = {}, kelasSet = {}, peta = {};
+    rows.forEach(function(r){
+      var t = tanggalRow(r);
+      if(!t) return;
+      var bln = t.slice(0, 7);
+      var kls = trimKey(r['PROD CLASS']) || '(tanpa kelas)';
+      semuaBulan[bln] = true;
+      kelasSet[kls] = (kelasSet[kls] || 0) +
+        (metrik === 'qty' ? (Number(r['QTY']) || 0) : (Number(r['amount']) || 0));
+      if(!peta[kls]) peta[kls] = {};
+      peta[kls][bln] = (peta[kls][bln] || 0) +
+        (metrik === 'qty' ? (Number(r['QTY']) || 0) : (Number(r['amount']) || 0));
+    });
+
+    var bulan = Object.keys(semuaBulan).sort().slice(-SPARK_BULAN * 2);
+    // Kelas terbesar digambar paling bawah supaya tumpukannya stabil
+    // dari bulan ke bulan dan mata mudah mengikuti satu pita.
+    var kelas = Object.keys(kelasSet).sort(function(a, b){ return kelasSet[b] - kelasSet[a]; });
+
+    var totalPerBulan = bulan.map(function(b){
+      return kelas.reduce(function(a, k){ return a + ((peta[k] && peta[k][b]) || 0); }, 0);
+    });
+
+    return {bulan: bulan, kelas: kelas, peta: peta, total: totalPerBulan};
+  }
+
+  function renderBauranExec(rows){
+    var box = document.getElementById('execMixRingkas');
+    var cv = document.getElementById('execMixCanvas');
+    if(!box || !cv || !window.Chart) return;
+
+    var metrik = state.analitik.metrik;
+    var d = bauranBulanan(rows, metrik);
+
+    if(!d.bulan.length || !d.kelas.length){
+      box.innerHTML = '<div class="users-msg">Tidak ada data pada filter ini.</div>';
+      if(execMixChart){ execMixChart.destroy(); execMixChart = null; }
+      return;
+    }
+
+    var n = d.bulan.length;
+    var blnKini = d.bulan[n - 1], blnLalu = n > 1 ? d.bulan[n - 2] : null;
+    var totKini = d.total[n - 1] || 0, totLalu = n > 1 ? (d.total[n - 2] || 0) : 0;
+
+    // Ringkasan: porsi bulan berjalan dan pergeserannya dalam poin persen.
+    // Selisih porsi memang wajib dibaca dalam pp, bukan persen dari persen.
+    box.innerHTML = d.kelas.map(function(k){
+      var kini = (d.peta[k] && d.peta[k][blnKini]) || 0;
+      var lalu = blnLalu ? ((d.peta[k] && d.peta[k][blnLalu]) || 0) : 0;
+      var pKini = totKini ? (kini / totKini) * 100 : 0;
+      var pLalu = totLalu ? (lalu / totLalu) * 100 : 0;
+      var geser = pKini - pLalu;
+
+      var kelasCss, teks;
+      if(!blnLalu || !totLalu){
+        kelasCss = 'rata'; teks = 'tidak ada pembanding';
+      } else if(Math.abs(geser) < 0.05){
+        kelasCss = 'rata'; teks = '\u2013 tetap';
+      } else {
+        var naik = geser > 0;
+        var awas = (String(k).toUpperCase() === 'CLEARANCE') && naik;
+        kelasCss = awas ? 'awas' : (naik ? 'naik' : 'turun');
+        teks = (naik ? '\u25b2' : '\u25bc') + ' ' +
+               Math.abs(geser).toFixed(1).replace('.', ',') + ' pp';
+      }
+
+      return '<div class="mix-chip">' +
+        '<div class="mix-kepala">' +
+        '<span class="mix-titik" style="background:' + warnaKelas(k) + '"></span>' +
+        '<span class="mix-nama" title="' + esc(k) + '">' + esc(k) + '</span></div>' +
+        '<div class="mix-porsi">' + pKini.toFixed(1).replace('.', ',') + '%</div>' +
+        '<div class="mix-delta ' + kelasCss + '">' + teks + '</div></div>';
+    }).join('');
+
+    var porsi = execBauran === 'porsi';
+    var dataset = d.kelas.map(function(k){
+      return {
+        label: k,
+        data: d.bulan.map(function(b, i){
+          var v = (d.peta[k] && d.peta[k][b]) || 0;
+          if(!porsi) return v;
+          return d.total[i] ? (v / d.total[i]) * 100 : 0;
+        }),
+        backgroundColor: warnaKelas(k),
+        borderWidth: 0,
+        borderRadius: 2
+      };
+    });
+
+    var lembut = themeVal('--muted', '#8AA091');
+    if(execMixChart) execMixChart.destroy();
+    execMixChart = new Chart(cv.getContext('2d'), {
+      type: 'bar',
+      data: {labels: d.bulan.map(function(b){ return labelPeriode(b, 'bulan'); }), datasets: dataset},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {mode: 'index', intersect: false},
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {boxWidth: 11, boxHeight: 11, color: lembut, font: {family: 'Inter', size: 11}}
+          },
+          tooltip: {
+            callbacks: {
+              label: function(ctx){
+                var v = ctx.parsed.y;
+                return ctx.dataset.label + ': ' + (porsi
+                  ? v.toFixed(1).replace('.', ',') + '%'
+                  : (metrik === 'qty' ? Math.round(v).toLocaleString('id-ID') : fmtRp(v)));
+              }
+            }
+          }
+        },
+        scales: {
+          x: {stacked: true, grid: {display: false},
+              ticks: {color: lembut, font: {family: 'Inter', size: 10}}},
+          y: {
+            stacked: true, beginAtZero: true,
+            max: porsi ? 100 : undefined,
+            grid: {color: themeVal('--line', '#233028')},
+            ticks: {
+              color: lembut, font: {family: 'Inter', size: 10},
+              callback: function(v){
+                return porsi ? v + '%'
+                     : (metrik === 'qty' ? Math.round(v).toLocaleString('id-ID') : fmtRp(v));
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ---------- kesehatan pesanan per kanal ----------
+  // PENTING: fungsi ini menerima data yang BELUM disaring barisPenjualan(),
+  // karena tingkat pembatalan hanya bisa dihitung kalau pesanan batal masih ada.
+  function renderKanalExec(rowsSemuaStatus){
+    var box = document.getElementById('execKanal');
+    if(!box) return;
+
+    var peta = {};
+    rowsSemuaStatus.forEach(function(r){
+      var kanal = trimKey(r['Sumber']) || '(kosong)';
+      var st = String(r['Status'] || '').trim().toUpperCase();
+      if(!peta[kanal]) peta[kanal] = {total: 0, batal: 0, retur: 0, omzet: 0};
+      var p = peta[kanal];
+      p.total++;
+      if(st === 'CANCELED' || st === 'CANCELLED') p.batal++;
+      else if(st === 'RETURNED') p.retur++;
+      else p.omzet += Number(r['amount']) || 0;
+    });
+
+    var kanal = Object.keys(peta).sort(function(a, b){ return peta[b].omzet - peta[a].omzet; });
+    if(!kanal.length){
+      box.innerHTML = '<div class="users-msg">Tidak ada data pada filter ini.</div>';
+      return;
+    }
+
+    var cOk = themeVal('--accent', '#2E8B57');
+    var cBatal = themeVal('--warn', '#D64545');
+    var cRetur = themeVal('--amber', '#D6A419');
+
+    var legenda =
+      '<div class="kn-legenda">' +
+      '<span><i class="kn-kotak" style="background:' + cOk + '"></i> Tuntas</span>' +
+      '<span><i class="kn-kotak" style="background:' + cBatal + '"></i> Batal</span>' +
+      '<span><i class="kn-kotak" style="background:' + cRetur + '"></i> Retur</span>' +
+      '</div>';
+
+    var baris = kanal.map(function(k){
+      var p = peta[k];
+      var sehat = p.total - p.batal - p.retur;
+      var pct = function(v){ return p.total ? (v / p.total) * 100 : 0; };
+      var rBatal = pct(p.batal + p.retur);
+      var kelas = rBatal >= 10 ? 'turun' : (rBatal >= 5 ? 'rata' : 'naik');
+
+      return '<tr>' +
+        '<td><div class="xr-nama">' + esc(k) + '</div>' +
+        '<div class="kn-batang">' +
+          '<i style="width:' + pct(sehat).toFixed(1) + '%;background:' + cOk + '"></i>' +
+          '<i style="width:' + pct(p.batal).toFixed(1) + '%;background:' + cBatal + '"></i>' +
+          '<i style="width:' + pct(p.retur).toFixed(1) + '%;background:' + cRetur + '"></i>' +
+        '</div></td>' +
+        '<td class="ka"><div class="xr-nilai">' + p.total.toLocaleString('id-ID') + '</div></td>' +
+        '<td class="ka"><div class="xr-nilai">' + fmtRp(p.omzet) + '</div></td>' +
+        '<td class="ka"><span class="xr-delta ' + kelas + '">' +
+          rBatal.toFixed(1).replace('.', ',') + '%</span>' +
+        '<div class="xr-share">' + (p.batal + p.retur) + ' pesanan</div></td>' +
+        '</tr>';
+    }).join('');
+
+    box.innerHTML = legenda +
+      '<table class="exec-rank"><thead><tr>' +
+      '<th>Kanal</th><th class="ka">Pesanan</th><th class="ka">Omzet bersih</th>' +
+      '<th class="ka">Batal + retur</th></tr></thead><tbody>' + baris + '</tbody></table>';
+  }
+
+  // ---------- peta panas jam x hari ----------
+  var HARI_NAMA = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+
+  function renderHeatExec(rows){
+    var box = document.getElementById('execHeat');
+    if(!box) return;
+
+    // ember[hari][jam]; hari 0 = Senin agar sejalar dengan kunciPeriode().
+    var ember = [];
+    for(var h = 0; h < 7; h++){ ember.push(new Array(24).fill(0)); }
+
+    var ada = false;
+    rows.forEach(function(r){
+      var s = String(r['Tanggal'] || '');
+      var m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2})/);
+      if(!m) return;
+      var d = new Date(+m[1], +m[2] - 1, +m[3]);
+      if(isNaN(d)) return;
+      var hari = (d.getDay() + 6) % 7;
+      var jam = parseInt(m[4], 10);
+      if(jam < 0 || jam > 23) return;
+      ember[hari][jam] += Number(r['amount']) || 0;
+      ada = true;
+    });
+
+    if(!ada){
+      box.innerHTML = '<div class="users-msg">Kolom Tanggal tidak memuat jam, jadi peta ini tidak bisa disusun.</div>';
+      return;
+    }
+
+    var maks = 0;
+    ember.forEach(function(baris){ baris.forEach(function(v){ if(v > maks) maks = v; }); });
+    if(!maks) maks = 1;
+
+    var html = '<div class="heat-grid">';
+    html += '<div></div>';
+    for(var j = 0; j < 24; j++){
+      // Label jam hanya tiap 3 jam supaya tidak berdesakan.
+      html += '<div class="heat-jam">' + (j % 3 === 0 ? j : '') + '</div>';
+    }
+    for(var h2 = 0; h2 < 7; h2++){
+      html += '<div class="heat-hari">' + HARI_NAMA[h2] + '</div>';
+      for(var j2 = 0; j2 < 24; j2++){
+        var v = ember[h2][j2];
+        // Akar kuadrat dipakai supaya jam-jam sepi tidak tenggelam jadi
+        // putih semua akibat satu jam puncak yang jauh lebih tinggi.
+        var kuat = v ? 0.1 + 0.9 * Math.sqrt(v / maks) : 0;
+        var judul = HARI_NAMA[h2] + ' ' + (j2 < 10 ? '0' : '') + j2 + ':00 \u2014 ' + fmtRp(v);
+        html += '<div class="heat-sel" style="opacity:' + kuat.toFixed(3) + '" title="' + esc(judul) + '"></div>';
+      }
+    }
+    html += '</div>';
+
+    html += '<div class="heat-kaki"><span>sepi</span><span class="heat-skala">' +
+            [0.1, 0.32, 0.55, 0.78, 1].map(function(o){
+              return '<i style="opacity:' + o + '"></i>';
+            }).join('') +
+            '</span><span>ramai \u00b7 puncak ' + fmtRp(maks) + '</span></div>';
+
+    box.innerHTML = html;
+  }
+
   function renderAnalytics(rows){
     var kotak = document.getElementById('anKonten');
     if(!kotak) return;
@@ -4310,6 +5232,10 @@
     // tidak digambar, jadi angkanya tidak pernah masuk ke DOM.
     if(window.currentRole === 'toko'){
       kotak.innerHTML = '';
+      var wrapTk = document.getElementById('execWrap');
+      if(wrapTk) wrapTk.style.display = 'none';
+      if(execChart){ execChart.destroy(); execChart = null; }
+      if(execMixChart){ execMixChart.destroy(); execMixChart = null; }
       var subTk = document.getElementById('anSub');
       if(subTk) subTk.textContent = 'Akses ditolak.';
       var diagTk = document.getElementById('anDiag');
@@ -4319,7 +5245,20 @@
       return;
     }
 
-    var data = barisPenjualan(filterAnalitik(rows));
+    var wrapEx = document.getElementById('execWrap');
+    if(wrapEx) wrapEx.style.display = '';
+
+    // Dua tingkat penyaringan, sengaja dipisah:
+    //  - tersaring  : ikut toolbar Analitik, TAPI seluruh status masih utuh.
+    //  - data       : tersaring + tombol Penjualan Sah/Semua Status.
+    // Kartu Kesehatan Kanal wajib memakai yang pertama, karena tingkat
+    // pembatalan mustahil dihitung kalau pesanan batal sudah dibuang.
+    var tersaring = filterAnalitik(rows);
+    var data = barisPenjualan(tersaring);
+    // KPI, tren, peringkat, dan bauran memakai data yang sudah tersaring penuh,
+    // supaya sejalan dengan tabel peringkat di bawahnya.
+    renderExec(data);
+    renderKanalExec(tersaring);
     var metrik = state.analitik.metrik;
     var totalOmzet = data.reduce(function(a, r){ return a + (Number(r['amount']) || 0); }, 0);
     var totalQty = data.reduce(function(a, r){ return a + (Number(r['QTY']) || 0); }, 0);
@@ -5373,9 +6312,6 @@
   // Mengikuti template "Data sales harian": kolom sama persis, minus No Telp,
   // ditambah PROD CLASS yang diambil dari master SKU. Tanggal yang diambil
   // adalah tanggal hari ini saat tombol ditekan.
-  var SALES_COLS = ['SKU','Nama Barang','No Pesanan','No Invoice','Lokasi','Tanggal',
-                    'Pelanggan','QTY','amount','Sumber','Nama Toko','Status','PROD CLASS '];
-
   function tanggalHariIni(){
     var d = new Date();
     var b = String(d.getMonth() + 1); if(b.length < 2) b = '0' + b;
@@ -5561,9 +6497,20 @@
     cd.value = 'Catatan duplikat';
     cd.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
 
+    // Dihitung per GRUP, bukan dibagi dua. Satu pesanan bisa tercatat tiga
+    // kali atau lebih, sehingga membagi jumlah baris dengan 2 salah hitung.
+    var jumlahGrup = 0;
+    var grupTerlihat = {};
+    kembar.forEach(function(r){
+      if(grupTerlihat[r.__grup]) return;
+      grupTerlihat[r.__grup] = true;
+      jumlahGrup++;
+    });
+
     var ket = ws.getRow(bd + 1).getCell(1);
     ket.value = kembar.length
-      ? 'Ditemukan ' + (kembar.length / 2 | 0) + ' pesanan yang tercatat lebih dari sekali. ' +
+      ? 'Ditemukan ' + jumlahGrup + ' pesanan yang tercatat lebih dari sekali ' +
+        '(' + kembar.length + ' baris). ' +
         'Baris tanpa No Invoice diberi tanda Dihitung = 0 sehingga tidak ikut dijumlahkan. ' +
         'Rinciannya ada di sheet "Cek Duplikat".'
       : 'Tidak ditemukan baris kembar pada data ini. Kolom Dihitung tetap disediakan ' +
@@ -5985,12 +6932,18 @@
 
     wrap.appendChild(div);
 
-    // Batasi tumpukan — hitung hanya yang belum dalam proses menghilang.
-    var hidup = Array.prototype.filter.call(wrap.children, function(el){
-      return !el.dataset.pergi;
+    // Batasi tumpukan. Peringatan TIDAK pernah ikut dibuang — dialah yang
+    // paling perlu dibaca, dan justru unggahan yang ramai pesan adalah saat
+    // peringatan paling mungkin muncul.
+    var bisaDibuang = Array.prototype.filter.call(wrap.children, function(el){
+      return !el.dataset.pergi && !el.classList.contains('warn');
     });
-    while(hidup.length > TOAST_MAKS){
-      tutupToast(hidup.shift());
+    var jumlahHidup = Array.prototype.filter.call(wrap.children, function(el){
+      return !el.dataset.pergi;
+    }).length;
+    while(jumlahHidup > TOAST_MAKS && bisaDibuang.length){
+      tutupToast(bisaDibuang.shift());
+      jumlahHidup--;
     }
 
     if(type !== 'warn'){
@@ -6233,15 +7186,19 @@
 
     var id = 'bk_' + Date.now();
     var user = firebase.auth().currentUser;
-    var batch = db.batch();
+    // Sama seperti saveToCloud: dipecah agar tidak menabrak batas 500
+    // operasi per batch saat datanya sudah sangat banyak.
+    var operasi = [];
     var chunks = [];
     for(var i = 0; i < jubelioRows.length; i += CHUNK_SIZE){
       chunks.push(jubelioRows.slice(i, i + CHUNK_SIZE));
     }
     chunks.forEach(function(c, idx){
-      batch.set(db.collection('backups').doc(id + '__c' + idx), {rows: c});
+      operasi.push(function(batch){
+        batch.set(db.collection('backups').doc(id + '__c' + idx), {rows: c});
+      });
     });
-    batch.set(db.collection('backups').doc(id), {
+    var ringkasCadangan = {
       at: Date.now(),
       oleh: window.currentUsername || (user && user.email) || 'tidak diketahui',
       pemicu: pemicu || 'Perubahan data',
@@ -6251,10 +7208,13 @@
       tiiLookupC: tiiLookupC,
       tiiLookupE: tiiLookupE,
       prodClassLookup: prodClassLookup
+    };
+    operasi.push(function(batch){
+      batch.set(db.collection('backups').doc(id), ringkasCadangan);
     });
 
     logMsg('info', '💾', 'Membuat cadangan otomatis (' + jubelioRows.length.toLocaleString('id-ID') + ' baris)…');
-    return batch.commit().then(function(){
+    return komitBerurutan(operasi).then(function(){
       logMsg('ok', '✓', 'Cadangan tersimpan. Bisa dipulihkan lewat tombol <b>Cadangan Data</b>.');
       return bersihkanCadanganLama();
     })['catch'](function(err){
@@ -6273,12 +7233,16 @@
   }
 
   function hapusCadangan(id, chunkCount){
-    var batch = db.batch();
+    var operasi = [];
     for(var i = 0; i < (chunkCount || 0); i++){
-      batch.delete(db.collection('backups').doc(id + '__c' + i));
+      (function(k){
+        operasi.push(function(batch){
+          batch.delete(db.collection('backups').doc(id + '__c' + k));
+        });
+      })(i);
     }
-    batch.delete(db.collection('backups').doc(id));
-    return batch.commit();
+    operasi.push(function(batch){ batch.delete(db.collection('backups').doc(id)); });
+    return komitBerurutan(operasi);
   }
 
   function bersihkanCadanganLama(){
@@ -6507,7 +7471,15 @@
       pantauDataCloud();   // pantau perubahan dari pengguna lain
     });
 
-    document.getElementById('searchBox').addEventListener('input', applyFilters);
+    // Tanpa jeda, tiap ketukan huruf menyaring seluruh RAW lalu menggambar
+    // ulang statistik, tunggakan, dan tabel. Di 8.000 baris masih ringan; di
+    // puluhan ribu, mengetik akan tersendat. Jeda 250 ms menunggu orangnya
+    // berhenti mengetik dulu.
+    var jedaCari = null;
+    document.getElementById('searchBox').addEventListener('input', function(){
+      if(jedaCari) clearTimeout(jedaCari);
+      jedaCari = setTimeout(function(){ jedaCari = null; applyFilters(); }, 250);
+    });
     document.getElementById('dateFrom').addEventListener('change', applyFilters);
     document.getElementById('dateTo').addEventListener('change', applyFilters);
     document.getElementById('onlyUnmatched').addEventListener('change', applyFilters);
@@ -6547,8 +7519,17 @@
       Array.prototype.forEach.call(box.querySelectorAll('button'), function(btn){
         btn.addEventListener('click', function(){
           var val = this.getAttribute('data-val');
-          if(state.analitik[grup] === val) return;
-          state.analitik[grup] = val;
+          // Granularitas tren dan dimensi peringkat punya statenya sendiri;
+          // sisanya milik analitik lama.
+          var sekarang = (grup === 'granular') ? execGranular
+                       : (grup === 'dimensi') ? execDimensi
+                       : (grup === 'bauran') ? execBauran
+                       : state.analitik[grup];
+          if(sekarang === val) return;
+          if(grup === 'granular'){ execGranular = val; }
+          else if(grup === 'dimensi'){ execDimensi = val; }
+          else if(grup === 'bauran'){ execBauran = val; }
+          else { state.analitik[grup] = val; }
           Array.prototype.forEach.call(box.querySelectorAll('button'), function(b){
             b.classList.toggle('on', b === btn);
           });
