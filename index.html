@@ -6387,13 +6387,12 @@
       var simpan = -1;
       for(var i = 0; i < g.length; i++){ if(g[i]['No Invoice']){ simpan = i; break; } }
       if(simpan === -1) simpan = 0;
-      g.forEach(function(r, i){ r.Dihitung = (i === simpan) ? 1 : 0; r.__grup = k; });
+      g.forEach(function(r, i){ r.Dihitung = (i === simpan) ? 1 : 0; });
     });
 
     var N = data.length;
     var R1 = 2, R2 = N + 1;
-    var kembar = data.filter(function(r){ return r.__grup; });
-
+  
     var wb = new EJS.Workbook();
     wb.creator = 'Monitoring Jubelio';
     wb.created = new Date();
@@ -6491,52 +6490,6 @@
       c2.alignment = {horizontal: 'right'};
       c2.border = garis();
     });
-
-    var bd = b + metrik.length + 2;
-    var cd = ws.getRow(bd).getCell(1);
-    cd.value = 'Catatan duplikat';
-    cd.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
-
-    // Dihitung per GRUP, bukan dibagi dua. Satu pesanan bisa tercatat tiga
-    // kali atau lebih, sehingga membagi jumlah baris dengan 2 salah hitung.
-    var jumlahGrup = 0;
-    var grupTerlihat = {};
-    kembar.forEach(function(r){
-      if(grupTerlihat[r.__grup]) return;
-      grupTerlihat[r.__grup] = true;
-      jumlahGrup++;
-    });
-
-    var ket = ws.getRow(bd + 1).getCell(1);
-    ket.value = kembar.length
-      ? 'Ditemukan ' + jumlahGrup + ' pesanan yang tercatat lebih dari sekali ' +
-        '(' + kembar.length + ' baris). ' +
-        'Baris tanpa No Invoice diberi tanda Dihitung = 0 sehingga tidak ikut dijumlahkan. ' +
-        'Rinciannya ada di sheet "Cek Duplikat".'
-      : 'Tidak ditemukan baris kembar pada data ini. Kolom Dihitung tetap disediakan ' +
-        'di sheet Data sebagai saklar manual bila suatu saat diperlukan.';
-    ket.font = {name: FONT, size: 10, color: {argb: INK}};
-    ket.alignment = {wrapText: true, vertical: 'top'};
-    ket.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFFFF6CC'}};
-    ws.mergeCells(bd + 1, 1, bd + 3, 2);
-
-    var l1 = ws.getRow(bd + 5).getCell(1);
-    l1.value = 'Omzet jika duplikat ikut dihitung';
-    l1.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
-    var l1v = ws.getRow(bd + 5).getCell(2);
-    l1v.value = {formula: 'SUM(Data!$I$' + R1 + ':$I$' + R2 + ')'};
-    l1v.numFmt = RP;
-    l1v.font = {name: FONT, size: 10, color: {argb: INK}};
-    l1v.alignment = {horizontal: 'right'};
-
-    var l2 = ws.getRow(bd + 6).getCell(1);
-    l2.value = 'Selisih akibat duplikat';
-    l2.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
-    var l2v = ws.getRow(bd + 6).getCell(2);
-    l2v.value = {formula: 'B' + (bd + 5) + '-B' + (b + 2)};
-    l2v.numFmt = RP;
-    l2v.font = {name: FONT, size: 10, color: {argb: INK}};
-    l2v.alignment = {horizontal: 'right'};
 
     lebar(ws, [34, 22]);
 
@@ -6673,41 +6626,6 @@
                'dari kolom Tanggal; sumbernya tetap baris ber-Dihitung = 1 di sheet Data.';
     cj.font = {name: FONT, size: 9, italic: true, color: {argb: 'FF666666'}};
     lebar(wj, [16, 12, 10, 16]);
-
-    // ---------- Cek Duplikat ----------
-    var wd = wb.addWorksheet('Cek Duplikat', {views: [{showGridLines: false}]});
-    var bdup = tulisJudul(wd, 'Pemeriksaan Duplikat',
-      'Dua baris dianggap kembar bila No Pesanan, SKU, Tanggal, dan amount sama persis.');
-    tulisHead(wd, bdup, ['No Pesanan', 'SKU', 'Tanggal', 'Pelanggan', 'No Invoice',
-                         'Status', 'Amount', 'Dihitung']);
-    var rd0 = bdup + 1;
-    if(kembar.length){
-      kembar.forEach(function(r, i){
-        var row = wd.getRow(rd0 + i);
-        row.getCell(1).value = r['No Pesanan'];
-        row.getCell(2).value = r['SKU'];
-        row.getCell(3).value = r['Tanggal'];
-        row.getCell(4).value = r['Pelanggan'];
-        row.getCell(5).value = r['No Invoice'] || '(kosong)';
-        row.getCell(6).value = r['Status'];
-        row.getCell(7).value = r.amount;
-        row.getCell(8).value = r.Dihitung;
-      });
-      rapikan(wd, rd0, rd0 + kembar.length - 1, 8, {3: TGL_FMT, 7: RP, 8: NUM});
-      var cat = wd.getRow(rd0 + kembar.length + 1).getCell(1);
-      cat.value = 'Baris yang dipertahankan adalah yang punya No Invoice, karena catatannya ' +
-                  'lebih lengkap. Bila menurut Anda justru baris satunya yang benar, ubah angka ' +
-                  'pada kolom Dihitung di sheet Data \u2014 seluruh rekap akan menyesuaikan sendiri.';
-      cat.font = {name: FONT, size: 10, color: {argb: INK}};
-      cat.alignment = {wrapText: true, vertical: 'top'};
-      cat.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFFFF6CC'}};
-      wd.mergeCells(rd0 + kembar.length + 1, 1, rd0 + kembar.length + 3, 8);
-    } else {
-      var kos = wd.getRow(rd0).getCell(1);
-      kos.value = 'Tidak ada baris kembar pada data ini.';
-      kos.font = {name: FONT, size: 10, color: {argb: INK}};
-    }
-    lebar(wd, [30, 20, 20, 24, 18, 14, 14, 11]);
 
     // ---------- Data ----------
     var wdt = wb.addWorksheet('Data', {views: [{state: 'frozen', ySplit: 1}]});
