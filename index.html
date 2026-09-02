@@ -1002,6 +1002,19 @@
     .heat-sel{min-height:15px;}
   }
 
+  /* ---------- data mentah marketplace ---------- */
+  .mp-catatan{
+    font-size:12px; line-height:1.55;
+    padding:11px 13px; margin:0 0 14px;
+    border:1px solid var(--line); border-left:3px solid var(--amber);
+    border-radius:8px; background:var(--surface-sunken); color:var(--ink-soft);
+  }
+  #mpTable{min-width:1700px;}
+  #mpTable td.num{font-variant-numeric:tabular-nums;}
+  @media (max-width:760px){
+    #mpTable{min-width:0;}
+  }
+
   /* ---------- analitik penjualan ---------- */
   /* Toolbar filter khusus tab Analitik — tampilannya sengaja dibuat sama
      dengan toolbar Monitoring supaya kebiasaan pemakainya tidak berubah. */
@@ -2365,6 +2378,7 @@
   <div class="view-tabs">
     <button type="button" class="view-tab active" id="tabMonitoringBtn" onclick="switchAppView('monitoring')">📊 Monitoring Rekonsiliasi</button>
     <button type="button" class="view-tab" id="tabAnalitikBtn" data-role-hide="toko" onclick="switchAppView('analitik')">📈 Analitik Penjualan</button>
+    <button type="button" class="view-tab" id="tabMarketBtn" data-role-hide="toko" onclick="switchAppView('market')">🛒 Data Mentah Marketplace</button>
     <button type="button" class="view-tab" id="tabJadwalBtn" data-role-hide="toko" onclick="switchAppView('jadwal')">🗓 Jadwal &amp; Tugas Tim</button>
   </div>
 
@@ -2680,6 +2694,71 @@
     </div>
 
     <div id="anKonten"></div>
+  </section>
+</main>
+
+<main id="viewMarket" style="display:none;">
+  <section class="panel">
+    <div class="an-head">
+      <div>
+        <h2>Data Mentah Marketplace</h2>
+        <p class="an-sub">Ekspor pesanan langsung dari marketplace, disimpan <b>apa adanya</b> tanpa diubah, dibulatkan, atau dicocokkan. Terpisah total dari tabel Monitoring — data di sini tidak pernah memengaruhi angka rekonsiliasi maupun analitik.</p>
+        <p class="an-diag" id="mpDiag"></p>
+      </div>
+      <div class="an-controls">
+        <button type="button" class="btn btn-primary" id="mpUnduhBtn" title="Unduh data mentah sesuai filter">↓ Unduh Excel</button>
+      </div>
+    </div>
+
+    <div class="mp-catatan" id="mpCatatan">⚠ <b>Angka di sini tidak diubah sama sekali.</b> Harga dan Total Bayar ditampilkan persis seperti di file ekspor — tidak dikalikan, tidak diberi label Rp. Pada contoh Shopee, <b>Harga 699</b> kemungkinan berarti Rp 699.000, tapi dashboard sengaja tidak menebak. Pastikan satuannya ke Shopee Seller Centre sebelum memakai angka ini untuk laporan.</div>
+
+    <div class="an-toolbar" id="mpToolbar">
+      <input type="text" id="mpCari" placeholder="Cari no. pesanan, SKU, nama produk, penerima, atau no. resi…">
+      <label class="chk" for="mpDari">Dari <input type="date" id="mpDari"></label>
+      <label class="chk" for="mpSampai">Sampai <input type="date" id="mpSampai"></label>
+      <div class="msel" id="mpMselStatus" data-key="status">
+        <button type="button" class="msel-btn" id="mpMselStatusBtn">Semua Status <span class="msel-caret">▾</span></button>
+        <div class="msel-panel">
+          <input type="text" class="msel-search-input" placeholder="Cari status…">
+          <div class="msel-actions"><button type="button" data-action="all">Pilih semua</button><button type="button" data-action="clear">Bersihkan</button></div>
+          <div class="msel-options" id="mpMselStatusOptions"></div>
+        </div>
+      </div>
+      <div class="msel" id="mpMselGudang" data-key="gudang">
+        <button type="button" class="msel-btn" id="mpMselGudangBtn">Semua Gudang <span class="msel-caret">▾</span></button>
+        <div class="msel-panel">
+          <input type="text" class="msel-search-input" placeholder="Cari gudang…">
+          <div class="msel-actions"><button type="button" data-action="all">Pilih semua</button><button type="button" data-action="clear">Bersihkan</button></div>
+          <div class="msel-options" id="mpMselGudangOptions"></div>
+        </div>
+      </div>
+      <div class="msel" id="mpMselKanal" data-key="kanal">
+        <button type="button" class="msel-btn" id="mpMselKanalBtn">Semua Kanal <span class="msel-caret">▾</span></button>
+        <div class="msel-panel">
+          <input type="text" class="msel-search-input" placeholder="Cari kanal…">
+          <div class="msel-actions"><button type="button" data-action="all">Pilih semua</button><button type="button" data-action="clear">Bersihkan</button></div>
+          <div class="msel-options" id="mpMselKanalOptions"></div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <button type="button" class="an-reset" id="mpResetBtn">↺ Reset Filter</button>
+    </div>
+
+    <div class="stats" id="mpStats"></div>
+
+    <div class="table-wrap">
+      <table id="mpTable">
+        <thead><tr id="mpHeadRow"></tr></thead>
+        <tbody id="mpBodyRows"></tbody>
+      </table>
+    </div>
+
+    <div class="pager">
+      <span id="mpPagerInfo"></span>
+      <div class="spacer"></div>
+      <button type="button" class="btn btn-ghost" id="mpPrev">‹ Sebelumnya</button>
+      <button type="button" class="btn btn-ghost" id="mpNext">Berikutnya ›</button>
+    </div>
   </section>
 </main>
 
@@ -6816,6 +6895,9 @@
     if(set['SKU'] && set['No Pesanan'] && set['No Invoice']) return 'jubelio';
     if(set['SalesOrderNumber1'] && set['NameNoOrderer']) return 'lph';
     if(set['TIDocNumber'] && set['SO'] && set['TONumber1']) return 'tii';
+    // Ekspor mentah Shopee. Diperiksa SEBELUM 'prodclass' karena file ini juga
+    // punya banyak kolom umum; tanda tangannya tiga kolom yang khas Shopee.
+    if(set['No. Pesanan'] && set['Status Pesanan'] && set['Nomor Referensi SKU']) return 'shopee';
     // File master klasifikasi produk: punya kolom Generic (atau SKU) + kolom PROD CLASS,
     // dan BUKAN file jubelio (yang juga punya SKU tapi lengkap dengan No Pesanan).
     if((set['Generic'] || set['GENERIC'] || set['generic'] || set['SKU']) && cariKolomProdClass(headers)) return 'prodclass';
@@ -7069,12 +7151,469 @@
     recordActivity('Unggah Master PROD CLASS', fileName + ' \u2014 ' + ket + '.');
   }
 
+
+  // ==================== DATA MENTAH MARKETPLACE ====================
+  // Sengaja dipisah TOTAL dari jubelioRows: koleksi Firestore sendiri, state
+  // sendiri, tabel sendiri. Data di sini disimpan APA ADANYA — tidak
+  // dibulatkan, tidak dikonversi satuan, tidak dicocokkan ke LPH/TI. Itu
+  // gunanya "mentah": jadi rujukan pembanding kalau angka di Monitoring
+  // dipertanyakan, bukan sumber angka baru.
+  var mpRows = [];
+  var MP_CHUNK = 500;
+  var mpChunkTerakhir = 0;
+
+  // Kolom yang ditampilkan. Ekspor Shopee punya 51 kolom; menampilkan semuanya
+  // membuat tabel tidak terbaca, jadi diambil yang dipakai untuk menelusuri.
+  var MP_COLS = [
+    {key:'Kanal',        label:'Kanal'},
+    {key:'No Pesanan',   label:'No. Pesanan', cls:'mono'},
+    {key:'Tanggal',      label:'Waktu Dibuat'},
+    {key:'Status',       label:'Status', badge:true},
+    {key:'SKU',          label:'SKU', cls:'mono'},
+    {key:'Nama Produk',  label:'Nama Produk', cls:'col-name'},
+    {key:'Variasi',      label:'Variasi'},
+    {key:'Qty',          label:'Qty', align:'right'},
+    {key:'Harga',        label:'Harga Satuan', align:'right'},
+    {key:'Subtotal',     label:'Subtotal', align:'right'},
+    {key:'Total Bayar',  label:'Total Bayar', align:'right'},
+    {key:'Gudang',       label:'Gudang'},
+    {key:'Penerima',     label:'Penerima'},
+    {key:'Kota',         label:'Kota/Kabupaten'},
+    {key:'No Resi',      label:'No. Resi', cls:'mono'},
+    {key:'Kurir',        label:'Kurir'}
+  ];
+
+  var mpState = {
+    hal: 1, perHal: 50, sortKey: 'Tanggal', sortDir: -1,
+    msel: {status: [], gudang: [], kanal: []},
+    hasil: []
+  };
+
+  function mpAngka(v){
+    if(v === null || v === undefined || v === '') return null;
+    var n = Number(String(v).replace(/[^\d.,-]/g, '').replace(/,/g, '.'));
+    return isNaN(n) ? null : n;
+  }
+
+  // "2026-08-01 04:32" apa pun bentuk aslinya -> teks seragam.
+  function mpWaktu(v){
+    if(v === null || v === undefined || v === '') return '';
+    if(v instanceof Date && !isNaN(v)){
+      var p = function(x){ return (x < 10 ? '0' : '') + x; };
+      return v.getFullYear() + '-' + p(v.getMonth() + 1) + '-' + p(v.getDate()) +
+             ' ' + p(v.getHours()) + ':' + p(v.getMinutes()) + ':' + p(v.getSeconds());
+    }
+    return String(v).trim();
+  }
+
+  // Status Shopee bisa berupa kalimat panjang berisi tanggal, mis.
+  // "Pesanan diterima, namun Pembeli masih dapat mengajukan pengembalian
+  // hingga 2026-09-03." Kalau dibiarkan, dropdown filternya berisi puluhan
+  // nilai yang sebenarnya satu makna. Yang DIPENDEKKAN hanya label tampilan;
+  // teks aslinya tetap tersimpan di kolom Status Asli.
+  function mpRingkasStatus(s){
+    var t = trimKey(s);
+    if(!t) return '';
+    if(/^Pesanan diterima/i.test(t)) return 'Diterima (masa retur)';
+    return t;
+  }
+
+  function mergeShopeeSheet(json, fileName){
+    var index = {};
+    mpRows.forEach(function(r, i){ index[r.__id] = i; });
+
+    var baru = 0, ubah = 0, sama = 0, lewat = 0;
+    // Sebagian pesanan memuat DUA baris dengan SKU dan variasi sama tapi qty
+    // berbeda (mis. 1 pcs + 2 pcs dalam satu pesanan). Tanpa penomoran
+    // kemunculan, baris kedua akan menimpa yang pertama dan datanya hilang.
+    var urutan = {};
+    json.forEach(function(row){
+      var pes = trimKey(row['No. Pesanan']);
+      var sku = trimKey(row['Nomor Referensi SKU']);
+      if(!pes){ lewat++; return; }
+      var dasar = pes + '|' + sku + '|' + trimKey(row['Nama Variasi']);
+      urutan[dasar] = (urutan[dasar] || 0) + 1;
+
+      var rec = {
+        // Identitas: pesanan + SKU + variasi + nomor kemunculan.
+        __id: dasar + '#' + urutan[dasar],
+        'Kanal': 'SHOPEE',
+        'No Pesanan': pes,
+        'Tanggal': mpWaktu(row['Waktu Pesanan Dibuat']),
+        'Waktu Bayar': mpWaktu(row['Waktu Pembayaran Dilakukan']),
+        'Waktu Selesai': mpWaktu(row['Waktu Pesanan Selesai']),
+        'Status': mpRingkasStatus(row['Status Pesanan']),
+        'Status Asli': trimKey(row['Status Pesanan']),
+        'Alasan Batal': trimKey(row['Alasan Pembatalan']),
+        'SKU': sku,
+        'SKU Induk': trimKey(row['SKU Induk']),
+        'Nama Produk': trimKey(row['Nama Produk']),
+        'Variasi': trimKey(row['Nama Variasi']),
+        'Qty': mpAngka(row['Jumlah']),
+        'Qty Retur': mpAngka(row['Returned quantity']),
+        'Harga Awal': mpAngka(row['Harga Awal']),
+        'Harga': mpAngka(row['Harga Setelah Diskon']),
+        'Subtotal': mpAngka(row['Subtotal Pesanan']),
+        'Total Bayar': mpAngka(row['Total Pembayaran']),
+        'Total Diskon': mpAngka(row['Total Diskon']),
+        'Diskon Penjual': mpAngka(row['Diskon Dari Penjual']),
+        'Diskon Marketplace': mpAngka(row['Diskon Dari Shopee']),
+        'Ongkir Pembeli': mpAngka(row['Ongkos Kirim Dibayar oleh Pembeli']),
+        'Gudang': trimKey(row['Nama Gudang']),
+        'Penerima': trimKey(row['Nama Penerima']),
+        'Username': trimKey(row['Username (Pembeli)']),
+        'Kota': trimKey(row['Kota/Kabupaten']),
+        'Provinsi': trimKey(row['Provinsi']),
+        'No Resi': trimKey(row['No. Resi']),
+        'Kurir': trimKey(row['Opsi Pengiriman']),
+        'Metode Bayar': trimKey(row['Metode Pembayaran'])
+      };
+
+      var adaIdx = index[rec.__id];
+      if(adaIdx === undefined){
+        index[rec.__id] = mpRows.length;
+        mpRows.push(rec);
+        baru++;
+      } else {
+        var lamaR = mpRows[adaIdx];
+        var beda = Object.keys(rec).some(function(k){
+          return trimKey(lamaR[k]) !== trimKey(rec[k]);
+        });
+        if(beda){ mpRows[adaIdx] = rec; ubah++; } else { sama++; }
+      }
+    });
+
+    var ket = baru + ' baris baru, ' + ubah + ' diperbarui, ' + sama + ' tidak berubah' +
+              (lewat ? ', ' + lewat + ' dilewati (tanpa no. pesanan)' : '');
+    logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Shopee</b> \u2014 ' + ket +
+      '. Masuk ke tab Data Mentah Marketplace, <b>tidak</b> memengaruhi Monitoring.');
+    recordActivity('Unggah Data Marketplace', fileName + ' (Shopee) \u2014 ' + ket + '.');
+  }
+
+  // ---------- simpan & muat ----------
+  function mpChunkRef(i){ return db.collection('mpChunks').doc('mp_' + i); }
+
+  function simpanMarketKeCloud(){
+    var chunks = [];
+    for(var i = 0; i < mpRows.length; i += MP_CHUNK){
+      chunks.push(mpRows.slice(i, i + MP_CHUNK));
+    }
+    var operasi = [];
+    chunks.forEach(function(c, idx){
+      operasi.push(function(batch){ batch.set(mpChunkRef(idx), {rows: c}); });
+    });
+    for(var j = chunks.length; j < mpChunkTerakhir; j++){
+      (function(k){ operasi.push(function(batch){ batch.delete(mpChunkRef(k)); }); })(j);
+    }
+    mpChunkTerakhir = chunks.length;
+    operasi.push(function(batch){
+      batch.set(db.collection('meta').doc('mpInfo'),
+                {chunkCount: chunks.length, jumlahBaris: mpRows.length, updatedAt: Date.now()});
+    });
+
+    return komitBerurutan(operasi)['catch'](function(err){
+      logMsg('warn', '\u26a0',
+        'Data marketplace gagal disimpan ke cloud: ' + err.message +
+        ' \u2014 kalau pesannya soal izin, koleksi <b>mpChunks</b> dan <b>meta/mpInfo</b> ' +
+        'belum diizinkan di Firestore Rules.');
+    });
+  }
+
+  function muatMarketDariCloud(){
+    return db.collection('meta').doc('mpInfo').get().then(function(snap){
+      if(!snap.exists) return;
+      var n = (snap.data() || {}).chunkCount || 0;
+      mpChunkTerakhir = n;
+      var janji = [];
+      for(var i = 0; i < n; i++){ janji.push(mpChunkRef(i).get()); }
+      return Promise.all(janji).then(function(hasil){
+        var semua = [];
+        hasil.forEach(function(h){
+          if(h.exists) semua = semua.concat((h.data() || {}).rows || []);
+        });
+        mpRows = semua;
+        renderMarket();
+      });
+    })['catch'](function(err){
+      console.warn('Gagal memuat data marketplace:', err && err.message);
+    });
+  }
+
+  // ---------- filter & tabel ----------
+  function mpTanggal(r){ return String(r['Tanggal'] || '').slice(0, 10); }
+
+  function mpTerapkanFilter(){
+    var q = (document.getElementById('mpCari') || {}).value || '';
+    q = q.trim().toLowerCase();
+    var dari = (document.getElementById('mpDari') || {}).value || '';
+    var sampai = (document.getElementById('mpSampai') || {}).value || '';
+    var st = mpState.msel.status, gd = mpState.msel.gudang, kn = mpState.msel.kanal;
+
+    mpState.hasil = mpRows.filter(function(r){
+      if(dari || sampai){
+        var t = mpTanggal(r);
+        if(!t) return false;
+        if(dari && t < dari) return false;
+        if(sampai && t > sampai) return false;
+      }
+      if(st.length && st.indexOf(r['Status']) === -1) return false;
+      if(gd.length && gd.indexOf(r['Gudang']) === -1) return false;
+      if(kn.length && kn.indexOf(r['Kanal']) === -1) return false;
+      if(q){
+        var gabung = [r['No Pesanan'], r['SKU'], r['Nama Produk'],
+                      r['Penerima'], r['No Resi'], r['Username']]
+                     .join(' ').toLowerCase();
+        if(gabung.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+
+    var k = mpState.sortKey, d = mpState.sortDir;
+    mpState.hasil.sort(function(a, b){
+      var x = a[k], y = b[k];
+      var nx = (typeof x === 'number'), ny = (typeof y === 'number');
+      if(nx && ny) return (x - y) * d;
+      return String(x === null || x === undefined ? '' : x)
+             .localeCompare(String(y === null || y === undefined ? '' : y), 'id') * d;
+    });
+
+    if(mpState.hal < 1) mpState.hal = 1;
+    var maks = Math.max(1, Math.ceil(mpState.hasil.length / mpState.perHal));
+    if(mpState.hal > maks) mpState.hal = maks;
+  }
+
+  function mpNilaiUnik(kolom){
+    var set = {};
+    mpRows.forEach(function(r){ if(r[kolom]) set[r[kolom]] = true; });
+    return Object.keys(set).sort();
+  }
+
+  var MP_MSEL = [
+    {key:'status', kolom:'Status', rootId:'mpMselStatus', btnId:'mpMselStatusBtn', optId:'mpMselStatusOptions', allLabel:'Semua Status', shortLabel:'Status'},
+    {key:'gudang', kolom:'Gudang', rootId:'mpMselGudang', btnId:'mpMselGudangBtn', optId:'mpMselGudangOptions', allLabel:'Semua Gudang', shortLabel:'Gudang'},
+    {key:'kanal',  kolom:'Kanal',  rootId:'mpMselKanal',  btnId:'mpMselKanalBtn',  optId:'mpMselKanalOptions',  allLabel:'Semua Kanal',  shortLabel:'Kanal'}
+  ];
+
+  function mpRenderTombolMsel(cfg){
+    var sel = mpState.msel[cfg.key];
+    var btn = document.getElementById(cfg.btnId);
+    if(!btn) return;
+    if(!sel.length) btn.innerHTML = cfg.allLabel + ' <span class="msel-caret">\u25be</span>';
+    else if(sel.length === 1) btn.innerHTML = escHtml(sel[0]) + ' <span class="msel-caret">\u25be</span>';
+    else btn.innerHTML = cfg.shortLabel + ' <span class="count">' + sel.length + '</span> <span class="msel-caret">\u25be</span>';
+  }
+
+  function mpIsiMsel(cfg){
+    var nilai = mpNilaiUnik(cfg.kolom);
+    mpState.msel[cfg.key] = mpState.msel[cfg.key].filter(function(v){ return nilai.indexOf(v) !== -1; });
+    var box = document.getElementById(cfg.optId);
+    if(!box) return;
+    box.innerHTML = nilai.length
+      ? nilai.map(function(v){
+          var ck = mpState.msel[cfg.key].indexOf(v) !== -1 ? 'checked' : '';
+          return '<label class="msel-opt"><input type="checkbox" value="' + escHtml(v) + '" ' + ck + '><span>' + escHtml(v) + '</span></label>';
+        }).join('')
+      : '<div class="msel-empty">Tidak ada data.</div>';
+    mpRenderTombolMsel(cfg);
+  }
+
+  function renderMarket(){
+    var head = document.getElementById('mpHeadRow');
+    if(!head) return;
+
+    MP_MSEL.forEach(mpIsiMsel);
+    mpTerapkanFilter();
+
+    head.innerHTML = MP_COLS.map(function(c){
+      var ar = mpState.sortKey === c.key
+        ? '<span class="arrow-sort">' + (mpState.sortDir === 1 ? '\u25b2' : '\u25bc') + '</span>' : '';
+      return '<th data-key="' + c.key + '">' + c.label + ar + '</th>';
+    }).join('');
+    Array.prototype.forEach.call(head.querySelectorAll('th'), function(th){
+      th.addEventListener('click', function(){
+        var k = th.getAttribute('data-key');
+        if(mpState.sortKey === k) mpState.sortDir *= -1;
+        else { mpState.sortKey = k; mpState.sortDir = 1; }
+        renderMarket();
+      });
+    });
+
+    var mulai = (mpState.hal - 1) * mpState.perHal;
+    var potong = mpState.hasil.slice(mulai, mulai + mpState.perHal);
+
+    document.getElementById('mpBodyRows').innerHTML = potong.length
+      ? potong.map(function(r){
+          return '<tr>' + MP_COLS.map(function(c){
+            var v = r[c.key];
+            var cls = (c.cls || '') + (c.align === 'right' ? ' num' : '');
+            var isi;
+            if(c.badge){
+              isi = v ? '<span class="badge" title="' + escHtml(r['Status Asli'] || v) + '">' + escHtml(v) + '</span>' : '';
+            } else if(c.align === 'right'){
+              // Angka ditampilkan apa adanya, TANPA "Rp" dan tanpa dikalikan
+              // apa pun — satuan aslinya dari marketplace masih perlu kamu
+              // pastikan, jadi jangan sampai dashboard ini yang menebak.
+              isi = (v === null || v === undefined) ? '' : Number(v).toLocaleString('id-ID', {maximumFractionDigits: 2});
+            } else {
+              isi = (v === null || v === undefined) ? '' : escHtml(String(v));
+            }
+            return '<td class="' + cls + '" data-label="' + escHtml(c.label) + '">' + isi + '</td>';
+          }).join('') + '</tr>';
+        }).join('')
+      : '<tr><td colspan="' + MP_COLS.length + '" style="text-align:center;padding:30px;color:#999;">Belum ada data marketplace. Unggah ekspor pesanan Shopee lewat tombol Tambah Data Baru.</td></tr>';
+
+    var akhir = Math.min(mulai + mpState.perHal, mpState.hasil.length);
+    document.getElementById('mpPagerInfo').textContent = mpState.hasil.length
+      ? 'Menampilkan ' + (mulai + 1).toLocaleString('id-ID') + '\u2013' + akhir.toLocaleString('id-ID') +
+        ' dari ' + mpState.hasil.length.toLocaleString('id-ID') + ' baris'
+      : 'Tidak ada baris';
+
+    mpRenderStats();
+    mpRenderDiag();
+  }
+
+  function mpRenderStats(){
+    var box = document.getElementById('mpStats');
+    if(!box) return;
+    var d = mpState.hasil;
+    var pesanan = {}, qty = 0, bayar = 0, batal = 0;
+    d.forEach(function(r){
+      pesanan[r['No Pesanan']] = true;
+      qty += Number(r['Qty']) || 0;
+      bayar += Number(r['Total Bayar']) || 0;
+      if(/batal/i.test(r['Status'] || '')) batal++;
+    });
+    var kartu = [
+      ['Baris', d.length.toLocaleString('id-ID'), 'setelah filter'],
+      ['Pesanan Unik', Object.keys(pesanan).length.toLocaleString('id-ID'), 'satu pesanan bisa banyak SKU'],
+      ['Total Qty', qty.toLocaleString('id-ID'), 'unit'],
+      ['Total Bayar', bayar.toLocaleString('id-ID', {maximumFractionDigits: 0}), 'apa adanya dari ekspor'],
+      ['Baris Batal', batal.toLocaleString('id-ID'), d.length ? (batal / d.length * 100).toFixed(1).replace('.', ',') + '% dari baris' : '\u2013']
+    ];
+    box.innerHTML = kartu.map(function(k){
+      return '<div class="stat"><div class="s-label">' + k[0] + '</div>' +
+             '<div class="s-value">' + k[1] + '</div>' +
+             '<div class="s-sub">' + k[2] + '</div></div>';
+    }).join('');
+  }
+
+  function mpRenderDiag(){
+    var el = document.getElementById('mpDiag');
+    if(!el) return;
+    if(!mpRows.length){ el.textContent = ''; return; }
+    var tgl = mpRows.map(mpTanggal).filter(Boolean).sort();
+    var kanal = mpNilaiUnik('Kanal');
+    el.textContent = mpRows.length.toLocaleString('id-ID') + ' baris tersimpan \u00b7 ' +
+      kanal.join(', ') + (tgl.length ? ' \u00b7 ' + tgl[0] + ' s/d ' + tgl[tgl.length - 1] : '');
+  }
+
+  window.refreshMarket = renderMarket;
+
+  function mpUnduhExcel(){
+    if(!mpState.hasil.length){
+      window.alert('Tidak ada data untuk diunduh pada filter ini.');
+      return;
+    }
+    // Semua field dibawa ke Excel, bukan hanya yang tampil di layar — di sinilah
+    // gunanya data mentah: lengkap untuk ditelusuri.
+    var kolom = Object.keys(mpState.hasil[0]).filter(function(k){ return k !== '__id'; });
+    var aoa = [kolom].concat(mpState.hasil.map(function(r){
+      return kolom.map(function(k){ return r[k]; });
+    }));
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = kolom.map(function(k){ return {wch: k === 'Nama Produk' ? 40 : 16}; });
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Marketplace');
+    XLSX.writeFile(wb, 'Data mentah marketplace ' + tanggalHariIni() + '.xlsx');
+    recordActivity('Unduh Data Marketplace', mpState.hasil.length + ' baris.');
+  }
+
+  function pasangMarketUI(){
+    var cari = document.getElementById('mpCari');
+    if(!cari) return;
+
+    var jeda = null;
+    cari.addEventListener('input', function(){
+      if(jeda) clearTimeout(jeda);
+      jeda = setTimeout(function(){ jeda = null; mpState.hal = 1; renderMarket(); }, 250);
+    });
+
+    ['mpDari', 'mpSampai'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.addEventListener('change', function(){ mpState.hal = 1; renderMarket(); });
+    });
+
+    MP_MSEL.forEach(function(cfg){
+      var root = document.getElementById(cfg.rootId);
+      var btn = document.getElementById(cfg.btnId);
+      var box = document.getElementById(cfg.optId);
+      if(!root || !btn || !box) return;
+      var cariOpt = root.querySelector('.msel-search-input');
+
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var buka = !root.classList.contains('open');
+        document.querySelectorAll('.msel.open').forEach(function(el){ el.classList.remove('open'); });
+        if(buka){ root.classList.add('open'); cariOpt.value = ''; filterMselOptions(box, ''); cariOpt.focus(); }
+      });
+      box.addEventListener('change', function(e){
+        if(e.target.tagName !== 'INPUT') return;
+        mpState.msel[cfg.key] = Array.prototype.slice.call(box.querySelectorAll('input:checked'))
+                                  .map(function(i){ return i.value; });
+        mpState.hal = 1;
+        renderMarket();
+      });
+      root.querySelectorAll('.msel-actions button').forEach(function(b){
+        b.addEventListener('click', function(e){
+          e.stopPropagation();
+          var tampak = Array.prototype.slice.call(box.querySelectorAll('.msel-opt'))
+                         .filter(function(o){ return o.style.display !== 'none'; })
+                         .map(function(o){ return o.querySelector('input'); });
+          tampak.forEach(function(i){ i.checked = (b.getAttribute('data-action') === 'all'); });
+          mpState.msel[cfg.key] = Array.prototype.slice.call(box.querySelectorAll('input:checked'))
+                                    .map(function(i){ return i.value; });
+          mpState.hal = 1;
+          renderMarket();
+        });
+      });
+      cariOpt.addEventListener('click', function(e){ e.stopPropagation(); });
+      cariOpt.addEventListener('input', function(){
+        filterMselOptions(box, cariOpt.value.trim().toLowerCase());
+      });
+    });
+
+    document.getElementById('mpResetBtn').addEventListener('click', function(){
+      cari.value = '';
+      ['mpDari', 'mpSampai'].forEach(function(id){
+        var el = document.getElementById(id); if(el) el.value = '';
+      });
+      MP_MSEL.forEach(function(cfg){
+        mpState.msel[cfg.key] = [];
+        var box = document.getElementById(cfg.optId);
+        if(box) Array.prototype.forEach.call(box.querySelectorAll('input'), function(i){ i.checked = false; });
+        mpRenderTombolMsel(cfg);
+      });
+      mpState.hal = 1;
+      renderMarket();
+    });
+
+    document.getElementById('mpPrev').addEventListener('click', function(){
+      if(mpState.hal > 1){ mpState.hal--; renderMarket(); }
+    });
+    document.getElementById('mpNext').addEventListener('click', function(){
+      var maks = Math.max(1, Math.ceil(mpState.hasil.length / mpState.perHal));
+      if(mpState.hal < maks){ mpState.hal++; renderMarket(); }
+    });
+    document.getElementById('mpUnduhBtn').addEventListener('click', mpUnduhExcel);
+  }
+
   function processFile(file){
     var reader = new FileReader();
     reader.onload = function(e){
       try{
         var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
         var anyRecognized = false;
+        var adaMarketBaru = false;
         wb.SheetNames.forEach(function(sheetName){
           var sheet = wb.Sheets[sheetName];
           var rawJson = XLSX.utils.sheet_to_json(sheet, {defval:null});
@@ -7090,12 +7629,16 @@
           else if(type === 'lph'){ mergeLphSheet(json, file.name); anyRecognized = true; }
           else if(type === 'tii'){ mergeTiiSheet(json, file.name); anyRecognized = true; }
           else if(type === 'prodclass'){ mergeProdClassSheet(json, file.name, cariKolomProdClass(headers), cariKolomGeneric(headers)); anyRecognized = true; }
+          else if(type === 'shopee'){ mergeShopeeSheet(json, file.name); anyRecognized = true; adaMarketBaru = true; }
         });
         if(!anyRecognized){
-          logMsg('warn', '⚠', '<b>' + file.name + '</b> tidak dikenali. Pastikan formatnya sama dengan jubelio_data.xlsx, LPH_2.xlsx, TO TI DETAIL (TII_DETAIL.xlsx), atau file master PROD CLASS (kolom Generic + PROD CLASS).');
+          logMsg('warn', '⚠', '<b>' + file.name + '</b> tidak dikenali. Pastikan formatnya sama dengan jubelio_data.xlsx, LPH_2.xlsx, TO TI DETAIL (TII_DETAIL.xlsx), file master PROD CLASS (kolom Generic + PROD CLASS), atau ekspor pesanan Shopee.');
         } else {
           scheduleSaveToCloud();
         }
+        // Data marketplace disimpan ke koleksinya sendiri, terpisah dari
+        // jubelioChunks — supaya kekeliruan di satu sisi tidak merusak sisi lain.
+        if(adaMarketBaru) simpanMarketKeCloud();
         refreshAll();
       }catch(err){
         logMsg('warn', '⚠', 'Gagal membaca <b>' + file.name + '</b>: ' + err.message);
@@ -7409,6 +7952,8 @@
     pantauDataStart();
     pantauKoreksi();
     pantauPerubahan();
+    pasangMarketUI();
+    muatMarketDariCloud();
     refreshAll();
     renderHead();
     wireMultiSelects();
@@ -8849,13 +9394,16 @@ function switchAppView(view){
   var pipe = document.getElementById('pipeline');
   var jad  = document.getElementById('viewJadwal');
   var ana  = document.getElementById('viewAnalitik');
+  var mkt  = document.getElementById('viewMarket');
   var bMon = document.getElementById('tabMonitoringBtn');
   var bJad = document.getElementById('tabJadwalBtn');
   var bAna = document.getElementById('tabAnalitikBtn');
+  var bMkt = document.getElementById('tabMarketBtn');
 
   // Peran Toko tidak boleh membuka halaman Jadwal maupun Analitik Penjualan.
   // Team boleh membuka Jadwal (read-only) dan Analitik.
-  if((view === 'jadwal' || view === 'analitik') && window.currentRole === 'toko'){
+  if((view === 'jadwal' || view === 'analitik' || view === 'market') &&
+     window.currentRole === 'toko'){
     view = 'monitoring';
   }
 
@@ -8864,7 +9412,8 @@ function switchAppView(view){
   pipe.style.display = 'none';
   jad.style.display = 'none';
   if(ana) ana.style.display = 'none';
-  [bMon, bJad, bAna].forEach(function(b){ if(b) b.classList.remove('active'); });
+  if(mkt) mkt.style.display = 'none';
+  [bMon, bJad, bAna, bMkt].forEach(function(b){ if(b) b.classList.remove('active'); });
 
   if(view === 'jadwal'){
     jad.style.display = 'block';
@@ -8875,6 +9424,10 @@ function switchAppView(view){
     // Tabel analitik digambar ulang saat tab dibuka, supaya angkanya selalu
     // ikut filter terakhir walau tab ini sempat tersembunyi.
     if(typeof window.refreshAnalytics === 'function'){ window.refreshAnalytics(); }
+  } else if(view === 'market' && mkt){
+    mkt.style.display = '';
+    if(bMkt) bMkt.classList.add('active');
+    if(typeof window.refreshMarket === 'function'){ window.refreshMarket(); }
   } else {
     mon.style.display = '';
     pipe.style.display = '';
