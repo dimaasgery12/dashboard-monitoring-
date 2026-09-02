@@ -1618,7 +1618,9 @@
   table{
     border-collapse:collapse;
     width:100%;
-    min-width:1500px;
+    /* 17 kolom. Dinaikkan dari 1500px saat kolom Site ditambahkan, supaya
+       kolom terakhir tidak terjepit. Dinolkan lagi di mode kartu HP. */
+    min-width:1600px;
     font-size:12.5px;
   }
   thead th{
@@ -2707,6 +2709,10 @@
   // sumber data hidup di memori: baris mentah jubelio + tabel lookup LPH & TO TI DETAIL
   var jubelioRows = BUNDLE.jubelioRows.slice();
   var lphLookup   = Object.assign({}, BUNDLE.lphLookup);
+  // No Pesanan -> kode Site dari LPH (potongan sebelum tanda "-").
+  // Dipisah dari lphLookup, bukan digabung jadi objek, supaya dokumen
+  // meta/lookups yang ditulis dashboard versi lama tetap terbaca apa adanya.
+  var lphSiteLookup = Object.assign({}, BUNDLE.lphSiteLookup || {});
   var tiiLookupC  = Object.assign({}, BUNDLE.tiiLookupC);
   var tiiLookupE  = Object.assign({}, BUNDLE.tiiLookupE);
   // Master klasifikasi produk: SKU (huruf besar, tanpa spasi) -> PROD CLASS
@@ -2738,6 +2744,7 @@
     {key:'Nama Toko', label:'Nama Toko'},
     {key:'Status', label:'Status', badge:true},
     {key:'PROD CLASS', label:'PROD CLASS'},
+    {key:'Site', label:'Site', cls:'mono'},
     {key:'No SO (LPH)', label:'No SO (LPH)', cls:'mono', match:true},
     {key:'No TI (TII)', label:'No TI (TO TI DETAIL)', cls:'mono', match:true},
     {key:'No TO (TII)', label:'No TO (TO TI DETAIL)', cls:'mono', match:true}
@@ -3603,6 +3610,7 @@
           if(lookupSnap.exists){
             var d = lookupSnap.data();
             lphLookup = d.lphLookup || {};
+            lphSiteLookup = d.lphSiteLookup || {};
             tiiLookupC = d.tiiLookupC || {};
             tiiLookupE = d.tiiLookupE || {};
             pasangProdClass(d.prodClassLookup);
@@ -3668,7 +3676,7 @@
       batch.set(db.collection('meta').doc('info'), {chunkCount: chunks.length, updatedAt: stamp});
     });
     operasi.push(function(batch){
-      batch.set(db.collection('meta').doc('lookups'), {lphLookup: lphLookup, tiiLookupC: tiiLookupC, tiiLookupE: tiiLookupE, prodClassLookup: prodClassLookup});
+      batch.set(db.collection('meta').doc('lookups'), {lphLookup: lphLookup, lphSiteLookup: lphSiteLookup, tiiLookupC: tiiLookupC, tiiLookupE: tiiLookupE, prodClassLookup: prodClassLookup});
     });
 
     sedangMenyimpan = true;
@@ -3831,6 +3839,7 @@
     out['PROD CLASS'] = cariProdClass(row['SKU']);
     out['GENERIC'] = cariGeneric(row['SKU']);
     out['No SO (LPH)'] = soLph;
+    out['Site'] = noPesanan ? (lphSiteLookup[noPesanan] || null) : null;
     out['No TI (TII)'] = tiC;
     out['No TO (TII)'] = tiE;
     return out;
@@ -6734,6 +6743,7 @@
     var updatedBundle = {
       jubelioRows: jubelioRows,
       lphLookup: lphLookup,
+      lphSiteLookup: lphSiteLookup,
       tiiLookupC: tiiLookupC,
       tiiLookupE: tiiLookupE,
       prodClassLookup: prodClassLookup
@@ -6990,18 +7000,39 @@
                    (mundur ? ', ' + mundur + ' status mundur.' : '.'));
   }
 
+  // "M130 - Online - Cikini Megastore" -> "M130"
+  // Hanya potongan SEBELUM tanda hubung PERTAMA yang diambil; nama panjangnya
+  // tidak muat di tabel dan kode itu sendiri sudah unik.
+  function kodeSite(v){
+    var s = trimKey(v);
+    if(!s) return '';
+    var i = s.indexOf('-');
+    return (i === -1 ? s : s.slice(0, i)).trim();
+  }
+
   function mergeLphSheet(json, fileName){
-    var added = 0, updated = 0;
+    var added = 0, updated = 0, siteBaru = 0;
     json.forEach(function(row){
       var key = trimKey(row['NameNoOrderer']);
       if(!key) return;
+
+      // Site diambil terpisah: sebagian baris LPH bisa punya SiteName tapi
+      // tidak punya SalesOrderNumber1, dan sebaliknya.
+      var site = kodeSite(row['SiteName']);
+      if(site && lphSiteLookup[key] !== site){
+        if(lphSiteLookup[key] === undefined) siteBaru++;
+        lphSiteLookup[key] = site;
+      }
+
       var val = row['SalesOrderNumber1'];
       if(val === undefined || val === null || val === '') return;
       if(lphLookup[key] === undefined) added++; else if(lphLookup[key] !== val) updated++;
       lphLookup[key] = val;
     });
-    logMsg('ok', '✓', '<b>' + fileName + '</b> dikenali sebagai <b>LPH</b> — ' + added + ' pencocokan baru, ' + updated + ' diperbarui.');
-    recordActivity('Unggah LPH', fileName + ' — ' + added + ' pencocokan baru, ' + updated + ' diperbarui.');
+    var ket = added + ' pencocokan baru, ' + updated + ' diperbarui' +
+              (siteBaru ? ', ' + siteBaru + ' site tercatat' : '');
+    logMsg('ok', '✓', '<b>' + fileName + '</b> dikenali sebagai <b>LPH</b> — ' + ket + '.');
+    recordActivity('Unggah LPH', fileName + ' — ' + ket + '.');
   }
 
   function mergeTiiSheet(json, fileName){
@@ -7123,6 +7154,7 @@
       jumlahBaris: jubelioRows.length,
       chunkCount: chunks.length,
       lphLookup: lphLookup,
+      lphSiteLookup: lphSiteLookup,
       tiiLookupC: tiiLookupC,
       tiiLookupE: tiiLookupE,
       prodClassLookup: prodClassLookup
@@ -7183,6 +7215,7 @@
 
       jubelioRows = buangNoTelp(rows);
       lphLookup = b.lphLookup || {};
+      lphSiteLookup = b.lphSiteLookup || {};
       tiiLookupC = b.tiiLookupC || {};
       tiiLookupE = b.tiiLookupE || {};
       pasangProdClass(b.prodClassLookup);
@@ -7502,6 +7535,7 @@
       var jumlahSebelum = jubelioRows.length;
       jubelioRows = [];
       lphLookup = {};
+      lphSiteLookup = {};
       tiiLookupC = {};
       tiiLookupE = {};
       pasangProdClass(null);   // master klasifikasi kembali ke bawaan file ini
