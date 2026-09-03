@@ -9690,12 +9690,30 @@
                 scheduleMode = 'current';
                 teamData = draftTeam;
                 tasks = draftTasks;
+
+                // Keadaan draft dibersihkan LANGSUNG di sini, tidak menunggu
+                // pemberitahuan balik dari Firestore. Sebelumnya banner
+                // "Draft belum diterapkan" hanya hilang setelah pemberitahuan
+                // itu tiba; kalau tertahan atau telat, tombolnya tetap
+                // menempel padahal draftnya sudah diterapkan.
+                fsNextExists = false;
+                fsNextUpdatedAt = null;
+                fsNext.teamData = null;
+                fsNext.tasks = null;
+                draftReminderToastShown = false;
+
                 populateAssigneeSelects();
                 refreshAllViews();
+                renderWeekModeBanner();
                 displaySystemToast("Diterapkan", "Jadwal minggu ini sekarang memakai draft terbaru.", "success");
             }).catch(function(err){
                 console.error('Gagal menerapkan draft ke Firestore:', err);
-                displaySystemToast("Gagal", "Tidak bisa menerapkan draft ke cloud. Coba lagi.", "error");
+                // Pesan aslinya ikut ditampilkan: kalau penyebabnya izin
+                // Firestore, kalimatnya akan menyebut "insufficient permissions"
+                // dan langsung ketahuan tanpa perlu membuka Console.
+                displaySystemToast("Gagal Menerapkan",
+                    "Draft tidak bisa diterapkan: " + (err && err.message ? err.message : 'penyebab tidak diketahui'),
+                    "error");
             });
         };
 
