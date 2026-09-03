@@ -2287,7 +2287,7 @@
       </div>
       <label class="btn btn-primary" for="fileInput">⬆ Pilih File</label>
       <input type="file" id="fileInput" accept=".xlsx,.xls" multiple="" hidden="">
-      <button class="btn btn-ghost" id="clearDataBtn" type="button" data-role-hide="admin,viewer,superadmin,toko" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
+      <button class="btn btn-ghost" id="clearDataBtn" type="button" data-role-hide="admin,viewer,toko" style="border-color:var(--warn); color:var(--warn);">🗑 Hapus Semua Data</button>
     </div>
     <div id="dropZone" class="drop-zone">
       Seret &amp; letakkan file .xlsx di sini, atau klik "Pilih File" di atas
@@ -2719,6 +2719,8 @@
         </div>
         <button type="button" class="btn btn-ghost" id="mpUnduhBtn" title="Unduh data mentah apa adanya, sesuai filter">↓ Unduh Data Mentah</button>
         <button type="button" class="btn btn-primary" id="mpRekapBtn" title="Unduh rekap penjualan 10 sheet dengan rumus hidup">📊 Rekap Sales Marketplace</button>
+        <button type="button" class="btn btn-ghost" id="mpPulihkanBtn" data-role-hide="admin,viewer,toko" hidden="" title="Kembalikan baris yang pernah dihapus permanen">↺ Pulihkan Hapusan</button>
+        <button type="button" class="btn btn-ghost" id="mpHapusBtn" data-role-hide="admin,viewer,toko" style="border-color:var(--warn); color:var(--warn);" title="Hapus seluruh data marketplace">🗑 Hapus Data Marketplace</button>
       </div>
     </div>
 
@@ -3890,6 +3892,43 @@
     return os + ' · ' + br;
   }
 
+  // ---------- pemangkasan riwayat aktivitas ----------
+  // Cadangan sudah dipangkas lewat MAKS_CADANGAN, tapi activityLog tidak:
+  // setiap unggahan, koreksi, dan login menambah satu dokumen dan tidak
+  // pernah dihapus. Tanpa batas, kuota Firestore paket Spark akan tergerus
+  // oleh riwayat yang tidak pernah dibaca lagi.
+  var MAKS_RIWAYAT = 500;
+  var riwayatSudahDipangkas = false;
+
+  function pangkasRiwayat(){
+    // Cukup sekali per sesi, dan hanya oleh peran yang memang boleh membaca
+    // koleksi ini — kalau tidak, permintaannya pasti ditolak Firestore.
+    if(riwayatSudahDipangkas) return Promise.resolve();
+    if(!(window.currentRole === 'owner' || window.currentRole === 'superadmin')) return Promise.resolve();
+    riwayatSudahDipangkas = true;
+
+    return db.collection('activityLog').orderBy('at', 'desc').limit(MAKS_RIWAYAT).get()
+      .then(function(qs){
+        if(qs.size < MAKS_RIWAYAT) return;          // belum melebihi batas
+        var batasBawah = qs.docs[qs.size - 1];
+        // Ambil yang lebih lama dari entri ke-500, maksimal 300 sekali jalan
+        // supaya tidak memberatkan dan tetap di bawah batas operasi batch.
+        return db.collection('activityLog').orderBy('at', 'desc')
+          .startAfter(batasBawah).limit(300).get()
+          .then(function(tua){
+            if(tua.empty) return;
+            var operasi = tua.docs.map(function(d){
+              return function(batch){ batch.delete(d.ref); };
+            });
+            return komitBerurutan(operasi).then(function(){
+              console.info('Riwayat aktivitas dipangkas:', tua.size, 'entri lama dihapus.');
+            });
+          });
+      })['catch'](function(err){
+        console.warn('Gagal memangkas riwayat aktivitas:', err && err.message);
+      });
+  }
+
   function recordActivity(action, detail, kategori){
     try{
       var user = firebase.auth().currentUser;
@@ -3906,6 +3945,7 @@
         detail: detail || ''
       }).then(function(){
         window.lastActivityError = null;
+        pangkasRiwayat();
       })['catch'](function(err){
         window.lastActivityError = err;
         console.warn('Gagal mencatat aktivitas:', err && err.message);
@@ -7200,7 +7240,10 @@
   // gunanya "mentah": jadi rujukan pembanding kalau angka di Monitoring
   // dipertanyakan, bukan sumber angka baru.
   var mpRows = [];
-  var MP_CHUNK = 500;
+  // 1.000 baris ≈ 800 KB, masih di bawah batas 1 MB per dokumen Firestore
+  // (diukur dari data nyata: rata-rata 803 byte per baris). Sebelumnya 500,
+  // yang membuat jumlah dokumen dua kali lipat tanpa alasan.
+  var MP_CHUNK = 1000;
   var mpChunkTerakhir = 0;
 
   // Kolom yang ditampilkan. Ekspor Shopee punya 51 kolom; menampilkan semuanya
@@ -7223,6 +7266,10 @@
     {key:'No Resi',      label:'No. Resi', cls:'mono'},
     {key:'Kurir',        label:'Kurir'}
   ];
+
+  // Sama seperti tabel Monitoring: kolom Aksi hanya digambar untuk peran yang
+  // berhak mengubah data, dan pemeriksaannya diulang di sisi penangan klik.
+  function mpBolehKoreksi(){ return bolehMengoreksiData(); }
 
   var mpState = {
     hal: 1, perHal: 50, sortKey: 'Tanggal', sortDir: -1,
@@ -7317,7 +7364,7 @@
     var index = {};
     mpRows.forEach(function(r, i){ index[r.__id] = i; });
 
-    var baru = 0, ubah = 0, sama = 0, lewat = 0;
+    var baru = 0, ubah = 0, sama = 0, lewat = 0, ditolak = 0;
     // Sebagian pesanan memuat DUA baris dengan SKU dan variasi sama tapi qty
     // berbeda (mis. 1 pcs + 2 pcs dalam satu pesanan). Tanpa penomoran
     // kemunculan, baris kedua akan menimpa yang pertama dan datanya hilang.
@@ -7364,6 +7411,10 @@
         'Metode Bayar': trimKey(row['Metode Pembayaran'])
       };
 
+      // Keputusan hapus dihormati sejak awal: baris ini tidak pernah masuk
+      // lagi, walau berkas ekspornya diunggah ulang.
+      if(mpDibuang[rec.__id]){ ditolak++; return; }
+
       var adaIdx = index[rec.__id];
       if(adaIdx === undefined){
         index[rec.__id] = mpRows.length;
@@ -7379,7 +7430,8 @@
     });
 
     var ket = baru + ' baris baru, ' + ubah + ' diperbarui, ' + sama + ' tidak berubah' +
-              (lewat ? ', ' + lewat + ' dilewati (tanpa no. pesanan)' : '');
+              (lewat ? ', ' + lewat + ' dilewati (tanpa no. pesanan)' : '') +
+              (ditolak ? ', ' + ditolak + ' ditolak (sudah dihapus permanen)' : '');
     logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Shopee</b> \u2014 ' + ket +
       '. Masuk ke tab Marketplace, <b>tidak</b> memengaruhi Monitoring Jubelio.');
     recordActivity('Unggah Data Marketplace', fileName + ' (Shopee) \u2014 ' + ket + '.');
@@ -7415,7 +7467,7 @@
     var index = {};
     mpRows.forEach(function(r, i){ index[r.__id] = i; });
 
-    var baru = 0, ubah = 0, sama = 0, lewat = 0;
+    var baru = 0, ubah = 0, sama = 0, lewat = 0, ditolak = 0;
     var urutan = {};
 
     json.forEach(function(row){
@@ -7474,6 +7526,10 @@
         'Metode Bayar': trimKey(row['Payment Method'])
       };
 
+      // Keputusan hapus dihormati sejak awal: baris ini tidak pernah masuk
+      // lagi, walau berkas ekspornya diunggah ulang.
+      if(mpDibuang[rec.__id]){ ditolak++; return; }
+
       var adaIdx = index[rec.__id];
       if(adaIdx === undefined){
         index[rec.__id] = mpRows.length;
@@ -7489,7 +7545,8 @@
     });
 
     var ket = baru + ' baris baru, ' + ubah + ' diperbarui, ' + sama + ' tidak berubah' +
-              (lewat ? ', ' + lewat + ' dilewati (baris keterangan)' : '');
+              (lewat ? ', ' + lewat + ' dilewati (baris keterangan)' : '') +
+              (ditolak ? ', ' + ditolak + ' ditolak (sudah dihapus permanen)' : '');
     logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Tokped &amp; TikTok</b> \u2014 ' +
       ket + '. Masuk ke tab Marketplace, <b>tidak</b> memengaruhi Monitoring Jubelio.');
     recordActivity('Unggah Data Marketplace', fileName + ' (Tokped & TikTok) \u2014 ' + ket + '.');
@@ -7556,7 +7613,7 @@
     var index = {};
     mpRows.forEach(function(r, i){ index[r.__id] = i; });
 
-    var baru = 0, ubah = 0, sama = 0, lewat = 0, dibawa = 0;
+    var baru = 0, ubah = 0, sama = 0, lewat = 0, dibawa = 0, ditolak = 0;
     var urutan = {};
     var induk = null;          // nilai tingkat pesanan yang sedang berlaku
     var pesananSekarang = null;
@@ -7675,6 +7732,10 @@
         'Metode Bayar': trimKey(induk.metode)
       };
 
+      // Keputusan hapus dihormati sejak awal: baris ini tidak pernah masuk
+      // lagi, walau berkas ekspornya diunggah ulang.
+      if(mpDibuang[rec.__id]){ ditolak++; return; }
+
       var adaIdx = index[rec.__id];
       if(adaIdx === undefined){
         index[rec.__id] = mpRows.length;
@@ -7690,7 +7751,8 @@
     });
 
     var ket = baru + ' baris baru, ' + ubah + ' diperbarui, ' + sama + ' tidak berubah' +
-              (dibawa ? ', ' + dibawa + ' baris item mewarisi data pesanannya' : '');
+              (dibawa ? ', ' + dibawa + ' baris item mewarisi data pesanannya' : '') +
+              (ditolak ? ', ' + ditolak + ' ditolak (sudah dihapus permanen)' : '');
     logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Shopify</b> \u2014 ' +
       ket + '. Masuk ke tab Marketplace, <b>tidak</b> memengaruhi Monitoring Jubelio.');
     recordActivity('Unggah Data Marketplace', fileName + ' (Shopify) \u2014 ' + ket + '.');
@@ -7699,7 +7761,96 @@
   // ---------- simpan & muat ----------
   function mpChunkRef(i){ return db.collection('mpChunks').doc('mp_' + i); }
 
+  // ---------- keputusan hapus permanen ----------
+  // Sama gagasannya dengan Koreksi Data di tab Monitoring: yang disimpan
+  // bukan "data tanpa baris itu", melainkan KEPUTUSANNYA. Jadi ketika berkas
+  // ekspor yang sama diunggah lagi, barisnya disaring keluar sejak awal dan
+  // tidak pernah kembali.
+  var mpDibuang = {};        // __id -> {oleh, at, pesanan, sku}
+
+  function pantauMpKoreksi(){
+    db.collection('meta').doc('mpKoreksi').onSnapshot(function(snap){
+      mpDibuang = (snap.exists ? (snap.data() || {}).dibuang : null) || {};
+      // Baris yang sudah diputuskan dibuang disingkirkan dari data di memori,
+      // termasuk kalau keputusannya dibuat orang lain.
+      var sebelum = mpRows.length;
+      mpRows = mpRows.filter(function(r){ return !mpDibuang[r.__id]; });
+      if(mpRows.length !== sebelum) renderMarket();
+      else mpRenderDiag();
+    }, function(err){
+      console.warn('Gagal memantau meta/mpKoreksi:', err && err.message);
+    });
+  }
+
+  function simpanMpKoreksi(pesanLog){
+    return db.collection('meta').doc('mpKoreksi')
+      .set({dibuang: mpDibuang, updatedAt: Date.now()})
+      .then(function(){
+        if(pesanLog) logMsg('ok', '\u2713', pesanLog);
+      })['catch'](function(err){
+        logMsg('warn', '\u26a0',
+          'Keputusan hapus berlaku di layar ini, tapi gagal disimpan ke cloud: ' + err.message +
+          ' \u2014 barisnya bisa muncul lagi setelah halaman dimuat ulang.');
+      });
+  }
+
+  // Penanda versi cloud yang kita ketahui, dipakai mendeteksi perubahan orang
+  // lain. Tanpa ini, dua orang yang mengunggah hampir bersamaan akan saling
+  // menimpa: yang menyimpan belakangan menghapus baris yang baru saja
+  // ditambahkan yang pertama.
+  var mpCloudAt = 0;
+  var mpSedangMenyimpan = false;
+
+  // Menarik seluruh baris dari cloud dan menggabungkannya ke mpRows.
+  // Penggabungan berdasarkan __id, jadi baris milik orang lain ikut terbawa
+  // tanpa menghapus baris kita.
+  function gabungDariCloud(){
+    return db.collection('meta').doc('mpInfo').get().then(function(snap){
+      if(!snap.exists) return 0;
+      var info = snap.data() || {};
+      if((info.updatedAt || 0) === mpCloudAt) return 0;   // tidak ada yang baru
+
+      var n = info.chunkCount || 0;
+      var janji = [];
+      for(var i = 0; i < n; i++){ janji.push(mpChunkRef(i).get()); }
+      return Promise.all(janji).then(function(hasil){
+        var punyaKita = {};
+        mpRows.forEach(function(r){ punyaKita[r.__id] = true; });
+        var tambah = 0;
+        hasil.forEach(function(h){
+          if(!h.exists) return;
+          ((h.data() || {}).rows || []).forEach(function(r){
+            if(r && r.__id && !punyaKita[r.__id]){
+              mpRows.push(r);
+              punyaKita[r.__id] = true;
+              tambah++;
+            }
+          });
+        });
+        return tambah;
+      });
+    });
+  }
+
   function simpanMarketKeCloud(){
+    // Ambil dulu perubahan orang lain, baru tulis. Urutannya penting:
+    // menulis lebih dulu berarti menimpa apa yang belum kita lihat.
+    if(mpSedangMenyimpan) return Promise.resolve();
+    mpSedangMenyimpan = true;
+    return gabungDariCloud().then(function(tambah){
+      if(tambah){
+        logMsg('info', 'ℹ', '<b>' + tambah.toLocaleString('id-ID') +
+          ' baris marketplace</b> dari unggahan orang lain ikut digabungkan sebelum menyimpan.');
+        renderMarket();
+      }
+      return tulisMarketKeCloud();
+    })['catch'](function(err){
+      mpSedangMenyimpan = false;
+      logMsg('warn', '⚠', 'Gagal menyiapkan penyimpanan marketplace: ' + err.message);
+    });
+  }
+
+  function tulisMarketKeCloud(){
     var chunks = [];
     for(var i = 0; i < mpRows.length; i += MP_CHUNK){
       chunks.push(mpRows.slice(i, i + MP_CHUNK));
@@ -7712,12 +7863,17 @@
       (function(k){ operasi.push(function(batch){ batch.delete(mpChunkRef(k)); }); })(j);
     }
     mpChunkTerakhir = chunks.length;
+    var stamp = Date.now();
     operasi.push(function(batch){
       batch.set(db.collection('meta').doc('mpInfo'),
-                {chunkCount: chunks.length, jumlahBaris: mpRows.length, updatedAt: Date.now()});
+                {chunkCount: chunks.length, jumlahBaris: mpRows.length, updatedAt: stamp});
     });
 
-    return komitBerurutan(operasi)['catch'](function(err){
+    return komitBerurutan(operasi).then(function(){
+      mpCloudAt = stamp;          // versi kita kini jadi versi terbaru
+      mpSedangMenyimpan = false;
+    })['catch'](function(err){
+      mpSedangMenyimpan = false;
       logMsg('warn', '\u26a0',
         'Data marketplace gagal disimpan ke cloud: ' + err.message +
         ' \u2014 kalau pesannya soal izin, koleksi <b>mpChunks</b> dan <b>meta/mpInfo</b> ' +
@@ -7728,8 +7884,10 @@
   function muatMarketDariCloud(){
     return db.collection('meta').doc('mpInfo').get().then(function(snap){
       if(!snap.exists) return;
-      var n = (snap.data() || {}).chunkCount || 0;
+      var info = snap.data() || {};
+      var n = info.chunkCount || 0;
       mpChunkTerakhir = n;
+      mpCloudAt = info.updatedAt || 0;
       var janji = [];
       for(var i = 0; i < n; i++){ janji.push(mpChunkRef(i).get()); }
       return Promise.all(janji).then(function(hasil){
@@ -7883,11 +8041,12 @@
     MP_MSEL.forEach(mpIsiMsel);
     mpTerapkanFilter();
 
+    var bolehAksi = mpBolehKoreksi();
     head.innerHTML = MP_COLS.map(function(c){
       var ar = mpState.sortKey === c.key
         ? '<span class="arrow-sort">' + (mpState.sortDir === 1 ? '\u25b2' : '\u25bc') + '</span>' : '';
       return '<th data-key="' + c.key + '">' + c.label + ar + '</th>';
-    }).join('');
+    }).join('') + (bolehAksi ? '<th>Aksi</th>' : '');
     Array.prototype.forEach.call(head.querySelectorAll('th'), function(th){
       th.addEventListener('click', function(){
         var k = th.getAttribute('data-key');
@@ -7927,9 +8086,13 @@
               isi += '<span class="dup-count" title="Nomor ini muncul ' + jumlahDup + ' kali">\u00d7' + jumlahDup + '</span>';
             }
             return '<td class="' + cls + '" data-label="' + escHtml(c.label) + '">' + isi + '</td>';
-          }).join('') + '</tr>';
+          }).join('') + (bolehAksi
+            ? '<td class="aksi-cell" data-label="Aksi">' +
+              '<button type="button" class="aksi-btn" data-mp-hapus="' + escHtml(r.__id) +
+              '" title="Hapus baris ini secara permanen">\uD83D\uDDD1</button></td>'
+            : '') + '</tr>';
         }).join('')
-      : '<tr><td colspan="' + MP_COLS.length + '" style="text-align:center;padding:30px;color:#999;">Belum ada data marketplace. Unggah ekspor pesanan Shopee lewat tombol Tambah Data Baru.</td></tr>';
+      : '<tr><td colspan="' + (MP_COLS.length + (bolehAksi ? 1 : 0)) + '" style="text-align:center;padding:30px;color:#999;">Belum ada data marketplace. Unggah ekspor pesanan Shopee lewat tombol Tambah Data Baru.</td></tr>';
 
     var akhir = Math.min(mulai + mpState.perHal, mpState.hasil.length);
     var maksHal = Math.max(1, Math.ceil(mpState.hasil.length / mpState.perHal));
@@ -7944,8 +8107,49 @@
     document.getElementById('mpNext').disabled  = (mpState.hal >= maksHal);
     document.getElementById('mpLast').disabled  = (mpState.hal >= maksHal);
 
+    if(bolehAksi){
+      Array.prototype.forEach.call(
+        document.getElementById('mpBodyRows').querySelectorAll('[data-mp-hapus]'),
+        function(btn){
+          btn.addEventListener('click', function(){ mpHapusBaris(btn.getAttribute('data-mp-hapus')); });
+        });
+    }
+
     mpRenderStats();
     mpRenderDiag();
+  }
+
+  function mpHapusBaris(id){
+    // Diperiksa ulang di sini, bukan hanya saat menggambar tombol —
+    // tampilan bisa diakali lewat Console, penangan ini tidak.
+    if(!mpBolehKoreksi()){
+      window.alert('Hanya Owner dan Super Admin yang dapat menghapus baris.');
+      return;
+    }
+    var idx = -1;
+    for(var i = 0; i < mpRows.length; i++){ if(mpRows[i].__id === id){ idx = i; break; } }
+    if(idx === -1) return;
+
+    var r = mpRows[idx];
+    if(!window.confirm('Hapus baris ini secara permanen?\n\n' +
+       r['No Pesanan'] + ' · ' + r['SKU'] + ' · ' + (r['Nama Produk'] || '') + '\n\n' +
+       'Keputusan ini disimpan, jadi barisnya TIDAK akan muncul lagi meski ' +
+       'berkas ekspornya diunggah ulang. Bisa dipulihkan lewat tombol ' +
+       '↺ Pulihkan Hapusan.')) return;
+
+    mpDibuang[id] = {
+      oleh: window.currentUsername || '',
+      at: Date.now(),
+      pesanan: r['No Pesanan'],
+      sku: r['SKU'],
+      kanal: r['Kanal']
+    };
+    mpRows.splice(idx, 1);
+    renderMarket();
+    simpanMpKoreksi('Baris <b>' + esc(r['No Pesanan']) + '</b> dihapus permanen — ' +
+      'tidak akan muncul lagi walau berkasnya diunggah ulang.');
+    simpanMarketKeCloud();
+    recordActivity('Hapus Baris Marketplace', r['No Pesanan'] + ' · ' + r['SKU'] + '.');
   }
 
   function mpRenderStats(){
@@ -7979,8 +8183,13 @@
     if(!mpRows.length){ el.textContent = ''; return; }
     var tgl = mpRows.map(mpTanggal).filter(Boolean).sort();
     var kanal = mpNilaiUnik('Kanal');
+    var jmlBuang = Object.keys(mpDibuang).length;
     el.textContent = mpRows.length.toLocaleString('id-ID') + ' baris tersimpan \u00b7 ' +
-      kanal.join(', ') + (tgl.length ? ' \u00b7 ' + tgl[0] + ' s/d ' + tgl[tgl.length - 1] : '');
+      kanal.join(', ') + (tgl.length ? ' \u00b7 ' + tgl[0] + ' s/d ' + tgl[tgl.length - 1] : '') +
+      (jmlBuang ? ' \u00b7 ' + jmlBuang.toLocaleString('id-ID') + ' baris dihapus permanen' : '');
+
+    var btnPulih = document.getElementById('mpPulihkanBtn');
+    if(btnPulih) btnPulih.hidden = !(jmlBuang && mpBolehKoreksi());
   }
 
   window.refreshMarket = renderMarket;
@@ -8501,6 +8710,54 @@
     });
     document.getElementById('mpUnduhBtn').addEventListener('click', mpUnduhExcel);
     document.getElementById('mpRekapBtn').addEventListener('click', mpUnduhRekap);
+
+    var btnPulihMp = document.getElementById('mpPulihkanBtn');
+    if(btnPulihMp){
+      btnPulihMp.addEventListener('click', function(){
+        if(!mpBolehKoreksi()){
+          window.alert('Hanya Owner dan Super Admin yang dapat memulihkan hapusan.');
+          return;
+        }
+        var n = Object.keys(mpDibuang).length;
+        if(!n){ window.alert('Tidak ada hapusan untuk dipulihkan.'); return; }
+        if(!window.confirm('Pulihkan ' + n + ' keputusan hapus?\n\n' +
+           'Barisnya belum langsung kembali — unggah ulang berkas ekspornya ' +
+           'setelah ini, dan baris tersebut akan diterima kembali.')) return;
+        mpDibuang = {};
+        simpanMpKoreksi('<b>' + n + ' keputusan hapus</b> dipulihkan. Unggah ulang berkas ekspornya untuk mengembalikan barisnya.');
+        mpRenderDiag();
+        recordActivity('Pulihkan Hapusan Marketplace', n + ' keputusan dipulihkan.');
+      });
+    }
+
+    var btnHapusMp = document.getElementById('mpHapusBtn');
+    if(btnHapusMp){
+      btnHapusMp.addEventListener('click', function(){
+        if(!mpBolehKoreksi()){
+          window.alert('Hanya Owner dan Super Admin yang dapat menghapus data marketplace.');
+          return;
+        }
+        if(!mpRows.length){
+          window.alert('Belum ada data marketplace untuk dihapus.');
+          return;
+        }
+        // Dua lapis konfirmasi: tindakan ini tidak bisa dibatalkan dan
+        // menghapus data seluruh platform sekaligus, bukan hanya yang tampil.
+        if(!window.confirm('Hapus SELURUH data marketplace (' +
+           mpRows.length.toLocaleString('id-ID') + ' baris dari semua platform)?\n\n' +
+           'Tab Monitoring Jubelio tidak terpengaruh. Data ini bisa dipulihkan ' +
+           'lewat Cadangan Data, atau dengan mengunggah ulang berkas ekspornya.')) return;
+        if(!window.confirm('Sekali lagi: seluruh data marketplace akan hilang. Lanjutkan?')) return;
+
+        var jumlah = mpRows.length;
+        mpRows = [];
+        renderMarket();
+        simpanMarketKeCloud();
+        logMsg('warn', '\uD83D\uDDD1', '<b>' + jumlah.toLocaleString('id-ID') +
+          ' baris</b> data marketplace dihapus.');
+        recordActivity('Hapus Data Marketplace', jumlah + ' baris dihapus.');
+      });
+    }
   }
 
   function processFile(file){
@@ -8588,12 +8845,27 @@
         batch.set(db.collection('backups').doc(id + '__c' + idx), {rows: c});
       });
     });
+    // Data marketplace ikut dicadangkan, dengan awalan keping sendiri (__m)
+    // supaya tidak tertukar dengan keping Jubelio (__c). Tanpa ini, satu-satunya
+    // jalan pulih kalau mpChunks rusak adalah mengunggah ulang semua ekspor.
+    var mpChunks = [];
+    for(var m = 0; m < mpRows.length; m += MP_CHUNK){
+      mpChunks.push(mpRows.slice(m, m + MP_CHUNK));
+    }
+    mpChunks.forEach(function(c, idx){
+      operasi.push(function(batch){
+        batch.set(db.collection('backups').doc(id + '__m' + idx), {rows: c});
+      });
+    });
+
     var ringkasCadangan = {
       at: Date.now(),
       oleh: window.currentUsername || (user && user.email) || 'tidak diketahui',
       pemicu: pemicu || 'Perubahan data',
       jumlahBaris: jubelioRows.length,
       chunkCount: chunks.length,
+      mpJumlahBaris: mpRows.length,
+      mpChunkCount: mpChunks.length,
       lphLookup: lphLookup,
       lphSiteLookup: lphSiteLookup,
       tiiLookupC: tiiLookupC,
@@ -8623,7 +8895,7 @@
     });
   }
 
-  function hapusCadangan(id, chunkCount){
+  function hapusCadangan(id, chunkCount, mpChunkCount){
     var operasi = [];
     for(var i = 0; i < (chunkCount || 0); i++){
       (function(k){
@@ -8631,6 +8903,15 @@
           batch.delete(db.collection('backups').doc(id + '__c' + k));
         });
       })(i);
+    }
+    // Keping marketplace ikut dihapus. Kalau dilewatkan, dokumen __m akan
+    // tertinggal selamanya sebagai sampah yang tetap dihitung kuota Firestore.
+    for(var m = 0; m < (mpChunkCount || 0); m++){
+      (function(k){
+        operasi.push(function(batch){
+          batch.delete(db.collection('backups').doc(id + '__m' + k));
+        });
+      })(m);
     }
     operasi.push(function(batch){ batch.delete(db.collection('backups').doc(id)); });
     return komitBerurutan(operasi);
@@ -8640,7 +8921,7 @@
     return ambilDaftarCadangan().then(function(list){
       var lama = list.slice(MAKS_CADANGAN);
       if(!lama.length) return;
-      return Promise.all(lama.map(function(b){ return hapusCadangan(b.id, b.chunkCount); }));
+      return Promise.all(lama.map(function(b){ return hapusCadangan(b.id, b.chunkCount, b.mpChunkCount); }));
     })['catch'](function(err){ console.warn('Gagal membersihkan cadangan lama:', err); });
   }
 
@@ -8649,10 +8930,29 @@
     for(var i = 0; i < (b.chunkCount || 0); i++){
       reads.push(db.collection('backups').doc(b.id + '__c' + i).get());
     }
-    return Promise.all(reads).then(function(snaps){
+    // Keping marketplace dibaca terpisah. Cadangan lama tidak punya bagian
+    // ini (mpChunkCount kosong), dan itu ditangani sebagai nol keping —
+    // datanya dibiarkan apa adanya, bukan dikosongkan.
+    var jmlMp = b.mpChunkCount || 0;
+    var bacaMp = [];
+    for(var m = 0; m < jmlMp; m++){
+      bacaMp.push(db.collection('backups').doc(b.id + '__m' + m).get());
+    }
+
+    return Promise.all(reads.concat(bacaMp)).then(function(semua){
+      var snaps = semua.slice(0, reads.length);
+      var snapsMp = semua.slice(reads.length);
+
       var rows = [];
       snaps.forEach(function(s){ if(s.exists && s.data().rows) rows = rows.concat(s.data().rows); });
       if(!rows.length) throw new Error('Isi cadangan kosong atau tidak lengkap.');
+
+      if(jmlMp){
+        var mp = [];
+        snapsMp.forEach(function(s){ if(s.exists && s.data().rows) mp = mp.concat(s.data().rows); });
+        mpRows = mp;
+        simpanMarketKeCloud();
+      }
 
       jubelioRows = buangNoTelp(rows);
       lphLookup = b.lphLookup || {};
@@ -8846,10 +9146,44 @@
     });
   });
 
+  // ---------- pemeriksaan Tailwind ----------
+  // Tab Jadwal dibangun dengan 269+ kelas Tailwind yang DISUSUN DI BROWSER
+  // oleh cdn.tailwindcss.com. Kalau CDN itu diblokir jaringan kantor atau
+  // sedang tumbang, tab Jadwal kehilangan seluruh tata letaknya — bukan
+  // sedikit berubah, tapi rusak total.
+  //
+  // Ini bukan perbaikan, hanya pemberitahuan: tanpa peringatan ini, orang
+  // akan menyangka dashboardnya rusak dan melapor sebagai bug. Perbaikan
+  // sebenarnya menuntut Tailwind dikompilasi lebih dulu jadi CSS statis,
+  // yang berarti menambah tahap build — tidak bisa di dalam satu berkas HTML.
+  function periksaTailwind(){
+    // Pengintai memakai "pt-4" (padding-top: 1rem), bukan "hidden", karena
+    // dashboard ini punya kelas .hidden sendiri sehingga hasilnya tidak sah.
+    var uji = document.createElement('div');
+    uji.className = 'pt-4';
+    uji.style.position = 'absolute';
+    uji.style.visibility = 'hidden';
+    document.body.appendChild(uji);
+    var pad = window.getComputedStyle(uji).paddingTop;
+    document.body.removeChild(uji);
+
+    var termuat = pad && parseFloat(pad) >= 15;   // 1rem = 16px
+    if(termuat) return;
+
+    logMsg('warn', '\u26a0',
+      '<b>Tailwind CSS gagal dimuat</b> dari cdn.tailwindcss.com. Tab <b>Jadwal</b> ' +
+      'akan tampak rusak tata letaknya \u2014 datanya aman, hanya tampilannya. ' +
+      'Biasanya karena jaringan memblokir CDN. Coba jaringan lain, atau muat ulang halaman.');
+  }
+
   function init(){
     pantauDataStart();
     pantauKoreksi();
     pantauPerubahan();
+    pantauMpKoreksi();
+    // Diberi jeda 2,5 detik: Tailwind disusun secara asinkron, memeriksanya
+    // terlalu cepat akan salah menuduh gagal padahal masih dalam perjalanan.
+    window.setTimeout(periksaTailwind, 2500);
     pasangMarketUI();
     muatMarketDariCloud();
     refreshAll();
