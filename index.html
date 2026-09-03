@@ -2711,6 +2711,11 @@
         <p class="an-diag" id="mpDiag"></p>
       </div>
       <div class="an-controls">
+        <div class="an-toggle" id="mpPlatform">
+          <button type="button" data-val="" class="on">Semua</button>
+          <button type="button" data-val="SHOPEE">Shopee</button>
+          <button type="button" data-val="TOKOPEDIA/TIKTOK">Tokopedia/TikTok</button>
+        </div>
         <button type="button" class="btn btn-ghost" id="mpUnduhBtn" title="Unduh data mentah apa adanya, sesuai filter">↓ Unduh Data Mentah</button>
         <button type="button" class="btn btn-primary" id="mpRekapBtn" title="Unduh rekap penjualan 10 sheet dengan rumus hidup">📊 Rekap Sales Marketplace</button>
       </div>
@@ -6928,6 +6933,9 @@
     // Ekspor mentah Shopee. Diperiksa SEBELUM 'prodclass' karena file ini juga
     // punya banyak kolom umum; tanda tangannya tiga kolom yang khas Shopee.
     if(set['No. Pesanan'] && set['Status Pesanan'] && set['Nomor Referensi SKU']) return 'shopee';
+    // Ekspor Tokopedia / TikTok Shop. Satu berkas bisa memuat kedua platform;
+    // pembedanya ada di kolom Purchase Channel, bukan di jenis berkasnya.
+    if(set['Order ID'] && set['Order Status'] && set['Seller SKU']) return 'tiktok';
     // File master klasifikasi produk: punya kolom Generic (atau SKU) + kolom PROD CLASS,
     // dan BUKAN file jubelio (yang juga punya SKU tapi lengkap dengan No Pesanan).
     if((set['Generic'] || set['GENERIC'] || set['generic'] || set['SKU']) && cariKolomProdClass(headers)) return 'prodclass';
@@ -7216,7 +7224,7 @@
   var mpState = {
     hal: 1, perHal: 50, sortKey: 'Tanggal', sortDir: -1,
     msel: {status: [], gudang: [], kanal: []},
-    dupKey: '', dupCounts: null,
+    dupKey: '', dupCounts: null, platform: '',
     hasil: []
   };
 
@@ -7282,6 +7290,8 @@
     [/batal|cancel/i,                  'badge-canceled'],
     [/selesai|complete/i,              'badge-completed'],
     [/telah dikirim|delivered/i,       'badge-shipped'],
+    // Istilah Tokopedia/TikTok: "Dikirim" saja berarti sedang dalam perjalanan.
+    [/^dikirim$/i,                     'badge-processing'],
     [/sedang dikirim|dalam pengiriman/i, 'badge-processing'],
     [/diterima/i,                      'badge-pending'],
     [/retur|refund|pengembalian/i,     'badge-returned'],
@@ -7369,6 +7379,116 @@
     recordActivity('Unggah Data Marketplace', fileName + ' (Shopee) \u2014 ' + ket + '.');
   }
 
+
+  // ---------- ekspor Tokopedia / TikTok Shop ----------
+  // Formatnya berbeda jauh dari Shopee: nama kolom Inggris, tanggal
+  // DD/MM/YYYY, dan baris kedua berisi KETERANGAN kolom, bukan data.
+  var TT_KANAL = 'TOKOPEDIA/TIKTOK';
+
+  // "31/08/2026 10:23:23" -> "2026-08-31 10:23:23"
+  function ttWaktu(v){
+    if(v === null || v === undefined || v === '') return '';
+    if(v instanceof Date && !isNaN(v)) return mpWaktu(v);
+    var t = String(v).trim();
+    var m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if(m){
+      return m[3] + '-' + m[2] + '-' + m[1] +
+             (m[4] ? ' ' + m[4] + ':' + m[5] + ':' + (m[6] || '00') : '');
+    }
+    return mpWaktu(t);
+  }
+
+  // Baris keterangan bawaan ekspor TikTok ("Platform unique order ID.",
+  // "Current order status.", …). Dikenali dari Order ID yang bukan angka.
+  function ttBarisKeterangan(row){
+    var id = trimKey(row['Order ID']);
+    return !id || !/^\d{6,}$/.test(id);
+  }
+
+  function mergeTiktokSheet(json, fileName){
+    var index = {};
+    mpRows.forEach(function(r, i){ index[r.__id] = i; });
+
+    var baru = 0, ubah = 0, sama = 0, lewat = 0;
+    var urutan = {};
+
+    json.forEach(function(row){
+      if(ttBarisKeterangan(row)){ lewat++; return; }
+
+      var pes = trimKey(row['Order ID']);
+      var sku = trimKey(row['Seller SKU']);
+      var varian = trimKey(row['Variation']);
+      var dasar = pes + '|' + sku + '|' + varian;
+      urutan[dasar] = (urutan[dasar] || 0) + 1;
+
+      var qty = mpAngka(row['Quantity']) || 0;
+      var subtotal = mpAngka(row['SKU Subtotal After Discount']);
+      var diskPlatform = mpAngka(row['SKU Platform Discount']) || 0;
+      var diskPenjual = mpAngka(row['SKU Seller Discount']) || 0;
+
+      var rec = {
+        __id: dasar + '#' + urutan[dasar],
+        // Tokopedia dan TikTok digabung dalam satu label sesuai permintaan;
+        // pembedanya tetap tersimpan di Status Asli bila suatu saat diperlukan.
+        'Kanal': TT_KANAL,
+        'No Pesanan': pes,
+        'Tanggal': ttWaktu(row['Created Time']),
+        'Waktu Bayar': ttWaktu(row['Paid Time']),
+        'Waktu Selesai': ttWaktu(row['Delivered Time']),
+        'Status': trimKey(row['Order Status']),
+        'Status Asli': trimKey(row['Order Status']) +
+                       (trimKey(row['Order Substatus']) ? ' \u2014 ' + trimKey(row['Order Substatus']) : '') +
+                       (trimKey(row['Purchase Channel']) ? ' \u00b7 ' + trimKey(row['Purchase Channel']) : ''),
+        'Alasan Batal': trimKey(row['Cancel Reason']),
+        'SKU': sku,
+        // Ekspor ini tidak punya SKU induk tersendiri; Seller SKU dipakai
+        // supaya rekap Per Produk tetap punya kunci pengelompokan.
+        'SKU Induk': sku,
+        'Nama Produk': trimKey(row['Product Name']),
+        'Variasi': varian,
+        'Qty': qty,
+        'Qty Retur': mpAngka(row['Sku Quantity of return']),
+        'Harga Awal': mpAngka(row['SKU Unit Original Price']),
+        // Harga satuan setelah diskon tidak disediakan; dihitung dari subtotal
+        // dibagi qty supaya sebanding dengan kolom yang sama pada data Shopee.
+        'Harga': (qty && subtotal !== null) ? Math.round(subtotal / qty) : subtotal,
+        'Subtotal': subtotal,
+        'Total Bayar': mpAngka(row['Order Amount']),
+        'Total Diskon': diskPlatform + diskPenjual,
+        'Diskon Penjual': diskPenjual,
+        'Diskon Marketplace': diskPlatform,
+        'Ongkir Pembeli': mpAngka(row['Shipping Fee After Discount']),
+        'Gudang': trimKey(row['Warehouse Name']),
+        'Penerima': trimKey(row['Recipient']),
+        'Username': trimKey(row['Buyer Username']),
+        'Kota': trimKey(row['Regency and City']),
+        'Provinsi': trimKey(row['Province']),
+        'No Resi': trimKey(row['Tracking ID']),
+        'Kurir': trimKey(row['Shipping Provider Name']),
+        'Metode Bayar': trimKey(row['Payment Method'])
+      };
+
+      var adaIdx = index[rec.__id];
+      if(adaIdx === undefined){
+        index[rec.__id] = mpRows.length;
+        mpRows.push(rec);
+        baru++;
+      } else {
+        var lamaR = mpRows[adaIdx];
+        var beda = Object.keys(rec).some(function(k){
+          return trimKey(lamaR[k]) !== trimKey(rec[k]);
+        });
+        if(beda){ mpRows[adaIdx] = rec; ubah++; } else { sama++; }
+      }
+    });
+
+    var ket = baru + ' baris baru, ' + ubah + ' diperbarui, ' + sama + ' tidak berubah' +
+              (lewat ? ', ' + lewat + ' dilewati (baris keterangan)' : '');
+    logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Tokopedia/TikTok</b> \u2014 ' +
+      ket + '. Masuk ke tab Marketplace, <b>tidak</b> memengaruhi Monitoring Jubelio.');
+    recordActivity('Unggah Data Marketplace', fileName + ' (Tokopedia/TikTok) \u2014 ' + ket + '.');
+  }
+
   // ---------- simpan & muat ----------
   function mpChunkRef(i){ return db.collection('mpChunks').doc('mp_' + i); }
 
@@ -7428,7 +7548,12 @@
     var sampai = (document.getElementById('mpSampai') || {}).value || '';
     var st = mpState.msel.status, gd = mpState.msel.gudang, kn = mpState.msel.kanal;
 
+    var plat = mpState.platform;
+
     mpState.hasil = mpRows.filter(function(r){
+      // Pemindah platform bekerja di atas filter lain: memilih Shopee lalu
+      // menyaring gudang tetap masuk akal, urutannya tidak saling meniadakan.
+      if(plat && r['Kanal'] !== plat) return false;
       if(dari || sampai){
         var t = mpTanggal(r);
         if(!t) return false;
@@ -8105,9 +8230,32 @@
       var dupSel = document.getElementById('mpDupFilter');
       if(dupSel){ dupSel.value = ''; }
       mpState.dupKey = '';
+      mpState.platform = '';
+      var kp = document.getElementById('mpPlatform');
+      if(kp){
+        Array.prototype.forEach.call(kp.querySelectorAll('button'), function(b, i){
+          b.classList.toggle('on', i === 0);
+        });
+      }
       mpState.hal = 1;
       renderMarket();
     });
+
+    var kotakPlat = document.getElementById('mpPlatform');
+    if(kotakPlat){
+      Array.prototype.forEach.call(kotakPlat.querySelectorAll('button'), function(btn){
+        btn.addEventListener('click', function(){
+          var val = this.getAttribute('data-val');
+          if(mpState.platform === val) return;
+          mpState.platform = val;
+          Array.prototype.forEach.call(kotakPlat.querySelectorAll('button'), function(b){
+            b.classList.toggle('on', b === btn);
+          });
+          mpState.hal = 1;
+          renderMarket();
+        });
+      });
+    }
 
     document.getElementById('mpDupFilter').addEventListener('change', function(){
       mpState.dupKey = this.value;
@@ -8163,9 +8311,10 @@
           else if(type === 'tii'){ mergeTiiSheet(json, file.name); anyRecognized = true; }
           else if(type === 'prodclass'){ mergeProdClassSheet(json, file.name, cariKolomProdClass(headers), cariKolomGeneric(headers)); anyRecognized = true; }
           else if(type === 'shopee'){ mergeShopeeSheet(json, file.name); anyRecognized = true; adaMarketBaru = true; }
+          else if(type === 'tiktok'){ mergeTiktokSheet(json, file.name); anyRecognized = true; adaMarketBaru = true; }
         });
         if(!anyRecognized){
-          logMsg('warn', '⚠', '<b>' + file.name + '</b> tidak dikenali. Pastikan formatnya sama dengan jubelio_data.xlsx, LPH_2.xlsx, TO TI DETAIL (TII_DETAIL.xlsx), file master PROD CLASS (kolom Generic + PROD CLASS), atau ekspor pesanan Shopee.');
+          logMsg('warn', '⚠', '<b>' + file.name + '</b> tidak dikenali. Pastikan formatnya sama dengan jubelio_data.xlsx, LPH_2.xlsx, TO TI DETAIL (TII_DETAIL.xlsx), file master PROD CLASS (kolom Generic + PROD CLASS), ekspor pesanan Shopee, atau ekspor Tokopedia/TikTok.');
         } else {
           scheduleSaveToCloud();
         }
