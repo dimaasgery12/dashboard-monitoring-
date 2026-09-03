@@ -2710,7 +2710,7 @@
       </div>
     </div>
 
-    <div class="mp-catatan" id="mpCatatan">⚠ <b>Angka di sini tidak diubah sama sekali.</b> Harga dan Total Bayar ditampilkan persis seperti di file ekspor — tidak dikalikan, tidak diberi label Rp. Pada contoh Shopee, <b>Harga 699</b> kemungkinan berarti Rp 699.000, tapi dashboard sengaja tidak menebak. Pastikan satuannya ke Shopee Seller Centre sebelum memakai angka ini untuk laporan.</div>
+    <div class="mp-catatan" id="mpCatatan">ℹ Isi tabel ini <b>apa adanya</b> dari berkas ekspor — tidak dicocokkan ke LPH/TI dan tidak memengaruhi angka Monitoring maupun Analitik. Nilai uang dibaca dengan format Indonesia (titik = pemisah ribuan), jadi <b>699.000</b> di berkas terbaca <b>Rp 699.000</b>.</div>
 
     <div class="an-toolbar" id="mpToolbar">
       <input type="text" id="mpCari" placeholder="Cari no. pesanan, SKU, nama produk, penerima, atau no. resi…">
@@ -7179,9 +7179,9 @@
     {key:'Nama Produk',  label:'Nama Produk', cls:'col-name'},
     {key:'Variasi',      label:'Variasi'},
     {key:'Qty',          label:'Qty', align:'right'},
-    {key:'Harga',        label:'Harga Satuan', align:'right'},
-    {key:'Subtotal',     label:'Subtotal', align:'right'},
-    {key:'Total Bayar',  label:'Total Bayar', align:'right'},
+    {key:'Harga',        label:'Harga Satuan', align:'right', rp:true},
+    {key:'Subtotal',     label:'Subtotal', align:'right', rp:true},
+    {key:'Total Bayar',  label:'Total Bayar', align:'right', rp:true},
     {key:'Gudang',       label:'Gudang'},
     {key:'Penerima',     label:'Penerima'},
     {key:'Kota',         label:'Kota/Kabupaten'},
@@ -7195,9 +7195,34 @@
     hasil: []
   };
 
+  // Nilai uang di ekspor Shopee tersimpan sebagai TEKS dengan format
+  // Indonesia: "699.000" berarti enam ratus sembilan puluh sembilan ribu,
+  // bukan 699 koma nol. Titik adalah pemisah RIBUAN, koma yang desimal.
+  // Salah membacanya membuat angka meleset seribu kali lipat — itulah yang
+  // membuat "Harga 699" sempat muncul untuk sepatu seharga Rp 699.000.
   function mpAngka(v){
     if(v === null || v === undefined || v === '') return null;
-    var n = Number(String(v).replace(/[^\d.,-]/g, '').replace(/,/g, '.'));
+    if(typeof v === 'number') return v;
+
+    var s = String(v).trim().replace(/[^\d.,-]/g, '');
+    if(!s) return null;
+
+    var koma = s.lastIndexOf(',');
+    if(koma !== -1){
+      // Ada koma: titik = ribuan, koma = desimal.
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // Tanpa koma. Titik dianggap pemisah ribuan HANYA bila tiap kelompok
+      // setelahnya tepat tiga digit — pola "1.234.567". Kalau tidak, titik
+      // itu memang desimal ("12.5") dan dibiarkan apa adanya.
+      var bagian = s.split('.');
+      var ribuan = bagian.length > 1 && bagian.slice(1).every(function(g){
+        return g.length === 3;
+      });
+      s = ribuan ? bagian.join('') : s;
+    }
+
+    var n = Number(s);
     return isNaN(n) ? null : n;
   }
 
@@ -7456,10 +7481,10 @@
             if(c.badge){
               isi = v ? '<span class="badge" title="' + escHtml(r['Status Asli'] || v) + '">' + escHtml(v) + '</span>' : '';
             } else if(c.align === 'right'){
-              // Angka ditampilkan apa adanya, TANPA "Rp" dan tanpa dikalikan
-              // apa pun — satuan aslinya dari marketplace masih perlu kamu
-              // pastikan, jadi jangan sampai dashboard ini yang menebak.
-              isi = (v === null || v === undefined) ? '' : Number(v).toLocaleString('id-ID', {maximumFractionDigits: 2});
+              // Nilainya tetap apa adanya dari ekspor — yang ditambahkan hanya
+              // pemisah ribuan dan awalan Rp untuk kolom uang.
+              isi = (v === null || v === undefined) ? ''
+                  : (c.rp ? 'Rp ' : '') + Number(v).toLocaleString('id-ID', {maximumFractionDigits: 2});
             } else {
               isi = (v === null || v === undefined) ? '' : escHtml(String(v));
             }
@@ -7493,7 +7518,7 @@
       ['Baris', d.length.toLocaleString('id-ID'), 'setelah filter'],
       ['Pesanan Unik', Object.keys(pesanan).length.toLocaleString('id-ID'), 'satu pesanan bisa banyak SKU'],
       ['Total Qty', qty.toLocaleString('id-ID'), 'unit'],
-      ['Total Bayar', bayar.toLocaleString('id-ID', {maximumFractionDigits: 0}), 'apa adanya dari ekspor'],
+      ['Total Bayar', 'Rp ' + bayar.toLocaleString('id-ID', {maximumFractionDigits: 0}), 'apa adanya dari ekspor'],
       ['Baris Batal', batal.toLocaleString('id-ID'), d.length ? (batal / d.length * 100).toFixed(1).replace('.', ',') + '% dari baris' : '\u2013']
     ];
     box.innerHTML = kartu.map(function(k){
