@@ -2711,7 +2711,8 @@
         <p class="an-diag" id="mpDiag"></p>
       </div>
       <div class="an-controls">
-        <button type="button" class="btn btn-primary" id="mpUnduhBtn" title="Unduh data mentah sesuai filter">↓ Unduh Excel</button>
+        <button type="button" class="btn btn-ghost" id="mpUnduhBtn" title="Unduh data mentah apa adanya, sesuai filter">↓ Unduh Data Mentah</button>
+        <button type="button" class="btn btn-primary" id="mpRekapBtn" title="Unduh rekap penjualan 10 sheet dengan rumus hidup">📊 Rekap Sales Marketplace</button>
       </div>
     </div>
 
@@ -7644,6 +7645,323 @@
 
   window.refreshMarket = renderMarket;
 
+  // ============================================================
+  // Pembangun berkas "Rekap Sales Marketplace".
+  // Meniru template yang dilampirkan: 10 sheet, seluruh angka rekap berupa
+  // rumus yang menunjuk ke sheet Data — bukan nilai mati.
+  // ============================================================
+  function buatWorkbookRekapMarket(baris){
+    var EJS = window.ExcelJS;
+
+    var FONT = 'Arial';
+    var INK = 'FF1A1A1A';
+    var NAVY = 'FF1F3864';
+    var NUM = '#,##0;(#,##0);-';
+    var PCT = '0.0%';
+    var DEC = '#,##0.00;(#,##0.00);-';
+
+    // Susunan kolom sheet Data. Empat kolom terakhir adalah kolom bantu yang
+    // dipakai rumus-rumus rekap; sengaja ditaruh di sheet Data, bukan
+    // disembunyikan, supaya hasilnya bisa ditelusuri sendiri.
+    var KOLOM = [
+      'Kanal', 'No Pesanan', 'Tanggal', 'Waktu Bayar', 'Waktu Selesai',
+      'Status', 'Status Asli', 'Alasan Batal', 'SKU', 'SKU Induk',
+      'Nama Produk', 'Variasi', 'Qty', 'Qty Retur', 'Harga Awal', 'Harga',
+      'Subtotal', 'Total Bayar', 'Total Diskon', 'Diskon Penjual',
+      'Diskon Marketplace', 'Ongkir Pembeli', 'Gudang', 'Penerima', 'Username',
+      'Kota', 'Provinsi', 'No Resi', 'Kurir', 'Metode Bayar',
+      'Tgl', 'Order Unik', 'Kategori', 'Gudang Norm', 'Gross (Harga Awal x Qty)'
+    ];
+
+    // Huruf kolom di sheet Data, dipakai menyusun rumus.
+    var K = {
+      pesanan: 'B', tanggal: 'C', status: 'F', skuInduk: 'J', produk: 'K',
+      qty: 'M', hargaAwal: 'O', subtotal: 'Q', totalBayar: 'R', diskon: 'S',
+      ongkir: 'V', gudang: 'W', kota: 'Z', provinsi: 'AA', kurir: 'AC',
+      bayar: 'AD', tgl: 'AE', unik: 'AF', kategori: 'AG', gudangNorm: 'AH',
+      gross: 'AI'
+    };
+
+    // Kategori diturunkan dari kata kunci pada Nama Produk. Ini tebakan, bukan
+    // data resmi — karena ekspor marketplace tidak memuat PROD CLASS. Aturannya
+    // ditulis di baris keterangan tiap sheet supaya pembacanya sadar.
+    function kategoriDari(nama){
+      var t = String(nama || '').toLowerCase();
+      if(/sepatu|sneaker|shoes|sandal|running|footwear/.test(t)) return 'Footwear';
+      if(/socks|kaos kaki|bag|tas|topi|cap|hat|botol|bottle|accessor/.test(t)) return 'Equipment/Accessories';
+      return 'Apparel';
+    }
+
+    var data = (baris || []).map(function(r){
+      var o = {};
+      KOLOM.forEach(function(k){ o[k] = (r[k] === undefined ? null : r[k]); });
+      o['Tgl'] = String(r['Tanggal'] || '').slice(0, 10);
+      o['Kategori'] = kategoriDari(r['Nama Produk']);
+      return o;
+    });
+
+    var N = data.length;
+    var R1 = 2, R2 = N + 1;
+    var wb = new EJS.Workbook();
+    wb.creator = 'Monitoring Jubelio';
+    wb.created = new Date();
+
+    // ---------- pembantu gaya ----------
+    function garis(){
+      var t = {style: 'thin', color: {argb: 'FFD9D9D9'}};
+      return {top: t, left: t, bottom: t, right: t};
+    }
+    function judulSheet(ws, teks, ket){
+      var a = ws.getCell('A1');
+      a.value = teks;
+      a.font = {name: FONT, size: 14, bold: true, color: {argb: NAVY}};
+      if(ket){
+        var b = ws.getCell('A2');
+        b.value = ket;
+        b.font = {name: FONT, size: 9, italic: true, color: {argb: 'FF666666'}};
+      }
+    }
+    function headTabel(ws, baris_, kolom){
+      var row = ws.getRow(baris_);
+      kolom.forEach(function(n, i){
+        var c = row.getCell(i + 1);
+        c.value = n;
+        c.font = {name: FONT, size: 10, bold: true, color: {argb: 'FFFFFFFF'}};
+        c.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: NAVY}};
+        c.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
+        c.border = garis();
+      });
+      row.height = 24;
+    }
+    function rapikan(ws, r0, r1, nKol, fmt){
+      for(var r = r0; r <= r1; r++){
+        for(var c = 1; c <= nKol; c++){
+          var sel = ws.getRow(r).getCell(c);
+          sel.font = {name: FONT, size: 10, color: {argb: INK}};
+          sel.border = garis();
+          if(r % 2 === 0) sel.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFF2F5F9'}};
+          if(fmt[c]) sel.numFmt = fmt[c];
+        }
+      }
+    }
+    function barisTotal(ws, r, nKol){
+      for(var c = 1; c <= nKol; c++){
+        var s = ws.getRow(r).getCell(c);
+        s.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
+        s.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFDCE3EF'}};
+      }
+    }
+    function lebar(ws, u){ u.forEach(function(w, i){ ws.getColumn(i + 1).width = w; }); }
+    function F(x){ return {formula: x}; }
+
+    function rng(huruf){ return 'Data!$' + huruf + '$' + R1 + ':$' + huruf + '$' + R2; }
+
+    // ============ sheet rekap generik ============
+    // Semua sheet "Per ..." berbentuk sama: satu kolom kunci, lalu Pesanan,
+    // Qty, Penjualan Bersih, Total Diskon, % Kontribusi.
+    function sheetRekap(nama, judul, labelKunci, hurufKunci, nilaiKunci, ket){
+      var ws = wb.addWorksheet(nama, {views: [{showGridLines: false}]});
+      judulSheet(ws, judul, ket);
+      headTabel(ws, 4, [labelKunci, 'Pesanan', 'Qty', 'Penjualan Bersih', 'Total Diskon', '% Kontribusi']);
+
+      var r0 = 5, rt = r0 + nilaiKunci.length;
+      nilaiKunci.forEach(function(v, i){
+        var r = r0 + i;
+        ws.getRow(r).getCell(1).value = v;
+        ws.getRow(r).getCell(2).value = F('SUMIFS(' + rng(K.unik) + ',' + rng(hurufKunci) + ',$A' + r + ')');
+        ws.getRow(r).getCell(3).value = F('SUMIFS(' + rng(K.qty) + ',' + rng(hurufKunci) + ',$A' + r + ')');
+        ws.getRow(r).getCell(4).value = F('SUMIFS(' + rng(K.subtotal) + ',' + rng(hurufKunci) + ',$A' + r + ')');
+        ws.getRow(r).getCell(5).value = F('SUMIFS(' + rng(K.diskon) + ',' + rng(hurufKunci) + ',$A' + r + ')');
+        ws.getRow(r).getCell(6).value = F('IFERROR(D' + r + '/$D$' + rt + ',0)');
+      });
+
+      ws.getRow(rt).getCell(1).value = 'TOTAL';
+      [2, 3, 4, 5, 6].forEach(function(c){
+        var h = String.fromCharCode(64 + c);
+        ws.getRow(rt).getCell(c).value = F('SUM(' + h + r0 + ':' + h + (rt - 1) + ')');
+      });
+
+      rapikan(ws, r0, rt, 6, {2: NUM, 3: NUM, 4: NUM, 5: NUM, 6: PCT});
+      barisTotal(ws, rt, 6);
+      lebar(ws, [38, 12, 10, 18, 16, 14]);
+      ws.views = [{state: 'frozen', ySplit: 4, showGridLines: false}];
+    }
+
+    function unik(kolom){
+      var set = {};
+      data.forEach(function(r){ if(r[kolom]) set[r[kolom]] = true; });
+      return Object.keys(set);
+    }
+    // Diurutkan dari penjualan bersih terbesar supaya yang penting di atas.
+    function unikUrut(kolom){
+      var jml = {};
+      data.forEach(function(r){
+        var k = r[kolom];
+        if(!k) return;
+        jml[k] = (jml[k] || 0) + (Number(r['Subtotal']) || 0);
+      });
+      return Object.keys(jml).sort(function(a, b){ return jml[b] - jml[a]; });
+    }
+
+    // ============ 1. Ringkasan ============
+    var ws = wb.addWorksheet('Ringkasan', {views: [{showGridLines: false}]});
+    var tglSemua = data.map(function(r){ return r['Tgl']; }).filter(Boolean).sort();
+    var kanal = unik('Kanal').join(', ');
+
+    judulSheet(ws, 'REKAP PENJUALAN MARKETPLACE',
+      'League Indonesia | Sumber: tab Marketplace pada dashboard | Semua angka dihitung dengan formula dari sheet Data');
+
+    var j4 = ws.getCell('A4');
+    j4.value = 'RINGKASAN UTAMA';
+    j4.font = {name: FONT, size: 11, bold: true, color: {argb: NAVY}};
+
+    var barisRingkas = [
+      [5,  'Periode transaksi', tglSemua.length ? (tglSemua[0] + ' s/d ' + tglSemua[tglSemua.length - 1]) : '-', 'Diambil dari kolom Tanggal pada data mentah', null],
+      [6,  'Kanal', kanal || '-', 'Kanal yang ada di file ini', null],
+      [8,  'Jumlah pesanan (unik)', F('SUM(' + rng(K.unik) + ')'), 'No Pesanan unik; baris ke-2 dst dari pesanan sama tidak dihitung ulang', NUM],
+      [9,  'Jumlah baris item', F('COUNTA(' + rng(K.pesanan) + ')'), 'Satu pesanan bisa berisi lebih dari satu item', NUM],
+      [10, 'Total qty terjual', F('SUM(' + rng(K.qty) + ')'), null, NUM],
+      [11, 'Item per pesanan', F('IFERROR(B9/B8,0)'), 'Baris item dibagi jumlah pesanan', DEC],
+      [13, 'Gross (harga awal x qty)', F('SUM(' + rng(K.gross) + ')'), 'Nilai sebelum diskon', NUM],
+      [14, 'Total diskon', F('SUM(' + rng(K.diskon) + ')'), 'Diskon penjual + diskon marketplace', NUM],
+      [15, '% diskon terhadap gross', F('IFERROR(B14/B13,0)'), null, PCT],
+      [16, 'Penjualan bersih (subtotal)', F('SUM(' + rng(K.subtotal) + ')'), 'Gross dikurangi diskon; belum termasuk ongkir', NUM],
+      [18, 'Ongkir dibayar pembeli', F('SUMIFS(' + rng(K.ongkir) + ',' + rng(K.unik) + ',1)'), 'Dihitung per pesanan unik', NUM],
+      [19, 'Total bayar pembeli', F('SUMIFS(' + rng(K.totalBayar) + ',' + rng(K.unik) + ',1)'), 'Nilai order-level di data mentah, dihitung per pesanan unik', NUM],
+      [20, 'AOV (rata-rata per pesanan)', F('IFERROR(B19/B8,0)'), 'Total bayar pembeli / jumlah pesanan', NUM],
+      [21, 'Rata-rata harga jual per unit', F('IFERROR(B16/B10,0)'), 'Penjualan bersih / total qty', NUM]
+    ];
+    barisRingkas.forEach(function(b){
+      var row = ws.getRow(b[0]);
+      var c1 = row.getCell(1);
+      c1.value = b[1];
+      c1.font = {name: FONT, size: 10, bold: true, color: {argb: INK}};
+      var c2 = row.getCell(2);
+      c2.value = b[2];
+      c2.font = {name: FONT, size: 10, color: {argb: INK}};
+      c2.alignment = {horizontal: 'right'};
+      if(b[4]) c2.numFmt = b[4];
+      if(b[3]){
+        var c3 = row.getCell(3);
+        c3.value = b[3];
+        c3.font = {name: FONT, size: 9, italic: true, color: {argb: 'FF777777'}};
+      }
+    });
+
+    var jt = ws.getCell('A23');
+    jt.value = 'PER TANGGAL';
+    jt.font = {name: FONT, size: 11, bold: true, color: {argb: NAVY}};
+    headTabel(ws, 24, ['Tanggal', 'Pesanan', 'Qty']);
+
+    var tglUnik = unik('Tgl').sort();
+    var rt0 = 25, rtt = rt0 + tglUnik.length;
+    tglUnik.forEach(function(t, i){
+      var r = rt0 + i;
+      ws.getRow(r).getCell(1).value = t;
+      ws.getRow(r).getCell(2).value = F('SUMIFS(' + rng(K.unik) + ',' + rng(K.tgl) + ',$A' + r + ')');
+      ws.getRow(r).getCell(3).value = F('SUMIFS(' + rng(K.qty) + ',' + rng(K.tgl) + ',$A' + r + ')');
+    });
+    ws.getRow(rtt).getCell(1).value = 'TOTAL';
+    ['B', 'C'].forEach(function(h, i){
+      ws.getRow(rtt).getCell(i + 2).value = F('SUM(' + h + rt0 + ':' + h + (rtt - 1) + ')');
+    });
+    rapikan(ws, rt0, rtt, 3, {2: NUM, 3: NUM});
+    barisTotal(ws, rtt, 3);
+    lebar(ws, [30, 18, 52, 20]);
+    ws.views = [{state: 'frozen', ySplit: 3, showGridLines: false}];
+
+    // ============ sheet rekap ============
+    var KET = 'Sumber: sheet Data | Pesanan = No Pesanan unik | Penjualan bersih = subtotal setelah diskon';
+
+    sheetRekap('Per Status', 'REKAP PER STATUS PESANAN', 'Status',
+               K.status, unikUrut('Status'), KET);
+
+    sheetRekap('Per Kategori', 'REKAP PER KATEGORI PRODUK', 'Kategori',
+               K.kategori, unikUrut('Kategori'),
+               KET + ' | Kategori diturunkan dari kata kunci Nama Produk ' +
+               '(sepatu/sneaker = Footwear; socks/kaos kaki/tas = Equipment; sisanya Apparel) ' +
+               '\u2014 tebakan, bukan PROD CLASS resmi');
+
+    sheetRekap('Per Provinsi', 'REKAP PER PROVINSI', 'Provinsi',
+               K.provinsi, unikUrut('Provinsi'), KET);
+
+    sheetRekap('Per Kota', 'REKAP PER KOTA / KABUPATEN', 'Kota / Kabupaten',
+               K.kota, unikUrut('Kota'), KET);
+
+    sheetRekap('Per Gudang', 'REKAP PER GUDANG PENGIRIM', 'Gudang',
+               K.gudangNorm, unikUrut('Gudang').map(function(g){ return String(g).toUpperCase().trim(); })
+                 .filter(function(v, i, a){ return a.indexOf(v) === i; }),
+               KET + ' | Nama gudang dinormalisasi ke huruf kapital (kolom Gudang Norm di sheet Data)');
+
+    sheetRekap('Per Kurir', 'REKAP PER KURIR', 'Kurir',
+               K.kurir, unikUrut('Kurir'), KET);
+
+    sheetRekap('Per Metode Bayar', 'REKAP PER METODE PEMBAYARAN', 'Metode Bayar',
+               K.bayar, unikUrut('Metode Bayar'), KET);
+
+    // ============ Per Produk ============
+    var wp = wb.addWorksheet('Per Produk', {views: [{showGridLines: false}]});
+    judulSheet(wp, 'REKAP PER PRODUK (SKU INDUK)',
+      KET + ' | Diurutkan dari penjualan bersih terbesar');
+    headTabel(wp, 4, ['SKU Induk', 'Nama Produk', 'Kategori', 'Qty', 'Penjualan Bersih', 'Total Diskon', '% Kontribusi']);
+
+    var perProduk = {};
+    data.forEach(function(r){
+      var k = r['SKU Induk'] || r['SKU'];
+      if(!k) return;
+      if(!perProduk[k]) perProduk[k] = {nama: r['Nama Produk'], kat: r['Kategori'], nilai: 0};
+      perProduk[k].nilai += Number(r['Subtotal']) || 0;
+    });
+    var produkUrut = Object.keys(perProduk).sort(function(a, b){
+      return perProduk[b].nilai - perProduk[a].nilai;
+    });
+
+    var rp0 = 5, rpt = rp0 + produkUrut.length;
+    produkUrut.forEach(function(k, i){
+      var r = rp0 + i;
+      wp.getRow(r).getCell(1).value = k;
+      wp.getRow(r).getCell(2).value = perProduk[k].nama;
+      wp.getRow(r).getCell(3).value = perProduk[k].kat;
+      wp.getRow(r).getCell(4).value = F('SUMIFS(' + rng(K.qty) + ',' + rng(K.skuInduk) + ',$A' + r + ')');
+      wp.getRow(r).getCell(5).value = F('SUMIFS(' + rng(K.subtotal) + ',' + rng(K.skuInduk) + ',$A' + r + ')');
+      wp.getRow(r).getCell(6).value = F('SUMIFS(' + rng(K.diskon) + ',' + rng(K.skuInduk) + ',$A' + r + ')');
+      wp.getRow(r).getCell(7).value = F('IFERROR(E' + r + '/$E$' + rpt + ',0)');
+    });
+    wp.getRow(rpt).getCell(1).value = 'TOTAL';
+    [4, 5, 6, 7].forEach(function(c){
+      var h = String.fromCharCode(64 + c);
+      wp.getRow(rpt).getCell(c).value = F('SUM(' + h + rp0 + ':' + h + (rpt - 1) + ')');
+    });
+    rapikan(wp, rp0, rpt, 7, {4: NUM, 5: NUM, 6: NUM, 7: PCT});
+    barisTotal(wp, rpt, 7);
+    lebar(wp, [20, 52, 20, 10, 18, 16, 14]);
+    wp.views = [{state: 'frozen', ySplit: 4, showGridLines: false}];
+
+    // ============ Data ============
+    var wd = wb.addWorksheet('Data');
+    headTabel(wd, 1, KOLOM);
+    data.forEach(function(r, i){
+      var row = wd.getRow(2 + i);
+      KOLOM.forEach(function(k, j){ row.getCell(j + 1).value = r[k]; });
+      var n = 2 + i;
+      // Kolom bantu ditulis sebagai RUMUS, bukan nilai — supaya kalau baris
+      // dihapus atau disaring, penandanya ikut menyesuaikan sendiri.
+      row.getCell(32).value = F('IF(COUNTIF($B$2:B' + n + ',B' + n + ')=1,1,0)');
+      row.getCell(34).value = F('UPPER(TRIM(W' + n + '))');
+      row.getCell(35).value = F('O' + n + '*M' + n);
+    });
+    rapikan(wd, 2, R2, KOLOM.length,
+      {13: NUM, 14: NUM, 15: NUM, 16: NUM, 17: NUM, 18: NUM, 19: NUM,
+       20: NUM, 21: NUM, 22: NUM, 32: NUM, 35: NUM});
+    lebar(wd, [10, 18, 18, 18, 18, 20, 30, 22, 18, 18, 46, 12, 8, 10, 14, 14,
+               14, 14, 14, 14, 16, 14, 20, 22, 18, 22, 20, 20, 26, 18,
+               12, 11, 20, 20, 18]);
+    wd.views = [{state: 'frozen', xSplit: 2, ySplit: 1}];
+    wd.autoFilter = 'A1:AI' + R2;
+
+    return wb;
+  }
+
   function mpUnduhExcel(){
     if(!mpState.hasil.length){
       window.alert('Tidak ada data untuk diunduh pada filter ini.');
@@ -7684,6 +8002,39 @@
     XLSX.writeFile(wb, 'Data Mentah Marketplace ' + stamp + '.xlsx');
     recordActivity('Unduh Data Marketplace',
       mpState.hasil.length + ' baris' + (mpState.dupKey ? ' (mode duplikat)' : '') + '.');
+  }
+
+  function mpUnduhRekap(){
+    if(!mpState.hasil.length){
+      window.alert('Tidak ada data untuk direkap pada filter ini.');
+      return;
+    }
+    if(!window.ExcelJS){
+      window.alert('Pustaka ExcelJS belum termuat. Periksa koneksi internet, '
+                 + 'lalu muat ulang halaman dan coba lagi.');
+      return;
+    }
+    // Rekap mengikuti FILTER yang sedang aktif, bukan seluruh data — supaya
+    // isinya sama dengan yang sedang dilihat di layar.
+    try{
+      var wb = buatWorkbookRekapMarket(mpState.hasil);
+      wb.xlsx.writeBuffer().then(function(buf){
+        var blob = new Blob([buf], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'Rekap Sales Marketplace ' + tanggalHariIni() + '.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        recordActivity('Unduh Rekap Marketplace', mpState.hasil.length + ' baris.');
+      })['catch'](function(err){
+        window.alert('Gagal menyusun berkas rekap: ' + err.message);
+      });
+    }catch(err){
+      window.alert('Gagal menyusun berkas rekap: ' + err.message);
+    }
   }
 
   function pasangMarketUI(){
@@ -7786,6 +8137,7 @@
       mpState.hal = mpMaksHal(); renderMarket();
     });
     document.getElementById('mpUnduhBtn').addEventListener('click', mpUnduhExcel);
+    document.getElementById('mpRekapBtn').addEventListener('click', mpUnduhRekap);
   }
 
   function processFile(file){
