@@ -1011,8 +1011,13 @@
   }
   #mpTable{min-width:1700px;}
   #mpTable td.num{font-variant-numeric:tabular-nums;}
+  /* Berbeda dari tabel Monitoring yang berubah jadi kartu di HP, tabel ini
+     tetap digulir mendatar. Isinya data mentah untuk ditelusuri kolom per
+     kolom, dan bentuk kartu justru menyulitkan membandingkan antar baris. */
+  .mp-wrap{overflow-x:auto;}
   @media (max-width:760px){
-    #mpTable{min-width:0;}
+    .mp-wrap{overflow-x:auto; max-height:none;}
+    #mpTable{min-width:1700px; font-size:11.5px;}
   }
 
   /* ---------- analitik penjualan ---------- */
@@ -2376,10 +2381,10 @@
   </div>
 
   <div class="view-tabs">
-    <button type="button" class="view-tab active" id="tabMonitoringBtn" onclick="switchAppView('monitoring')">📊 Monitoring Rekonsiliasi</button>
+    <button type="button" class="view-tab active" id="tabMonitoringBtn" onclick="switchAppView('monitoring')">📊 Monitoring Jubelio</button>
     <button type="button" class="view-tab" id="tabAnalitikBtn" data-role-hide="toko" onclick="switchAppView('analitik')">📈 Analitik Penjualan</button>
-    <button type="button" class="view-tab" id="tabMarketBtn" data-role-hide="toko" onclick="switchAppView('market')">🛒 Data Mentah Marketplace</button>
-    <button type="button" class="view-tab" id="tabJadwalBtn" data-role-hide="toko" onclick="switchAppView('jadwal')">🗓 Jadwal &amp; Tugas Tim</button>
+    <button type="button" class="view-tab" id="tabMarketBtn" data-role-hide="toko" onclick="switchAppView('market')">🛒 Marketplace</button>
+    <button type="button" class="view-tab" id="tabJadwalBtn" data-role-hide="toko" onclick="switchAppView('jadwal')">🗓 Jadwal</button>
   </div>
 
   <div class="pipeline" id="pipeline"><div class="node"><div class="n-label">Sumber 1</div><div class="n-name">JUBELIO</div><div class="n-count">8.486 pesanan</div></div><div class="link"><div class="track"><div class="fill" style="width:69%"></div><div class="arrow"></div></div><div class="pct"><span>69%</span> match · 5.859</div></div><div class="node"><div class="n-label">Sumber 2</div><div class="n-name">LPH INFINITY</div><div class="n-count">5.859 terhubung</div></div><div class="link"><div class="track"><div class="fill" style="width:39%"></div><div class="arrow"></div></div><div class="pct"><span>39%</span> match · 2.298</div></div><div class="node"><div class="n-label">Sumber 3</div><div class="n-name">TI TO DETAIL INFINITY</div><div class="n-count">2.298 terhubung</div></div></div>
@@ -2712,7 +2717,7 @@
 
     <div class="mp-catatan" id="mpCatatan">ℹ Isi tabel ini <b>apa adanya</b> dari berkas ekspor — tidak dicocokkan ke LPH/TI dan tidak memengaruhi angka Monitoring maupun Analitik. Nilai uang dibaca dengan format Indonesia (titik = pemisah ribuan), jadi <b>699.000</b> di berkas terbaca <b>Rp 699.000</b>.</div>
 
-    <div class="an-toolbar" id="mpToolbar">
+    <div class="toolbar" id="mpToolbar">
       <input type="text" id="mpCari" placeholder="Cari no. pesanan, SKU, nama produk, penerima, atau no. resi…">
       <label class="chk" for="mpDari">Dari <input type="date" id="mpDari"></label>
       <label class="chk" for="mpSampai">Sampai <input type="date" id="mpSampai"></label>
@@ -2740,13 +2745,20 @@
           <div class="msel-options" id="mpMselKanalOptions"></div>
         </div>
       </div>
+      <select id="mpDupFilter" title="Tampilkan hanya baris yang nomornya kembar">
+        <option value="">Duplikat: nonaktif</option>
+        <option value="No Pesanan">Duplikat — No. Pesanan sama</option>
+        <option value="No Resi">Duplikat — No. Resi sama</option>
+        <option value="__PES_SKU__">Duplikat — Pesanan + SKU sama</option>
+      </select>
+      <span class="dup-info" id="mpDupInfo" hidden=""></span>
       <div class="spacer"></div>
-      <button type="button" class="an-reset" id="mpResetBtn">↺ Reset Filter</button>
+      <button type="button" class="btn btn-ghost" id="mpResetBtn">↺ Reset filter</button>
     </div>
 
     <div class="stats" id="mpStats"></div>
 
-    <div class="table-wrap">
+    <div class="table-wrap mp-wrap">
       <table id="mpTable">
         <thead><tr id="mpHeadRow"></tr></thead>
         <tbody id="mpBodyRows"></tbody>
@@ -2756,8 +2768,19 @@
     <div class="pager">
       <span id="mpPagerInfo"></span>
       <div class="spacer"></div>
-      <button type="button" class="btn btn-ghost" id="mpPrev">‹ Sebelumnya</button>
-      <button type="button" class="btn btn-ghost" id="mpNext">Berikutnya ›</button>
+      <label>Baris / halaman:
+        <select id="mpPageSize">
+          <option>25</option>
+          <option selected="">50</option>
+          <option>100</option>
+          <option>250</option>
+        </select>
+      </label>
+      <button id="mpFirst" disabled="">«</button>
+      <button id="mpPrev" disabled="">‹ Sebelumnya</button>
+      <span id="mpPageIndicator">Hal. 1 / 1</span>
+      <button id="mpNext">Berikutnya ›</button>
+      <button id="mpLast">»</button>
     </div>
   </section>
 </main>
@@ -5390,7 +5413,7 @@
         }).length;
         catatan.innerHTML = '\u2139 Termasuk <b>' + luar.toLocaleString('id-ID') +
           ' baris sebelum ' + fmtTanggalID(batas) + '</b> yang tidak dihitung di tab ' +
-          'Monitoring Rekonsiliasi. Analitik sengaja memakai seluruh data karena angka ' +
+          'Monitoring Jubelio. Analitik sengaja memakai seluruh data karena angka ' +
           'penjualan tetap sahih di periode mana pun.';
         catatan.style.display = '';
       } else {
@@ -6753,13 +6776,13 @@
       return;
     }
 
-    // Mengikuti persis apa yang sedang tampil di tabel Monitoring Rekonsiliasi:
+    // Mengikuti persis apa yang sedang tampil di tabel Monitoring Jubelio:
     // filter tanggal, status, sumber, toko, lokasi, pencarian, dan kelompok umur.
     var baris = state.filtered || [];
 
     if(!baris.length){
       window.alert('Tidak ada baris yang cocok dengan filter yang sedang aktif ' +
-                   'di tab Monitoring Rekonsiliasi.\n\n' +
+                   'di tab Monitoring Jubelio.\n\n' +
                    'Longgarkan filternya, lalu coba lagi.');
       return;
     }
@@ -7192,6 +7215,7 @@
   var mpState = {
     hal: 1, perHal: 50, sortKey: 'Tanggal', sortDir: -1,
     msel: {status: [], gudang: [], kanal: []},
+    dupKey: '', dupCounts: null,
     hasil: []
   };
 
@@ -7247,6 +7271,29 @@
     if(!t) return '';
     if(/^Pesanan diterima/i.test(t)) return 'Diterima (masa retur)';
     return t;
+  }
+
+  // Status marketplace dipetakan ke kelas lencana yang SAMA dengan tab
+  // Monitoring, supaya warnanya punya arti yang seragam di seluruh dashboard:
+  // hijau = tuntas, merah = batal, biru = sudah sampai pembeli,
+  // amber = masih bergerak, kuning-netral = belum final.
+  var MP_WARNA_STATUS = [
+    [/batal|cancel/i,                  'badge-canceled'],
+    [/selesai|complete/i,              'badge-completed'],
+    [/telah dikirim|delivered/i,       'badge-shipped'],
+    [/sedang dikirim|dalam pengiriman/i, 'badge-processing'],
+    [/diterima/i,                      'badge-pending'],
+    [/retur|refund|pengembalian/i,     'badge-returned'],
+    [/belum bayar|unpaid|menunggu/i,   'badge-pending']
+  ];
+
+  function mpBadgeClass(status){
+    var t = trimKey(status);
+    if(!t) return 'badge';
+    for(var i = 0; i < MP_WARNA_STATUS.length; i++){
+      if(MP_WARNA_STATUS[i][0].test(t)) return 'badge ' + MP_WARNA_STATUS[i][1];
+    }
+    return 'badge';   // status tak dikenal: tampil netral, bukan salah warna
   }
 
   function mergeShopeeSheet(json, fileName){
@@ -7317,7 +7364,7 @@
     var ket = baru + ' baris baru, ' + ubah + ' diperbarui, ' + sama + ' tidak berubah' +
               (lewat ? ', ' + lewat + ' dilewati (tanpa no. pesanan)' : '');
     logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Shopee</b> \u2014 ' + ket +
-      '. Masuk ke tab Data Mentah Marketplace, <b>tidak</b> memengaruhi Monitoring.');
+      '. Masuk ke tab Marketplace, <b>tidak</b> memengaruhi Monitoring Jubelio.');
     recordActivity('Unggah Data Marketplace', fileName + ' (Shopee) \u2014 ' + ket + '.');
   }
 
@@ -7399,6 +7446,37 @@
       return true;
     });
 
+    // Penyaring duplikat, meniru perilaku di tab Monitoring: hanya baris yang
+    // nomornya muncul lebih dari sekali yang ditampilkan, dihitung SETELAH
+    // filter lain — jadi bisa dipersempit dulu sebelum diperiksa.
+    var dupMode = mpState.dupKey || '';
+    var dupInfo = document.getElementById('mpDupInfo');
+    var dupSel = document.getElementById('mpDupFilter');
+    if(dupMode){
+      var counts = {};
+      mpState.hasil.forEach(function(r){
+        var kk = mpDupKeyOf(r, dupMode);
+        if(kk) counts[kk] = (counts[kk] || 0) + 1;
+      });
+      mpState.hasil = mpState.hasil.filter(function(r){
+        var kk = mpDupKeyOf(r, dupMode);
+        return kk && counts[kk] > 1;
+      });
+      mpState.dupCounts = counts;
+      var nGrup = 0;
+      Object.keys(counts).forEach(function(kk){ if(counts[kk] > 1) nGrup++; });
+      if(dupInfo){
+        dupInfo.hidden = false;
+        dupInfo.textContent = '\u26a0 ' + mpState.hasil.length.toLocaleString('id-ID') +
+                              ' baris kembar \u00b7 ' + nGrup.toLocaleString('id-ID') + ' grup';
+      }
+      if(dupSel) dupSel.classList.add('on');
+    } else {
+      mpState.dupCounts = null;
+      if(dupInfo) dupInfo.hidden = true;
+      if(dupSel) dupSel.classList.remove('on');
+    }
+
     var k = mpState.sortKey, d = mpState.sortDir;
     mpState.hasil.sort(function(a, b){
       var x = a[k], y = b[k];
@@ -7411,6 +7489,15 @@
     if(mpState.hal < 1) mpState.hal = 1;
     var maks = Math.max(1, Math.ceil(mpState.hasil.length / mpState.perHal));
     if(mpState.hal > maks) mpState.hal = maks;
+  }
+
+  function mpDupKeyOf(r, mode){
+    if(!mode) return '';
+    if(mode === '__PES_SKU__'){
+      var p = trimKey(r['No Pesanan']).toUpperCase();
+      return p ? p + ' | ' + trimKey(r['SKU']).toUpperCase() : '';
+    }
+    return trimKey(r[mode]).toUpperCase();
   }
 
   function mpNilaiUnik(kolom){
@@ -7474,12 +7561,18 @@
 
     document.getElementById('mpBodyRows').innerHTML = potong.length
       ? potong.map(function(r){
-          return '<tr>' + MP_COLS.map(function(c){
+          var dupMode = mpState.dupKey || '';
+          var jumlahDup = 0;
+          if(dupMode && mpState.dupCounts){
+            jumlahDup = mpState.dupCounts[mpDupKeyOf(r, dupMode)] || 0;
+          }
+          var trCls = (jumlahDup > 1) ? ' class="dup-band"' : '';
+          return '<tr' + trCls + '>' + MP_COLS.map(function(c){
             var v = r[c.key];
             var cls = (c.cls || '') + (c.align === 'right' ? ' num' : '');
             var isi;
             if(c.badge){
-              isi = v ? '<span class="badge" title="' + escHtml(r['Status Asli'] || v) + '">' + escHtml(v) + '</span>' : '';
+              isi = v ? '<span class="' + mpBadgeClass(v) + '" title="' + escHtml(r['Status Asli'] || v) + '">' + escHtml(v) + '</span>' : '';
             } else if(c.align === 'right'){
               // Nilainya tetap apa adanya dari ekspor — yang ditambahkan hanya
               // pemisah ribuan dan awalan Rp untuk kolom uang.
@@ -7488,16 +7581,27 @@
             } else {
               isi = (v === null || v === undefined) ? '' : escHtml(String(v));
             }
+            if(jumlahDup > 1 &&
+               (c.key === dupMode || (dupMode === '__PES_SKU__' && c.key === 'No Pesanan'))){
+              isi += '<span class="dup-count" title="Nomor ini muncul ' + jumlahDup + ' kali">\u00d7' + jumlahDup + '</span>';
+            }
             return '<td class="' + cls + '" data-label="' + escHtml(c.label) + '">' + isi + '</td>';
           }).join('') + '</tr>';
         }).join('')
       : '<tr><td colspan="' + MP_COLS.length + '" style="text-align:center;padding:30px;color:#999;">Belum ada data marketplace. Unggah ekspor pesanan Shopee lewat tombol Tambah Data Baru.</td></tr>';
 
     var akhir = Math.min(mulai + mpState.perHal, mpState.hasil.length);
+    var maksHal = Math.max(1, Math.ceil(mpState.hasil.length / mpState.perHal));
     document.getElementById('mpPagerInfo').textContent = mpState.hasil.length
       ? 'Menampilkan ' + (mulai + 1).toLocaleString('id-ID') + '\u2013' + akhir.toLocaleString('id-ID') +
         ' dari ' + mpState.hasil.length.toLocaleString('id-ID') + ' baris'
       : 'Tidak ada baris';
+    document.getElementById('mpPageIndicator').textContent =
+      'Hal. ' + mpState.hal.toLocaleString('id-ID') + ' / ' + maksHal.toLocaleString('id-ID');
+    document.getElementById('mpFirst').disabled = (mpState.hal <= 1);
+    document.getElementById('mpPrev').disabled  = (mpState.hal <= 1);
+    document.getElementById('mpNext').disabled  = (mpState.hal >= maksHal);
+    document.getElementById('mpLast').disabled  = (mpState.hal >= maksHal);
 
     mpRenderStats();
     mpRenderDiag();
@@ -7545,18 +7649,41 @@
       window.alert('Tidak ada data untuk diunduh pada filter ini.');
       return;
     }
-    // Semua field dibawa ke Excel, bukan hanya yang tampil di layar — di sinilah
-    // gunanya data mentah: lengkap untuk ditelusuri.
-    var kolom = Object.keys(mpState.hasil[0]).filter(function(k){ return k !== '__id'; });
-    var aoa = [kolom].concat(mpState.hasil.map(function(r){
-      return kolom.map(function(k){ return r[k]; });
-    }));
-    var ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = kolom.map(function(k){ return {wch: k === 'Nama Produk' ? 40 : 16}; });
+
     var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Marketplace');
-    XLSX.writeFile(wb, 'Data mentah marketplace ' + tanggalHariIni() + '.xlsx');
-    recordActivity('Unduh Data Marketplace', mpState.hasil.length + ' baris.');
+
+    // Sheet 1 — kolom yang tampil di layar, susunannya sama persis dengan
+    // tabel. Ini yang biasanya dipakai orang untuk melihat cepat.
+    var judul = MP_COLS.map(function(c){ return c.label; });
+    var isi = mpState.hasil.map(function(r){
+      return MP_COLS.map(function(c){
+        var v = r[c.key];
+        return (v === null || v === undefined) ? '' : v;
+      });
+    });
+    var ws1 = XLSX.utils.aoa_to_sheet([judul].concat(isi));
+    ws1['!cols'] = MP_COLS.map(function(c){ return {wch: c.key === 'Nama Produk' ? 40 : 16}; });
+    ws1['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:isi.length, c:MP_COLS.length - 1}})};
+    XLSX.utils.book_append_sheet(wb, ws1, 'Marketplace');
+
+    // Sheet 2 — SELURUH field, termasuk yang tidak muat di layar seperti
+    // Status Asli, Alasan Batal, dan rincian diskon. Ini alasan data mentah
+    // disimpan: lengkap saat perlu ditelusuri.
+    var kolomPenuh = Object.keys(mpState.hasil[0]).filter(function(k){ return k !== '__id'; });
+    var isi2 = mpState.hasil.map(function(r){
+      return kolomPenuh.map(function(k){
+        var v = r[k];
+        return (v === null || v === undefined) ? '' : v;
+      });
+    });
+    var ws2 = XLSX.utils.aoa_to_sheet([kolomPenuh].concat(isi2));
+    ws2['!cols'] = kolomPenuh.map(function(k){ return {wch: k === 'Nama Produk' ? 40 : 16}; });
+    XLSX.utils.book_append_sheet(wb, ws2, 'Data Lengkap');
+
+    var stamp = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, 'Data Mentah Marketplace ' + stamp + '.xlsx');
+    recordActivity('Unduh Data Marketplace',
+      mpState.hasil.length + ' baris' + (mpState.dupKey ? ' (mode duplikat)' : '') + '.');
   }
 
   function pasangMarketUI(){
@@ -7624,16 +7751,39 @@
         if(box) Array.prototype.forEach.call(box.querySelectorAll('input'), function(i){ i.checked = false; });
         mpRenderTombolMsel(cfg);
       });
+      var dupSel = document.getElementById('mpDupFilter');
+      if(dupSel){ dupSel.value = ''; }
+      mpState.dupKey = '';
       mpState.hal = 1;
       renderMarket();
     });
 
+    document.getElementById('mpDupFilter').addEventListener('change', function(){
+      mpState.dupKey = this.value;
+      mpState.hal = 1;
+      renderMarket();
+    });
+
+    document.getElementById('mpPageSize').addEventListener('change', function(){
+      mpState.perHal = parseInt(this.value, 10) || 50;
+      mpState.hal = 1;
+      renderMarket();
+    });
+
+    function mpMaksHal(){
+      return Math.max(1, Math.ceil(mpState.hasil.length / mpState.perHal));
+    }
+    document.getElementById('mpFirst').addEventListener('click', function(){
+      mpState.hal = 1; renderMarket();
+    });
     document.getElementById('mpPrev').addEventListener('click', function(){
       if(mpState.hal > 1){ mpState.hal--; renderMarket(); }
     });
     document.getElementById('mpNext').addEventListener('click', function(){
-      var maks = Math.max(1, Math.ceil(mpState.hasil.length / mpState.perHal));
-      if(mpState.hal < maks){ mpState.hal++; renderMarket(); }
+      if(mpState.hal < mpMaksHal()){ mpState.hal++; renderMarket(); }
+    });
+    document.getElementById('mpLast').addEventListener('click', function(){
+      mpState.hal = mpMaksHal(); renderMarket();
     });
     document.getElementById('mpUnduhBtn').addEventListener('click', mpUnduhExcel);
   }
