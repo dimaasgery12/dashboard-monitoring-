@@ -2714,7 +2714,8 @@
         <div class="an-toggle" id="mpPlatform">
           <button type="button" data-val="" class="on">Semua</button>
           <button type="button" data-val="SHOPEE">Shopee</button>
-          <button type="button" data-val="TOKOPEDIA/TIKTOK">Tokopedia/TikTok</button>
+          <button type="button" data-val="TOKPED &amp; TIKTOK">Tokped &amp; TikTok</button>
+          <button type="button" data-val="SHOPIFY">Shopify</button>
         </div>
         <button type="button" class="btn btn-ghost" id="mpUnduhBtn" title="Unduh data mentah apa adanya, sesuai filter">↓ Unduh Data Mentah</button>
         <button type="button" class="btn btn-primary" id="mpRekapBtn" title="Unduh rekap penjualan 10 sheet dengan rumus hidup">📊 Rekap Sales Marketplace</button>
@@ -6936,6 +6937,8 @@
     // Ekspor Tokopedia / TikTok Shop. Satu berkas bisa memuat kedua platform;
     // pembedanya ada di kolom Purchase Channel, bukan di jenis berkasnya.
     if(set['Order ID'] && set['Order Status'] && set['Seller SKU']) return 'tiktok';
+    // Ekspor pesanan Shopify: tanda tangannya kolom Lineitem yang khas.
+    if(set['Name'] && set['Lineitem sku'] && set['Financial Status']) return 'shopify';
     // File master klasifikasi produk: punya kolom Generic (atau SKU) + kolom PROD CLASS,
     // dan BUKAN file jubelio (yang juga punya SKU tapi lengkap dengan No Pesanan).
     if((set['Generic'] || set['GENERIC'] || set['generic'] || set['SKU']) && cariKolomProdClass(headers)) return 'prodclass';
@@ -7292,6 +7295,9 @@
     [/telah dikirim|delivered/i,       'badge-shipped'],
     // Istilah Tokopedia/TikTok: "Dikirim" saja berarti sedang dalam perjalanan.
     [/^dikirim$/i,                     'badge-processing'],
+    // Istilah Shopify: pesanan kedaluwarsa = tidak jadi dibayar.
+    [/kedaluwarsa|expired/i,           'badge-canceled'],
+    [/diproses|unfulfilled/i,          'badge-processing'],
     [/sedang dikirim|dalam pengiriman/i, 'badge-processing'],
     [/diterima/i,                      'badge-pending'],
     [/retur|refund|pengembalian/i,     'badge-returned'],
@@ -7383,7 +7389,7 @@
   // ---------- ekspor Tokopedia / TikTok Shop ----------
   // Formatnya berbeda jauh dari Shopee: nama kolom Inggris, tanggal
   // DD/MM/YYYY, dan baris kedua berisi KETERANGAN kolom, bukan data.
-  var TT_KANAL = 'TOKOPEDIA/TIKTOK';
+  var TT_KANAL = 'TOKPED & TIKTOK';
 
   // "31/08/2026 10:23:23" -> "2026-08-31 10:23:23"
   function ttWaktu(v){
@@ -7484,9 +7490,210 @@
 
     var ket = baru + ' baris baru, ' + ubah + ' diperbarui, ' + sama + ' tidak berubah' +
               (lewat ? ', ' + lewat + ' dilewati (baris keterangan)' : '');
-    logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Tokopedia/TikTok</b> \u2014 ' +
+    logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Tokped &amp; TikTok</b> \u2014 ' +
       ket + '. Masuk ke tab Marketplace, <b>tidak</b> memengaruhi Monitoring Jubelio.');
-    recordActivity('Unggah Data Marketplace', fileName + ' (Tokopedia/TikTok) \u2014 ' + ket + '.');
+    recordActivity('Unggah Data Marketplace', fileName + ' (Tokped & TikTok) \u2014 ' + ket + '.');
+  }
+
+
+  // ---------- ekspor Shopify ----------
+  // Tiga hal yang berbeda dari Shopee maupun Tokopedia/TikTok:
+  //
+  // 1. Kolom TINGKAT PESANAN (Subtotal, Total, Shipping, alamat, metode bayar)
+  //    hanya terisi di BARIS PERTAMA tiap pesanan. Baris item ke-2 dan
+  //    seterusnya kosong. Nilainya harus dibawa turun, kalau tidak 150 dari
+  //    375 baris akan kehilangan status dan alamatnya.
+  // 2. Status terpecah di tiga kolom: Financial Status, Fulfillment Status,
+  //    dan Cancelled at. Ketiganya digabung jadi satu status yang terbaca.
+  // 3. Ukuran/varian menempel di akhir nama produk ("... Men - 39"),
+  //    tidak punya kolom sendiri.
+  var SHOPIFY_KANAL = 'SHOPIFY';
+
+  // "2026-09-02 13:05:00 +0700" -> "2026-09-02 13:05:00"
+  function shWaktu(v){
+    if(v === null || v === undefined || v === '') return '';
+    if(v instanceof Date && !isNaN(v)) return mpWaktu(v);
+    var t = String(v).trim();
+    var m = t.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if(m) return m[1] + '-' + m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5] + ':' + (m[6] || '00');
+    return mpWaktu(t);
+  }
+
+  // "Ghiza Black/Blue Running Shoes Men - 39" -> {nama, varian}
+  function shPecahNama(nama){
+    var t = trimKey(nama);
+    var m = t.match(/^(.*)\s-\s([^-]{1,12})$/);
+    if(m) return {nama: m[1].trim(), varian: m[2].trim()};
+    return {nama: t, varian: ''};
+  }
+
+  // Satu status yang terbaca dari tiga kolom Shopify.
+  function shStatus(fin, ful, batal){
+    if(trimKey(batal)) return 'Dibatalkan';
+    var f = trimKey(fin).toLowerCase();
+    var u = trimKey(ful).toLowerCase();
+    if(f === 'refunded') return 'Refund';
+    if(f === 'partially_refunded') return 'Refund Sebagian';
+    if(f === 'expired') return 'Kedaluwarsa';
+    if(u === 'fulfilled') return 'Selesai';
+    if(f === 'paid') return 'Diproses';
+    if(f === 'pending' || f === 'unpaid' || !f) return 'Belum Bayar';
+    return trimKey(fin) || 'Belum Bayar';
+  }
+
+  // "LG10 | League Sports Market - ... | Kemayoran" berarti ambil di toko;
+  // "SiCepat - Reguler" berarti dikirim kurir. Dibedakan dari tanda "|".
+  function shGudangKurir(metode){
+    var t = trimKey(metode);
+    if(!t) return {gudang: '', kurir: ''};
+    if(t.indexOf('|') !== -1){
+      return {gudang: t.split('|')[0].trim(), kurir: 'Ambil di Toko'};
+    }
+    return {gudang: '', kurir: t};
+  }
+
+  function mergeShopifySheet(json, fileName){
+    var index = {};
+    mpRows.forEach(function(r, i){ index[r.__id] = i; });
+
+    var baru = 0, ubah = 0, sama = 0, lewat = 0, dibawa = 0;
+    var urutan = {};
+    var induk = null;          // nilai tingkat pesanan yang sedang berlaku
+    var pesananSekarang = null;
+
+    // ---- lintasan pertama: hitung kotor tiap pesanan ----
+    // Shopify menaruh sebagian diskon di tingkat PESANAN (kolom Discount
+    // Amount), bukan pada barisnya. Contoh nyata: LW-1242 punya harga baris
+    // 559.200 sementara Subtotal pesanannya 459.200 — selisih 100.000 tidak
+    // muncul di kolom Lineitem discount mana pun. Tanpa dibagikan kembali,
+    // penjualan bersih Shopify akan kelebihan hitung.
+    var kotorPesanan = {}, targetPesanan = {}, indukSubtotal = null, pesTmp = null;
+    json.forEach(function(row){
+      var p = trimKey(row['Name']);
+      if(!p) return;
+      if(p !== pesTmp){
+        pesTmp = p;
+        indukSubtotal = mpAngka(row['Subtotal']);
+        if(indukSubtotal !== null) targetPesanan[p] = indukSubtotal;
+      }
+      var h = mpAngka(row['Lineitem price']);
+      var q = mpAngka(row['Lineitem quantity']) || 0;
+      var d = mpAngka(row['Lineitem discount']) || 0;
+      kotorPesanan[p] = (kotorPesanan[p] || 0) + ((h === null ? 0 : h * q) - d);
+    });
+
+    // Faktor penyesuaian per pesanan. Memakai Subtotal pesanan sebagai
+    // sasaran, bukan mengurangi Discount Amount, supaya jumlah seluruh baris
+    // dijamin sama persis dengan angka Shopify sendiri.
+    var faktor = {};
+    Object.keys(kotorPesanan).forEach(function(p){
+      var kotor = kotorPesanan[p];
+      var target = targetPesanan[p];
+      faktor[p] = (kotor > 0 && target !== undefined && target !== null) ? (target / kotor) : 1;
+    });
+
+    json.forEach(function(row){
+      var pes = trimKey(row['Name']);
+      if(!pes){ lewat++; return; }
+
+      // Baris pertama sebuah pesanan membawa data tingkat pesanan; baris
+      // berikutnya mewarisinya.
+      if(pes !== pesananSekarang || trimKey(row['Financial Status'])){
+        if(pes !== pesananSekarang || induk === null){
+          pesananSekarang = pes;
+          induk = {
+            fin: row['Financial Status'],
+            ful: row['Fulfillment Status'],
+            batal: row['Cancelled at'],
+            bayar: row['Total'],
+            ongkir: row['Shipping'],
+            metode: row['Payment Method'],
+            kirim: row['Shipping Method'],
+            penerima: trimKey(row['Shipping Name']) || trimKey(row['Billing Name']),
+            kota: trimKey(row['Shipping City']) || trimKey(row['Billing City']),
+            prov: trimKey(row['Shipping Province Name']) || trimKey(row['Billing Province Name']),
+            email: row['Email'],
+            selesai: row['Fulfilled at'],
+            dibayar: row['Paid at']
+          };
+        }
+      } else {
+        dibawa++;
+      }
+
+      var sku = trimKey(row['Lineitem sku']);
+      var pecah = shPecahNama(row['Lineitem name']);
+      var dasar = pes + '|' + sku + '|' + pecah.varian;
+      urutan[dasar] = (urutan[dasar] || 0) + 1;
+
+      var qty = mpAngka(row['Lineitem quantity']) || 0;
+      var harga = mpAngka(row['Lineitem price']);
+      var diskon = mpAngka(row['Lineitem discount']) || 0;
+      // Subtotal Shopify bersifat tingkat pesanan, jadi tidak bisa dipakai
+      // per baris. Nilai bersih tiap item dihitung sendiri.
+      var kotorBaris = (harga === null) ? null : (harga * qty - diskon);
+      var f = faktor[pes] === undefined ? 1 : faktor[pes];
+      var subtotal = (kotorBaris === null) ? null : Math.round(kotorBaris * f);
+      // Diskon yang benar-benar ditanggung baris ini: diskon barisnya sendiri
+      // ditambah bagiannya dari diskon tingkat pesanan.
+      var diskonTotal = (kotorBaris === null) ? diskon
+                        : diskon + Math.round(kotorBaris - kotorBaris * f);
+      var gk = shGudangKurir(induk.kirim);
+
+      var rec = {
+        __id: dasar + '#' + urutan[dasar],
+        'Kanal': SHOPIFY_KANAL,
+        'No Pesanan': pes,
+        'Tanggal': shWaktu(row['Created at']),
+        'Waktu Bayar': shWaktu(induk.dibayar),
+        'Waktu Selesai': shWaktu(induk.selesai),
+        'Status': shStatus(induk.fin, induk.ful, induk.batal),
+        'Status Asli': [trimKey(induk.fin), trimKey(induk.ful)].filter(Boolean).join(' / ') +
+                       (trimKey(induk.batal) ? ' \u00b7 dibatalkan ' + shWaktu(induk.batal) : ''),
+        'Alasan Batal': '',
+        'SKU': sku,
+        'SKU Induk': sku,
+        'Nama Produk': pecah.nama,
+        'Variasi': pecah.varian,
+        'Qty': qty,
+        'Qty Retur': null,
+        'Harga Awal': mpAngka(row['Lineitem compare at price']),
+        'Harga': harga,
+        'Subtotal': subtotal,
+        'Total Bayar': mpAngka(induk.bayar),
+        'Total Diskon': diskonTotal,
+        'Diskon Penjual': diskonTotal,
+        'Diskon Marketplace': 0,
+        'Ongkir Pembeli': mpAngka(induk.ongkir),
+        'Gudang': gk.gudang,
+        'Penerima': induk.penerima,
+        'Username': trimKey(induk.email),
+        'Kota': induk.kota,
+        'Provinsi': induk.prov,
+        'No Resi': '',
+        'Kurir': gk.kurir,
+        'Metode Bayar': trimKey(induk.metode)
+      };
+
+      var adaIdx = index[rec.__id];
+      if(adaIdx === undefined){
+        index[rec.__id] = mpRows.length;
+        mpRows.push(rec);
+        baru++;
+      } else {
+        var lamaR = mpRows[adaIdx];
+        var beda = Object.keys(rec).some(function(k){
+          return trimKey(lamaR[k]) !== trimKey(rec[k]);
+        });
+        if(beda){ mpRows[adaIdx] = rec; ubah++; } else { sama++; }
+      }
+    });
+
+    var ket = baru + ' baris baru, ' + ubah + ' diperbarui, ' + sama + ' tidak berubah' +
+              (dibawa ? ', ' + dibawa + ' baris item mewarisi data pesanannya' : '');
+    logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Shopify</b> \u2014 ' +
+      ket + '. Masuk ke tab Marketplace, <b>tidak</b> memengaruhi Monitoring Jubelio.');
+    recordActivity('Unggah Data Marketplace', fileName + ' (Shopify) \u2014 ' + ket + '.');
   }
 
   // ---------- simpan & muat ----------
@@ -7530,7 +7737,15 @@
         hasil.forEach(function(h){
           if(h.exists) semua = semua.concat((h.data() || {}).rows || []);
         });
+        // Label kanal pernah bernama "TOKOPEDIA/TIKTOK". Baris lama yang
+        // tersimpan sebelum penggantian nama disamakan saat dimuat, supaya
+        // tidak tercecer di luar tombol platform mana pun.
+        var adaLama = 0;
+        semua.forEach(function(r){
+          if(r && r['Kanal'] === 'TOKOPEDIA/TIKTOK'){ r['Kanal'] = TT_KANAL; adaLama++; }
+        });
         mpRows = semua;
+        if(adaLama) simpanMarketKeCloud();
         renderMarket();
       });
     })['catch'](function(err){
@@ -8312,9 +8527,10 @@
           else if(type === 'prodclass'){ mergeProdClassSheet(json, file.name, cariKolomProdClass(headers), cariKolomGeneric(headers)); anyRecognized = true; }
           else if(type === 'shopee'){ mergeShopeeSheet(json, file.name); anyRecognized = true; adaMarketBaru = true; }
           else if(type === 'tiktok'){ mergeTiktokSheet(json, file.name); anyRecognized = true; adaMarketBaru = true; }
+          else if(type === 'shopify'){ mergeShopifySheet(json, file.name); anyRecognized = true; adaMarketBaru = true; }
         });
         if(!anyRecognized){
-          logMsg('warn', '⚠', '<b>' + file.name + '</b> tidak dikenali. Pastikan formatnya sama dengan jubelio_data.xlsx, LPH_2.xlsx, TO TI DETAIL (TII_DETAIL.xlsx), file master PROD CLASS (kolom Generic + PROD CLASS), ekspor pesanan Shopee, atau ekspor Tokopedia/TikTok.');
+          logMsg('warn', '⚠', '<b>' + file.name + '</b> tidak dikenali. Pastikan formatnya sama dengan jubelio_data.xlsx, LPH_2.xlsx, TO TI DETAIL (TII_DETAIL.xlsx), file master PROD CLASS (kolom Generic + PROD CLASS), ekspor pesanan Shopee, Tokped &amp; TikTok, atau Shopify.');
         } else {
           scheduleSaveToCloud();
         }
