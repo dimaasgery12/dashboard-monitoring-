@@ -589,8 +589,15 @@
   .login-forgot:hover{color:var(--accent);}
 
   /* ---------- USER BAR / ROLE ---------- */
+  /* Atribut hidden dikalahkan oleh aturan display apa pun dari CSS penulis.
+     .ub-ikon menetapkan display:inline-flex, .btn dan .dup-info juga —
+     akibatnya elemen ber-hidden tetap tampil. Ini penyebab tombol Kotak
+     Laporan masih terlihat oleh peran selain Owner. Satu aturan ini
+     memulihkan perilaku hidden untuk SELURUH dashboard. */
+  [hidden]{display:none !important;}
+
   .userbar{
-    display:flex; align-items:center; gap:10px; position:relative; z-index:1;
+    display:flex; align-items:center; gap:8px; position:relative; z-index:1;
     margin-top:18px; flex-wrap:wrap;
   }
   .userbar .who{
@@ -599,6 +606,9 @@
     padding:6px 12px; border-radius:20px;
   }
   .userbar .who b{color:var(--accent);}
+  /* Beri jeda antara keterangan pengguna dan deretan ikon, supaya keduanya
+     terbaca sebagai dua kelompok berbeda, bukan satu barisan padat. */
+  .userbar .who + .ub-ikon{margin-left:6px;}
   .userbar .role-tag{
     text-transform:uppercase; font-size:10px; letter-spacing:.06em; font-weight:600;
     padding:2px 8px; border-radius:10px; background:var(--accent); color:var(--on-accent); margin-left:6px;
@@ -618,6 +628,11 @@
   .userbar button.ub-ikon{
     display:inline-flex; align-items:center; justify-content:center;
     width:36px; height:36px; padding:0; border-radius:50%;
+    /* overflow:hidden mengunci isi ke dalam lingkaran. Tanpa ini, glyph yang
+       kebetulan lebih besar dari kotak fontnya bisa meluber melewati garis
+       tepi dan terlihat seperti menumpuk dengan tombol sebelahnya. */
+    overflow:hidden;
+    flex:0 0 auto;
     transition:border-color .15s, background .15s, transform .12s;
   }
   .userbar button.ub-ikon:hover{
@@ -628,7 +643,15 @@
   .userbar button.ub-ikon:focus-visible{
     outline:2px solid var(--accent); outline-offset:2px;
   }
-  .userbar .ub-glyph{font-size:15px; line-height:1;}
+  /* Ikon Font Awesome, bukan emoji. Emoji berwarna punya ukuran optik yang
+     berbeda-beda antar sistem operasi — di Windows sebagian tampil jauh lebih
+     besar dan berdesakan. Ikon ini monokrom, ukurannya seragam, dan mewarisi
+     warna tombolnya sehingga ikut berubah saat disorot. */
+  .userbar .ub-glyph{
+    font-size:14px; line-height:1;
+    width:16px; height:16px;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
   /* Teknik sembunyi-tapi-tetap-ada; jangan diganti display:none. */
   .userbar .ub-label{
     position:absolute; width:1px; height:1px;
@@ -647,18 +670,26 @@
   .pb-baris{
     display:flex; align-items:baseline; gap:7px; flex-wrap:wrap;
     font-size:11.5px; padding:3px 0;
+    min-width:0;
   }
+  /* PENTING: anak flex bawaannya min-width:auto, artinya menolak menyusut di
+     bawah lebar isinya. Tanpa aturan ini, nilai panjang (nama produk, kunci
+     baris) meluber keluar sel dan menimpa kolom sebelahnya. */
+  .pb-baris > *{min-width:0; overflow-wrap:anywhere;}
   .pb-baris + .pb-baris{border-top:1px dashed var(--line);}
   .pb-kolom{
     font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700;
     text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
-    flex:0 0 86px;
+    flex:0 0 76px;
   }
   .pb-dari{color:var(--muted); text-decoration:line-through;}
   .pb-panah{color:var(--muted);}
   .pb-ke{color:var(--accent-dark); font-weight:600;}
-  .pb-sku{font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;}
-  .pb-nama{font-size:11px; color:var(--muted); line-height:1.35;}
+  .pb-sku{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
+    overflow-wrap:anywhere;
+  }
+  .pb-nama{font-size:11px; color:var(--muted); line-height:1.35; overflow-wrap:anywhere;}
   tr.pb-mundur td{background:var(--warn-bg);}
   .pb-tag{
     display:inline-block; font-size:9px; font-weight:700; letter-spacing:.04em;
@@ -686,6 +717,11 @@
     min-width:520px;      /* di bawah ini baru muncul geser horizontal */
   }
   .users-table td, .users-table th{overflow-wrap:anywhere; word-break:break-word;}
+  /* Jaring pengaman: apa pun yang ditaruh di dalam sel tidak boleh melebihi
+     lebar selnya. Beberapa sel berisi <div> atau flex yang punya lebar
+     sendiri, dan itulah yang selama ini meluber ke kolom tetangga. */
+  .users-table td > *{max-width:100%;}
+  .users-table td{overflow:hidden;}
   .users-table th{
     text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em;
     color:var(--muted); padding:6px 8px; border-bottom:1px solid var(--line);
@@ -698,7 +734,11 @@
   }
   .users-table select:hover{border-color:var(--accent);}
   .users-table select:focus{outline:none; border-color:var(--accent);}
-  .users-table .user-actions{display:flex; flex-direction:column; gap:5px; align-items:stretch;}
+  .users-table .user-actions{
+    display:flex; flex-direction:column; gap:5px; align-items:stretch;
+    min-width:110px;
+  }
+  .users-table .user-actions button{white-space:nowrap;}
   .users-table .reset-pw{
     border:1px solid var(--line); background:transparent; color:var(--ink-soft); border-radius:6px;
     padding:5px 8px; font-size:11.5px; cursor:pointer; white-space:nowrap;
@@ -784,6 +824,68 @@
     font-family:'IBM Plex Mono',monospace; font-size:10.5px;
     color:var(--muted); word-break:break-all;
   }
+  /* ---------- laporan masalah data ---------- */
+  .ub-inbox{position:relative;}
+  /* Penanda angka pada ikon kotak masuk. Tanpa ini laporan bisa menumpuk
+     berminggu-minggu tanpa ada yang sadar — tidak ada email yang memberi tahu. */
+  .ub-badge{
+    position:absolute; top:-2px; right:-2px;
+    min-width:17px; height:17px; padding:0 4px;
+    border-radius:9px;
+    background:var(--warn); color:#fff;
+    font-family:'Inter',sans-serif; font-size:10px; font-weight:700;
+    line-height:17px; text-align:center;
+    box-shadow:0 0 0 2px var(--hero-bg, #0d120f);
+  }
+  .lapor-form{display:flex; flex-direction:column; gap:6px;}
+  .lapor-label{
+    font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+    margin-top:6px;
+  }
+  .lapor-form select, .lapor-form textarea{
+    width:100%; padding:9px 11px;
+    border:1px solid var(--line); border-radius:8px;
+    background:var(--paper-raised); color:var(--ink);
+    font-family:'Inter',sans-serif; font-size:13px;
+  }
+  .lapor-form textarea{resize:vertical; line-height:1.55; min-height:96px;}
+  .lapor-form select:focus, .lapor-form textarea:focus{outline:none; border-color:var(--accent);}
+  .lapor-hitung{font-size:10.5px; color:var(--muted); text-align:right;}
+  .lapor-konteks{
+    font-size:11px; color:var(--muted); line-height:1.6;
+    padding:10px 12px; margin:8px 0 12px;
+    border:1px solid var(--line); border-left:3px solid var(--accent);
+    border-radius:8px; background:var(--surface-sunken);
+  }
+
+  .lap-item{
+    border:1px solid var(--line); border-radius:10px;
+    padding:13px 14px; margin-bottom:10px;
+    background:var(--paper-raised);
+  }
+  .lap-item.baru{border-left:3px solid var(--warn);}
+  .lap-item.ditangani{opacity:.62;}
+  .lap-kepala{
+    display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;
+    margin-bottom:7px;
+  }
+  .lap-jenis{
+    font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+    padding:2px 8px; border-radius:10px;
+    background:var(--warn-bg); color:var(--warn);
+  }
+  .lap-item.ditangani .lap-jenis{background:var(--ok-bg); color:var(--ok);}
+  .lap-oleh{font-size:12px; font-weight:600; color:var(--ink);}
+  .lap-meta{font-size:10.5px; color:var(--muted);}
+  .lap-pesan{
+    font-size:12.5px; line-height:1.6; color:var(--ink-soft);
+    white-space:pre-wrap; overflow-wrap:anywhere;
+    padding:9px 11px; border-radius:7px;
+    background:var(--surface-sunken);
+  }
+  .lap-aksi{display:flex; gap:8px; margin-top:9px; flex-wrap:wrap;}
+
   /* ==================== LAPISAN EKSEKUTIF ====================
      Ditaruh di atas isi analitik lama. Prinsip tampilannya: banyak ruang
      kosong, satu warna aksen saja, angka besar dengan huruf tipis, dan
@@ -2193,9 +2295,13 @@
       <div class="users-table-wrap">
         <table class="users-table">
           <colgroup>
-            <col style="width:17%"><col style="width:36%"><col style="width:22%"><col style="width:25%">
+            <!-- WAJIB lima kolom. Tabel ini table-layout:fixed, jadi kolom yang
+                 tidak disebut di sini tidak dapat lebar sama sekali — itulah
+                 sebabnya tombol Reset Password & Cabut Akses tadinya meluber
+                 dan menumpuk di atas kolom Lokasi. -->
+            <col style="width:14%"><col style="width:28%"><col style="width:16%"><col style="width:22%"><col style="width:20%">
           </colgroup>
-          <thead><tr><th>Username</th><th>Email</th><th>Peran</th><th>Lokasi</th><th></th></tr></thead>
+          <thead><tr><th>Username</th><th>Email</th><th>Peran</th><th>Lokasi</th><th>Aksi</th></tr></thead>
           <tbody id="usersTableBody"><tr><td colspan="5">Memuat…</td></tr></tbody>
         </table>
       </div>
@@ -2248,10 +2354,66 @@
       <div class="users-table-wrap" style="max-height:52vh;">
         <table class="users-table activity-table">
           <thead><tr><th>Waktu</th><th>Pengguna</th><th>Aktivitas</th><th>Rincian</th></tr></thead>
+          <colgroup><col style="width:15%"><col style="width:18%"><col style="width:22%"><col style="width:45%"></colgroup>
           <tbody id="activityTableBody"><tr><td colspan="4">Memuat…</td></tr></tbody>
         </table>
       </div>
       <div class="users-msg" id="activityMsg"></div>
+    </div>
+  </div>
+</div>
+
+<div class="chart-overlay users-modal" id="laporOverlay">
+  <div class="chart-modal" style="max-width:560px;">
+    <div class="chart-modal-head">
+      <div>
+        <h3>Laporkan Masalah Data</h3>
+        <div class="sub">Laporan ini masuk ke kotak Owner. Tuliskan sejelas mungkin — nomor pesanan atau SKU sangat membantu.</div>
+      </div>
+      <button class="chart-modal-close" id="laporClose" aria-label="Tutup">✕</button>
+    </div>
+    <div class="chart-modal-body">
+      <div class="lapor-form">
+        <label class="lapor-label" for="laporJenis">Jenis masalah</label>
+        <select id="laporJenis">
+          <option value="Data salah">Data salah / tidak sesuai</option>
+          <option value="Data ganda">Data ganda / muncul dua kali</option>
+          <option value="Data tidak muncul">Data tidak muncul</option>
+          <option value="Angka tidak cocok">Angka tidak cocok</option>
+          <option value="Status keliru">Status pesanan keliru</option>
+          <option value="Masalah tampilan">Masalah tampilan / tombol</option>
+          <option value="Lainnya">Lainnya</option>
+        </select>
+
+        <label class="lapor-label" for="laporPesan">Keterangan</label>
+        <textarea id="laporPesan" rows="5" placeholder="Contoh: Pesanan SP-260829K4NU8M4Y statusnya masih SHIPPED padahal barang sudah diterima pembeli sejak 30 Agustus."></textarea>
+        <div class="lapor-hitung"><span id="laporSisa">0</span> / 1000 karakter</div>
+
+        <div class="lapor-konteks" id="laporKonteks"></div>
+
+        <button type="button" class="btn btn-primary" id="laporKirim" style="width:100%; justify-content:center;">🚩 Kirim Laporan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="chart-overlay users-modal" id="inboxOverlay">
+  <div class="chart-modal">
+    <div class="chart-modal-head">
+      <div>
+        <h3>Kotak Laporan</h3>
+        <div class="sub" id="inboxSub">Laporan masalah data dari seluruh pengguna. Hanya Owner yang dapat membukanya.</div>
+      </div>
+      <button class="chart-modal-close" id="inboxClose" aria-label="Tutup">✕</button>
+    </div>
+    <div class="chart-modal-body">
+      <div class="activity-toolbar">
+        <div class="an-toggle" id="inboxSaring">
+          <button type="button" data-val="baru" class="on">Belum ditangani</button>
+          <button type="button" data-val="semua">Semua</button>
+        </div>
+      </div>
+      <div id="inboxIsi"></div>
     </div>
   </div>
 </div>
@@ -2319,6 +2481,7 @@
       <div class="users-table-wrap" style="max-height:48vh;">
         <table class="users-table activity-table">
           <thead><tr><th>Tindakan</th><th>Baris</th><th>Oleh</th><th>Waktu</th><th></th></tr></thead>
+          <colgroup><col style="width:20%"><col style="width:38%"><col style="width:12%"><col style="width:16%"><col style="width:14%"></colgroup>
           <tbody id="koreksiTableBody"><tr><td colspan="5">Memuat…</td></tr></tbody>
         </table>
       </div>
@@ -2343,6 +2506,7 @@
       <div class="users-table-wrap" style="max-height:48vh;">
         <table class="users-table activity-table">
           <thead><tr><th>Waktu</th><th>Dibuat Oleh</th><th>Isi</th><th></th></tr></thead>
+          <colgroup><col style="width:20%"><col style="width:20%"><col style="width:40%"><col style="width:20%"></colgroup>
           <tbody id="backupTableBody"><tr><td colspan="4">Memuat…</td></tr></tbody>
         </table>
       </div>
@@ -2371,13 +2535,15 @@
 
   <div class="userbar">
     <span class="who">Masuk sebagai <b id="whoName">–</b><span class="role-tag" id="whoRole">–</span></span>
-    <button type="button" id="uploadBtn" data-role-hide="viewer,toko" class="ub-ikon" title="Tambah Data Baru" aria-label="Tambah Data Baru"><span class="ub-glyph" aria-hidden="true">⬆</span><span class="ub-label">Tambah Data Baru</span></button>
-    <button type="button" id="perubahanBtn" data-role-hide="viewer,toko" class="ub-ikon" title="Perubahan Data" aria-label="Perubahan Data"><span class="ub-glyph" aria-hidden="true">🔁</span><span class="ub-label">Perubahan Data</span></button>
-    <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Kelola Pengguna" aria-label="Kelola Pengguna"><span class="ub-glyph" aria-hidden="true">👤</span><span class="ub-label">Kelola Pengguna</span></button>
-    <button type="button" id="activityLogBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Riwayat Update Data" aria-label="Riwayat Update Data"><span class="ub-glyph" aria-hidden="true">🕘</span><span class="ub-label">Riwayat Update Data</span></button>
-    <button type="button" id="backupBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Cadangan Data" aria-label="Cadangan Data"><span class="ub-glyph" aria-hidden="true">💾</span><span class="ub-label">Cadangan Data</span></button>
-    <button type="button" id="koreksiBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Koreksi Data" aria-label="Koreksi Data"><span class="ub-glyph" aria-hidden="true">🧹</span><span class="ub-label">Koreksi Data</span></button>
-    <button type="button" id="logoutBtn" class="ub-ikon" title="Keluar" aria-label="Keluar"><span class="ub-glyph" aria-hidden="true">🚪</span><span class="ub-label">Keluar</span></button>
+    <button type="button" id="uploadBtn" data-role-hide="viewer,toko" class="ub-ikon" title="Tambah Data Baru" aria-label="Tambah Data Baru"><i class="ub-glyph fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i><span class="ub-label">Tambah Data Baru</span></button>
+    <button type="button" id="perubahanBtn" data-role-hide="viewer,toko" class="ub-ikon" title="Perubahan Data" aria-label="Perubahan Data"><i class="ub-glyph fa-solid fa-clock-rotate-left" aria-hidden="true"></i><span class="ub-label">Perubahan Data</span></button>
+    <button type="button" id="manageUsersBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Kelola Pengguna" aria-label="Kelola Pengguna"><i class="ub-glyph fa-solid fa-user-gear" aria-hidden="true"></i><span class="ub-label">Kelola Pengguna</span></button>
+    <button type="button" id="activityLogBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Riwayat Update Data" aria-label="Riwayat Update Data"><i class="ub-glyph fa-solid fa-list-check" aria-hidden="true"></i><span class="ub-label">Riwayat Update Data</span></button>
+    <button type="button" id="backupBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Cadangan Data" aria-label="Cadangan Data"><i class="ub-glyph fa-solid fa-database" aria-hidden="true"></i><span class="ub-label">Cadangan Data</span></button>
+    <button type="button" id="koreksiBtn" data-role-hide="admin,viewer,toko" class="ub-ikon" title="Koreksi Data" aria-label="Koreksi Data"><i class="ub-glyph fa-solid fa-broom" aria-hidden="true"></i><span class="ub-label">Koreksi Data</span></button>
+    <button type="button" id="laporBtn" class="ub-ikon" title="Laporkan Masalah Data" aria-label="Laporkan Masalah Data"><i class="ub-glyph fa-solid fa-flag" aria-hidden="true"></i><span class="ub-label">Laporkan Masalah Data</span></button>
+    <button type="button" id="inboxBtn" class="ub-ikon ub-inbox" hidden="" title="Kotak Laporan" aria-label="Kotak Laporan"><i class="ub-glyph fa-solid fa-inbox" aria-hidden="true"></i><span class="ub-label">Kotak Laporan</span><span class="ub-badge" id="inboxBadge" hidden=""></span></button>
+    <button type="button" id="logoutBtn" class="ub-ikon" title="Keluar" aria-label="Keluar"><i class="ub-glyph fa-solid fa-right-from-bracket" aria-hidden="true"></i><span class="ub-label">Keluar</span></button>
   </div>
 
   <div class="view-tabs">
@@ -6265,8 +6431,9 @@
 
     box.innerHTML =
       '<div class="users-table-wrap" style="max-height:52vh;">' +
-      '<table class="users-table"><thead><tr>' +
-      '<th style="width:26%">No Pesanan</th><th style="width:30%">Barang</th>' +
+      '<table class="users-table">' +
+      '<colgroup><col style="width:24%"><col style="width:30%"><col style="width:46%"></colgroup>' +
+      '<thead><tr><th>No Pesanan</th><th>Barang</th>' +
       '<th>Yang berubah</th></tr></thead><tbody>' + baris + '</tbody></table></div>' +
       (PERUBAHAN.terpotong
         ? '<div class="users-msg">Hanya ' + BATAS_CATATAN_PERUBAHAN.toLocaleString('id-ID') +
@@ -7232,6 +7399,276 @@
     recordActivity('Unggah Master PROD CLASS', fileName + ' \u2014 ' + ket + '.');
   }
 
+
+
+  // ==================== LAPORAN MASALAH DATA ====================
+  // Kotak masuk di dalam dashboard, BUKAN email. Dashboard ini berjalan
+  // sepenuhnya di browser tanpa server, jadi tidak bisa mengirim email atau
+  // WhatsApp. Laporan tersimpan di Firestore dan dibaca Owner saat membuka
+  // dashboard \u2014 karena itu ikonnya diberi penanda angka, supaya tidak
+  // menumpuk berminggu-minggu tanpa ada yang sadar.
+  var LAPORAN = [];
+  var inboxSaring = 'baru';
+  var BATAS_PESAN_LAPOR = 1000;
+
+  function bolehLihatLaporan(){
+    // Sesuai permintaan: HANYA Owner. Super Admin pun tidak.
+    return window.currentRole === 'owner';
+  }
+
+  function namaTabSekarang(){
+    var peta = [
+      ['viewMonitoring', 'Monitoring Jubelio'],
+      ['viewAnalitik',   'Analitik Penjualan'],
+      ['viewMarket',     'Marketplace'],
+      ['viewJadwal',     'Jadwal']
+    ];
+    for(var i = 0; i < peta.length; i++){
+      var el = document.getElementById(peta[i][0]);
+      if(el && el.style.display !== 'none') return peta[i][1];
+    }
+    return '-';
+  }
+
+  function isiKonteksLapor(){
+    var box = document.getElementById('laporKonteks');
+    if(!box) return;
+    // Konteks dikumpulkan otomatis. Pelapor sering lupa menyebut dirinya
+    // siapa dan sedang membuka apa, padahal itu yang paling menentukan
+    // saat Owner menelusuri laporannya.
+    box.innerHTML =
+      'Ikut terkirim otomatis:<br>' +
+      '\u00b7 Pelapor: <b>' + esc(window.currentUsername || '-') + '</b> (' +
+        esc(window.currentRole || '-') + ')' +
+        (window.lockedLokasi ? ' \u00b7 lokasi <b>' + esc(window.lockedLokasi) + '</b>' : '') + '<br>' +
+      '\u00b7 Tab yang dibuka: <b>' + esc(namaTabSekarang()) + '</b><br>' +
+      '\u00b7 Waktu: <b>' + new Date().toLocaleString('id-ID', {dateStyle: 'medium', timeStyle: 'short'}) + '</b>';
+  }
+
+  function kirimLaporan(){
+    var jenisEl = document.getElementById('laporJenis');
+    var pesanEl = document.getElementById('laporPesan');
+    var tombol = document.getElementById('laporKirim');
+    var pesan = (pesanEl.value || '').trim();
+
+    if(pesan.length < 10){
+      window.alert('Tolong tuliskan keterangannya lebih jelas (minimal 10 karakter). ' +
+                   'Sebutkan nomor pesanan atau SKU-nya kalau ada.');
+      pesanEl.focus();
+      return;
+    }
+    if(pesan.length > BATAS_PESAN_LAPOR){
+      window.alert('Keterangan terlalu panjang. Maksimal ' + BATAS_PESAN_LAPOR + ' karakter.');
+      return;
+    }
+
+    var user = firebase.auth().currentUser;
+    if(!user){ window.alert('Sesi Anda sudah berakhir. Silakan masuk kembali.'); return; }
+
+    tombol.disabled = true;
+    tombol.textContent = 'Mengirim\u2026';
+
+    db.collection('laporan').add({
+      at: Date.now(),
+      oleh: window.currentUsername || user.email || 'tidak diketahui',
+      email: user.email || '',
+      role: window.currentRole || '',
+      lokasi: window.lockedLokasi || '',
+      tab: namaTabSekarang(),
+      perangkat: deviceLabel(),
+      jenis: jenisEl.value,
+      pesan: pesan,
+      status: 'baru'
+    }).then(function(){
+      pesanEl.value = '';
+      hitungSisaLapor();
+      document.getElementById('laporOverlay').classList.remove('open');
+      logMsg('ok', '\u2713',
+        'Laporan terkirim ke kotak Owner. Terima kasih \u2014 ini membantu menjaga data tetap benar.');
+    })['catch'](function(err){
+      logMsg('warn', '\u26a0', 'Laporan gagal terkirim: ' + err.message +
+        ' \u2014 kalau pesannya soal izin, koleksi <b>laporan</b> belum diizinkan di Firestore Rules.');
+    }).then(function(){
+      tombol.disabled = false;
+      tombol.textContent = '\uD83D\uDEA9 Kirim Laporan';
+    });
+  }
+
+  function hitungSisaLapor(){
+    var el = document.getElementById('laporPesan');
+    var out = document.getElementById('laporSisa');
+    if(el && out) out.textContent = (el.value || '').length;
+  }
+
+  // ---------- kotak masuk (khusus Owner) ----------
+  function pantauLaporan(){
+    // Hanya dijalankan untuk Owner. Peran lain tidak punya izin baca koleksi
+    // ini, jadi memasang pemantau untuk mereka hanya menghasilkan error.
+    if(!bolehLihatLaporan()) return;
+    db.collection('laporan').orderBy('at', 'desc').limit(200)
+      .onSnapshot(function(qs){
+        LAPORAN = [];
+        qs.forEach(function(d){
+          var o = d.data() || {};
+          o.id = d.id;
+          LAPORAN.push(o);
+        });
+        renderBadgeLaporan();
+        renderInbox();
+      }, function(err){
+        console.warn('Gagal memantau laporan:', err && err.message);
+      });
+  }
+
+  function renderBadgeLaporan(){
+    var btn = document.getElementById('inboxBtn');
+    var badge = document.getElementById('inboxBadge');
+    if(!btn || !badge) return;
+    if(!bolehLihatLaporan()){ btn.hidden = true; return; }
+    btn.hidden = false;
+    var baru = LAPORAN.filter(function(l){ return l.status !== 'ditangani'; }).length;
+    badge.hidden = !baru;
+    badge.textContent = baru > 99 ? '99+' : String(baru);
+    btn.title = baru ? 'Kotak Laporan \u2014 ' + baru + ' belum ditangani' : 'Kotak Laporan';
+  }
+
+  function renderInbox(){
+    var box = document.getElementById('inboxIsi');
+    if(!box) return;
+    // Kalau bukan Owner, isinya tidak pernah digambar ke DOM sama sekali —
+    // jadi tidak ada yang bisa diintip lewat Inspect Element.
+    if(!bolehLihatLaporan()){ box.innerHTML = ''; return; }
+
+    var daftar = inboxSaring === 'baru'
+      ? LAPORAN.filter(function(l){ return l.status !== 'ditangani'; })
+      : LAPORAN;
+
+    if(!daftar.length){
+      box.innerHTML = '<div class="users-msg">' +
+        (inboxSaring === 'baru'
+          ? 'Tidak ada laporan yang belum ditangani. \uD83D\uDC4D'
+          : 'Belum ada laporan masuk.') + '</div>';
+      return;
+    }
+
+    box.innerHTML = daftar.map(function(l){
+      var sudah = l.status === 'ditangani';
+      var meta = [
+        l.role ? esc(l.role) : null,
+        l.lokasi ? esc(l.lokasi) : null,
+        l.tab ? 'tab ' + esc(l.tab) : null,
+        l.perangkat ? esc(l.perangkat) : null
+      ].filter(Boolean).join(' \u00b7 ');
+
+      return '<div class="lap-item ' + (sudah ? 'ditangani' : 'baru') + '">' +
+        '<div class="lap-kepala">' +
+          '<span class="lap-jenis">' + esc(l.jenis || 'Lainnya') + '</span>' +
+          '<span class="lap-oleh">' + esc(l.oleh || '-') + '</span>' +
+          '<span class="lap-meta">' + (l.at ? fmtWaktuID(l.at) : '-') + '</span>' +
+        '</div>' +
+        '<div class="lap-meta" style="margin-bottom:7px;">' + meta + '</div>' +
+        '<div class="lap-pesan">' + esc(l.pesan || '') + '</div>' +
+        (sudah
+          ? '<div class="lap-meta" style="margin-top:8px;">\u2713 Ditangani oleh <b>' +
+            esc(l.ditanganiOleh || '-') + '</b>' +
+            (l.ditanganiAt ? ' \u00b7 ' + fmtWaktuID(l.ditanganiAt) : '') + '</div>'
+          : '') +
+        '<div class="lap-aksi">' +
+          (sudah
+            ? '<button type="button" class="btn btn-ghost" data-lap-buka="' + esc(l.id) + '">\u21ba Tandai belum ditangani</button>'
+            : '<button type="button" class="btn btn-ghost" data-lap-selesai="' + esc(l.id) + '">\u2713 Tandai sudah ditangani</button>') +
+          '<button type="button" class="btn btn-ghost" data-lap-hapus="' + esc(l.id) +
+            '" style="border-color:var(--warn); color:var(--warn);">\uD83D\uDDD1 Hapus</button>' +
+        '</div></div>';
+    }).join('');
+
+    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-selesai]'), function(b){
+      b.addEventListener('click', function(){ tandaiLaporan(b.getAttribute('data-lap-selesai'), true); });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-buka]'), function(b){
+      b.addEventListener('click', function(){ tandaiLaporan(b.getAttribute('data-lap-buka'), false); });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-hapus]'), function(b){
+      b.addEventListener('click', function(){ hapusLaporan(b.getAttribute('data-lap-hapus')); });
+    });
+  }
+
+  function tandaiLaporan(id, selesai){
+    if(!bolehLihatLaporan()) return;
+    db.collection('laporan').doc(id).update(selesai
+      ? {status: 'ditangani', ditanganiOleh: window.currentUsername || '', ditanganiAt: Date.now()}
+      : {status: 'baru', ditanganiOleh: null, ditanganiAt: null}
+    )['catch'](function(err){
+      logMsg('warn', '\u26a0', 'Gagal memperbarui laporan: ' + err.message);
+    });
+  }
+
+  function hapusLaporan(id){
+    if(!bolehLihatLaporan()) return;
+    if(!window.confirm('Hapus laporan ini secara permanen?')) return;
+    db.collection('laporan').doc(id).delete()['catch'](function(err){
+      logMsg('warn', '\u26a0', 'Gagal menghapus laporan: ' + err.message);
+    });
+  }
+
+  function pasangLaporanUI(){
+    var btnLapor = document.getElementById('laporBtn');
+    var ovLapor = document.getElementById('laporOverlay');
+    if(btnLapor && ovLapor){
+      btnLapor.addEventListener('click', function(){
+        isiKonteksLapor();
+        hitungSisaLapor();
+        ovLapor.classList.add('open');
+        var t = document.getElementById('laporPesan');
+        if(t) t.focus();
+      });
+      document.getElementById('laporClose').addEventListener('click', function(){
+        ovLapor.classList.remove('open');
+      });
+      ovLapor.addEventListener('click', function(e){
+        if(e.target === this) ovLapor.classList.remove('open');
+      });
+      document.getElementById('laporKirim').addEventListener('click', kirimLaporan);
+      document.getElementById('laporPesan').addEventListener('input', hitungSisaLapor);
+    }
+
+    var btnInbox = document.getElementById('inboxBtn');
+    var ovInbox = document.getElementById('inboxOverlay');
+    if(btnInbox && ovInbox){
+      btnInbox.addEventListener('click', function(){
+        // Diperiksa ulang di sini, bukan hanya lewat penyembunyian tombol.
+        // Tampilan bisa diakali dari Console; penangan ini tidak.
+        if(!bolehLihatLaporan()){
+          window.alert('Kotak Laporan hanya dapat dibuka oleh Owner.');
+          return;
+        }
+        renderInbox();
+        ovInbox.classList.add('open');
+      });
+      document.getElementById('inboxClose').addEventListener('click', function(){
+        ovInbox.classList.remove('open');
+      });
+      ovInbox.addEventListener('click', function(e){
+        if(e.target === this) ovInbox.classList.remove('open');
+      });
+      var saring = document.getElementById('inboxSaring');
+      Array.prototype.forEach.call(saring.querySelectorAll('button'), function(b){
+        b.addEventListener('click', function(){
+          inboxSaring = b.getAttribute('data-val');
+          Array.prototype.forEach.call(saring.querySelectorAll('button'), function(x){
+            x.classList.toggle('on', x === b);
+          });
+          renderInbox();
+        });
+      });
+    }
+
+    document.addEventListener('keydown', function(e){
+      if(e.key !== 'Escape') return;
+      if(ovLapor) ovLapor.classList.remove('open');
+      if(ovInbox) ovInbox.classList.remove('open');
+    });
+  }
 
   // ==================== DATA MENTAH MARKETPLACE ====================
   // Sengaja dipisah TOTAL dari jubelioRows: koleksi Firestore sendiri, state
@@ -9181,6 +9618,9 @@
     pantauKoreksi();
     pantauPerubahan();
     pantauMpKoreksi();
+    pasangLaporanUI();
+    pantauLaporan();
+    renderBadgeLaporan();
     // Diberi jeda 2,5 detik: Tailwind disusun secara asinkron, memeriksanya
     // terlalu cepat akan salah menuduh gagal padahal masih dalam perjalanan.
     window.setTimeout(periksaTailwind, 2500);
