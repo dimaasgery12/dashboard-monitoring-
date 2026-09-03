@@ -6367,6 +6367,12 @@
     initFilters();
     applyFilters();
     renderAnalytics(RAW_SEMUA);   // seluruh data, lepas dari filter maupun batas periode
+    // Tabel marketplace ikut digambar ulang. Tanpa baris ini, mengunggah
+    // ekspor Shopee sementara tab itu sedang terbuka tidak mengubah apa pun
+    // di layar — datanya masuk, tapi tampilannya tertinggal.
+    if(typeof renderMarket === 'function' && document.getElementById('mpHeadRow')){
+      renderMarket();
+    }
     renderHead();                 // kolom Aksi ikut muncul/hilang mengikuti peran
     lockLokasiUI();
     lockLokasiAnalitik();
