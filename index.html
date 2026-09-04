@@ -489,6 +489,16 @@
     padding:20px;
   }
   .chart-overlay.open{display:flex;}
+  /* Modal yang isinya tabel butuh ruang jauh lebih lega daripada 720px.
+     Modal lain (unggah, grafik) sengaja dibiarkan sempit agar tetap fokus. */
+  #perubahanOverlay .chart-modal,
+  #koreksiOverlay .chart-modal,
+  #activityOverlay .chart-modal,
+  #backupOverlay .chart-modal,
+  #usersOverlay .chart-modal{
+    width:min(1120px, 96vw);
+  }
+
   .chart-modal{
     background:var(--paper-raised);
     border-radius:14px;
@@ -682,15 +692,35 @@
     text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
     flex:0 0 76px;
   }
-  .pb-dari{color:var(--muted); text-decoration:line-through;}
+  .pb-dari{color:var(--muted); text-decoration:line-through; overflow-wrap:anywhere;}
   .pb-panah{color:var(--muted);}
-  .pb-ke{color:var(--accent-dark); font-weight:600;}
+  .pb-ke{color:var(--accent-dark); font-weight:600; overflow-wrap:anywhere;}
   .pb-sku{
     font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
     overflow-wrap:anywhere;
   }
   .pb-nama{font-size:11px; color:var(--muted); line-height:1.35; overflow-wrap:anywhere;}
   tr.pb-mundur td{background:var(--warn-bg);}
+  /* Baris bisa diklik untuk melompat ke tabel Monitoring. Petunjuknya
+     disembunyikan sampai kursor lewat, supaya tabelnya tidak penuh
+     tulisan "Lihat di Monitoring" berulang-ulang. */
+  tr.pb-klik{cursor:pointer;}
+  tr.pb-klik:hover td{background:var(--row-hover-soft);}
+  tr.pb-mundur:hover td{background:var(--warn-bg);}
+  .pb-pes{
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:600;
+    overflow-wrap:anywhere; white-space:normal;
+  }
+  .pb-waktu{font-size:10px; color:var(--muted); margin-top:3px;}
+  .pb-ringkas{
+    font-size:11.5px; line-height:1.5; color:var(--ink);
+    margin-bottom:7px; white-space:normal; overflow-wrap:anywhere;
+  }
+  .pb-lihat{
+    font-size:10px; color:var(--accent-dark); font-weight:600;
+    margin-top:7px; opacity:0; transition:opacity .12s;
+  }
+  tr.pb-klik:hover .pb-lihat{opacity:1;}
   .pb-tag{
     display:inline-block; font-size:9px; font-weight:700; letter-spacing:.04em;
     text-transform:uppercase; padding:1px 6px; border-radius:9px;
@@ -716,7 +746,14 @@
     table-layout:fixed;   /* lebar kolom ikut <colgroup>, tidak melar karena email panjang */
     min-width:520px;      /* di bawah ini baru muncul geser horizontal */
   }
-  .users-table td, .users-table th{overflow-wrap:anywhere; word-break:break-word;}
+  /* PENYEBAB TEKS TERPOTONG: aturan global tbody td{white-space:nowrap} yang
+     dipakai tabel Monitoring ikut berlaku di sini. Teksnya jadi tidak boleh
+     membungkus, lalu terpotong oleh overflow:hidden di bawah. Dinormalkan
+     supaya kalimat panjang turun ke baris berikutnya, bukan hilang. */
+  .users-table td, .users-table th{
+    white-space:normal;
+    overflow-wrap:anywhere; word-break:break-word;
+  }
   /* Jaring pengaman: apa pun yang ditaruh di dalam sel tidak boleh melebihi
      lebar selnya. Beberapa sel berisi <div> atau flex yang punya lebar
      sendiri, dan itulah yang selama ini meluber ke kolom tetangga. */
@@ -2690,7 +2727,7 @@
       <div class="users-table-wrap" style="max-height:48vh;">
         <table class="users-table activity-table">
           <thead><tr><th>Tindakan</th><th>Baris</th><th>Oleh</th><th>Waktu</th><th></th></tr></thead>
-          <colgroup><col style="width:20%"><col style="width:38%"><col style="width:12%"><col style="width:16%"><col style="width:14%"></colgroup>
+          <colgroup><col style="width:18%"><col style="width:44%"><col style="width:11%"><col style="width:15%"><col style="width:12%"></colgroup>
           <tbody id="koreksiTableBody"><tr><td colspan="5">Memuat…</td></tr></tbody>
         </table>
       </div>
@@ -3089,6 +3126,7 @@
           <button type="button" data-val="SHOPEE">Shopee</button>
           <button type="button" data-val="TOKPED &amp; TIKTOK">Tokped &amp; TikTok</button>
           <button type="button" data-val="SHOPIFY">Shopify</button>
+          <button type="button" data-val="LAZADA">Lazada</button>
         </div>
         <button type="button" class="btn btn-ghost" id="mpUnduhBtn" title="Unduh data mentah apa adanya, sesuai filter">↓ Unduh Data Mentah</button>
         <button type="button" class="btn btn-primary" id="mpRekapBtn" title="Unduh rekap penjualan 10 sheet dengan rumus hidup">📊 Rekap Sales Marketplace</button>
@@ -6624,6 +6662,23 @@
         (r.mundur ? ' \u00b7 <b style="color:var(--warn)">' + r.mundur + ' status mundur</b>' : '');
     }
 
+    // Kalimat ringkas dalam bahasa manusia. Tabel "kolom: dari → ke" tepat
+    // tapi menuntut pembacanya menyusun sendiri artinya; satu kalimat di
+    // atasnya membuat maksudnya langsung tertangkap.
+    function ringkasPerubahan(beda){
+      if(!beda || !beda.length) return '';
+      var st = null;
+      beda.forEach(function(b){ if(b.kolom === 'Status') st = b; });
+      var lain = beda.length - (st ? 1 : 0);
+      if(st){
+        return 'Status berubah dari <b>' + esc(st.dari || '(kosong)') + '</b> menjadi <b>' +
+               esc(st.ke || '(kosong)') + '</b>' +
+               (lain ? ', dan ' + lain + ' kolom lain ikut berubah.' : '.');
+      }
+      return beda.length + ' kolom berubah: ' +
+             beda.map(function(b){ return esc(b.kolom); }).join(', ') + '.';
+    }
+
     var baris = PERUBAHAN.daftar.map(function(p){
       var isi = (p.beda || []).map(function(b){
         return '<div class="pb-baris"><span class="pb-kolom">' + esc(b.kolom) + '</span>' +
@@ -6631,23 +6686,75 @@
                '<span class="pb-panah">\u2192</span>' +
                '<span class="pb-ke">' + esc(b.ke || '(kosong)') + '</span></div>';
       }).join('');
-      return '<tr' + (p.mundur ? ' class="pb-mundur"' : '') + '>' +
-             '<td>' + esc(p.pes) + (p.mundur ? ' <span class="pb-tag">status mundur</span>' : '') + '</td>' +
+      // Baris lama belum menyimpan waktunya sendiri; dipakai waktu unggahan.
+      var waktu = p.at || PERUBAHAN.at;
+      return '<tr class="pb-klik' + (p.mundur ? ' pb-mundur' : '') +
+             '" data-pb-pesanan="' + esc(p.pes) + '" title="Klik untuk melihat baris ini di tab Monitoring Jubelio">' +
+             '<td><div class="pb-pes">' + esc(p.pes) + '</div>' +
+             (waktu ? '<div class="pb-waktu">' + fmtWaktuID(waktu) + '</div>' : '') +
+             (p.mundur ? '<span class="pb-tag">status mundur</span>' : '') + '</td>' +
              '<td><div class="pb-sku">' + esc(p.sku) + '</div>' +
              '<div class="pb-nama">' + esc(p.nama || '') + '</div></td>' +
-             '<td>' + isi + '</td></tr>';
+             '<td><div class="pb-ringkas">' + ringkasPerubahan(p.beda) + '</div>' + isi +
+             '<div class="pb-lihat">\u2192 Lihat di Monitoring</div></td></tr>';
     }).join('');
 
     box.innerHTML =
       '<div class="users-table-wrap" style="max-height:52vh;">' +
       '<table class="users-table">' +
-      '<colgroup><col style="width:24%"><col style="width:30%"><col style="width:46%"></colgroup>' +
+      '<colgroup><col style="width:20%"><col style="width:26%"><col style="width:54%"></colgroup>' +
       '<thead><tr><th>No Pesanan</th><th>Barang</th>' +
       '<th>Yang berubah</th></tr></thead><tbody>' + baris + '</tbody></table></div>' +
       (PERUBAHAN.terpotong
         ? '<div class="users-msg">Hanya ' + BATAS_CATATAN_PERUBAHAN.toLocaleString('id-ID') +
           ' perubahan pertama yang dirinci di sini; sisanya tetap diterapkan ke data.</div>'
         : '');
+
+    Array.prototype.forEach.call(box.querySelectorAll('[data-pb-pesanan]'), function(tr){
+      tr.addEventListener('click', function(){
+        lihatDiMonitoring(tr.getAttribute('data-pb-pesanan'));
+      });
+    });
+  }
+
+  // Melompat ke tab Monitoring dan menyorot baris pesanan tertentu.
+  function lihatDiMonitoring(noPesanan){
+    if(!noPesanan) return;
+
+    var ov = document.getElementById('perubahanOverlay');
+    if(ov) ov.classList.remove('open');
+    switchAppView('monitoring');
+
+    // Filter lain dibersihkan lebih dulu. Kalau tidak, pencarian bisa
+    // menemukan nol baris hanya karena masih ada saringan lokasi atau
+    // tanggal yang aktif dari pekerjaan sebelumnya — dan orang akan
+    // mengira datanya hilang.
+    var reset = document.getElementById('resetBtn');
+    if(reset) reset.click();
+
+    var kotak = document.getElementById('searchBox');
+    if(kotak){
+      kotak.value = noPesanan;
+      applyFilters();
+    }
+
+    var panel = document.getElementById('dataTable');
+    if(panel) panel.scrollIntoView({behavior: 'smooth', block: 'center'});
+
+    // Baris bisa saja tetap tidak muncul karena tanggalnya lebih awal dari
+    // batas "Periode Data Dihitung". Itu bukan kesalahan — tapi harus
+    // dijelaskan, bukan dibiarkan orang menebak.
+    window.setTimeout(function(){
+      var ketemu = (state.filtered || []).length;
+      if(ketemu){
+        logMsg('info', '\uD83D\uDD0D', 'Menampilkan <b>' + ketemu + ' baris</b> untuk pesanan <b>' +
+          esc(noPesanan) + '</b> di tab Monitoring Jubelio.');
+      } else {
+        logMsg('warn', '\u26a0', 'Pesanan <b>' + esc(noPesanan) + '</b> tidak tampil di tabel. ' +
+          'Kemungkinan tanggalnya lebih awal dari batas <b>Periode Data Dihitung</b> \u2014 ' +
+          'tekan <b>Tampilkan Semua</b> untuk melihatnya.');
+      }
+    }, 80);
   }
 
   function fmtWaktuID(ms){
@@ -7355,6 +7462,8 @@
     if(set['Order ID'] && set['Order Status'] && set['Seller SKU']) return 'tiktok';
     // Ekspor pesanan Shopify: tanda tangannya kolom Lineitem yang khas.
     if(set['Name'] && set['Lineitem sku'] && set['Financial Status']) return 'shopify';
+    // Ekspor Lazada: tanda tangannya tiga kolom khas orderItemId/orderNumber/sellerSku.
+    if(set['orderItemId'] && set['orderNumber'] && set['sellerSku']) return 'lazada';
     // File master klasifikasi produk: punya kolom Generic (atau SKU) + kolom PROD CLASS,
     // dan BUKAN file jubelio (yang juga punya SKU tapi lengkap dengan No Pesanan).
     if((set['Generic'] || set['GENERIC'] || set['generic'] || set['SKU']) && cariKolomProdClass(headers)) return 'prodclass';
@@ -7510,6 +7619,10 @@
           pes: trimKey(rec['No Pesanan']),
           sku: trimKey(rec['SKU']),
           nama: trimKey(rec['Nama Barang']),
+          // Waktu disimpan per baris, bukan hanya sekali untuk seluruh
+          // unggahan — supaya tetap terbaca kalau nanti daftarnya
+          // digabung dari beberapa unggahan.
+          at: Date.now(),
           mundur: turun ? 1 : 0,
           beda: beda
         });
@@ -8272,6 +8385,13 @@
     [/^dikirim$/i,                     'badge-processing'],
     // Istilah Shopify: pesanan kedaluwarsa = tidak jadi dibayar.
     [/kedaluwarsa|expired/i,           'badge-canceled'],
+    // Istilah Lazada (huruf kecil): confirmed = sudah dipastikan, belum kirim.
+    [/^confirmed$/i,                   'badge-paid'],
+    [/package returned|^returned$/i,   'badge-returned'],
+    [/^shipped$/i,                     'badge-shipped'],
+    // "delivered" sudah tertangkap aturan /telah dikirim|delivered/ di atas
+    // dan diberi warna biru — artinya sama di semua platform: sudah
+    // sampai ke pembeli. Tidak perlu aturan tersendiri.
     [/diproses|unfulfilled/i,          'badge-processing'],
     [/sedang dikirim|dalam pengiriman/i, 'badge-processing'],
     [/diterima/i,                      'badge-pending'],
@@ -8684,6 +8804,130 @@
     logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Shopify</b> \u2014 ' +
       ket + '. Masuk ke tab Marketplace, <b>tidak</b> memengaruhi Monitoring Jubelio.');
     recordActivity('Unggah Data Marketplace', fileName + ' (Shopify) \u2014 ' + ket + '.');
+  }
+
+
+  // ---------- ekspor Lazada ----------
+  // Ciri khas dibanding tiga platform lain:
+  //  1. Satu baris = SATU unit. Tidak ada kolom jumlah sama sekali, jadi
+  //     Qty selalu 1 dan banyaknya unit tercermin dari banyaknya baris.
+  //  2. Diskon ditulis NEGATIF ("-4792.00"), jadi ditambahkan, bukan dikurangi.
+  //  3. orderItemId unik dan stabil \u2014 dipakai sebagai penanda baris,
+  //     lebih andal daripada menomori kemunculan.
+  //  4. Tanggal berformat "30 Aug 2026 02:46" dengan nama bulan Inggris.
+  var LZ_KANAL = 'LAZADA';
+
+  var LZ_BULAN = {jan:1, feb:2, mar:3, apr:4, may:5, jun:6,
+                  jul:7, aug:8, sep:9, oct:10, nov:11, dec:12};
+
+  // "30 Aug 2026 02:46" -> "2026-08-30 02:46:00"
+  function lzWaktu(v){
+    if(v === null || v === undefined || v === '') return '';
+    if(v instanceof Date && !isNaN(v)) return mpWaktu(v);
+    var t = String(v).trim();
+    var m = t.match(/^(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if(m){
+      var bln = LZ_BULAN[m[2].toLowerCase()];
+      if(bln){
+        var p = function(x){ return (String(x).length < 2 ? '0' : '') + x; };
+        return m[3] + '-' + p(bln) + '-' + p(m[1]) +
+               (m[4] ? ' ' + p(m[4]) + ':' + m[5] + ':' + (m[6] || '00') : '');
+      }
+    }
+    return mpWaktu(t);
+  }
+
+  // "Ukuran:43" -> "43"
+  function lzVarian(v){
+    var t = trimKey(v);
+    if(!t) return '';
+    var i = t.indexOf(':');
+    return i === -1 ? t : t.slice(i + 1).trim();
+  }
+
+  function mergeLazadaSheet(json, fileName){
+    var index = {};
+    mpRows.forEach(function(r, i){ index[r.__id] = i; });
+
+    var baru = 0, ubah = 0, sama = 0, lewat = 0, ditolak = 0;
+
+    json.forEach(function(row){
+      var pes = trimKey(row['orderNumber']);
+      var item = trimKey(row['orderItemId']);
+      if(!pes || !item){ lewat++; return; }
+
+      var sku = trimKey(row['sellerSku']);
+      var varian = lzVarian(row['variation']);
+
+      // Diskon di Lazada bernilai negatif. Diserap apa adanya lalu dijumlahkan,
+      // sehingga subtotal = harga awal + diskon (yang negatif) = nilai bersih.
+      var hargaAwal = mpAngka(row['unitPrice']);
+      var dPenjual = mpAngka(row['sellerDiscountTotal']) || 0;
+      var dPlatform = mpAngka(row['platformDiscountTotal']) || 0;
+      var subtotal = (hargaAwal === null) ? null : (hargaAwal + dPenjual + dPlatform);
+
+      var rec = {
+        // orderItemId dipakai sebagai penanda: nilainya unik dan tidak berubah
+        // antar ekspor, jadi lebih tahan banting daripada nomor kemunculan.
+        __id: pes + '|' + sku + '|' + varian + '#' + item,
+        'Kanal': LZ_KANAL,
+        'No Pesanan': pes,
+        'Tanggal': lzWaktu(row['createTime']),
+        'Waktu Bayar': '',
+        'Waktu Selesai': lzWaktu(row['deliveredDate']),
+        'Status': trimKey(row['status']),
+        'Status Asli': trimKey(row['status']) +
+                       (trimKey(row['buyerFailedDeliveryReason'])
+                         ? ' \u00b7 ' + trimKey(row['buyerFailedDeliveryReason']) : ''),
+        'Alasan Batal': trimKey(row['buyerFailedDeliveryDetail']) ||
+                        trimKey(row['buyerFailedDeliveryReason']),
+        'SKU': sku,
+        'SKU Induk': sku,
+        'Nama Produk': trimKey(row['itemName']),
+        'Variasi': varian,
+        // Tidak ada kolom jumlah di ekspor Lazada: satu baris memang satu unit.
+        'Qty': 1,
+        'Qty Retur': mpAngka(row['refundAmount']) ? 1 : null,
+        'Harga Awal': hargaAwal,
+        'Harga': subtotal,
+        'Subtotal': subtotal,
+        'Total Bayar': mpAngka(row['paidPrice']),
+        'Total Diskon': Math.abs(dPenjual) + Math.abs(dPlatform),
+        'Diskon Penjual': Math.abs(dPenjual),
+        'Diskon Marketplace': Math.abs(dPlatform),
+        'Ongkir Pembeli': mpAngka(row['shippingFee']),
+        'Gudang': trimKey(row['wareHouse']),
+        'Penerima': trimKey(row['shippingName']) || trimKey(row['customerName']),
+        'Username': trimKey(row['customerEmail']),
+        'Kota': trimKey(row['shippingCity']),
+        'Provinsi': trimKey(row['shippingRegion']),
+        'No Resi': trimKey(row['trackingCode']),
+        'Kurir': trimKey(row['shippingProvider']),
+        'Metode Bayar': trimKey(row['payMethod'])
+      };
+
+      if(mpDibuang[rec.__id]){ ditolak++; return; }
+
+      var adaIdx = index[rec.__id];
+      if(adaIdx === undefined){
+        index[rec.__id] = mpRows.length;
+        mpRows.push(rec);
+        baru++;
+      } else {
+        var lamaR = mpRows[adaIdx];
+        var beda = Object.keys(rec).some(function(k){
+          return trimKey(lamaR[k]) !== trimKey(rec[k]);
+        });
+        if(beda){ mpRows[adaIdx] = rec; ubah++; } else { sama++; }
+      }
+    });
+
+    var ket = baru + ' baris baru, ' + ubah + ' diperbarui, ' + sama + ' tidak berubah' +
+              (lewat ? ', ' + lewat + ' dilewati (tanpa nomor pesanan)' : '') +
+              (ditolak ? ', ' + ditolak + ' ditolak (sudah dihapus permanen)' : '');
+    logMsg('ok', '\u2713', '<b>' + fileName + '</b> dikenali sebagai <b>ekspor Lazada</b> \u2014 ' +
+      ket + '. Masuk ke tab Marketplace, <b>tidak</b> memengaruhi Monitoring Jubelio.');
+    recordActivity('Unggah Data Marketplace', fileName + ' (Lazada) \u2014 ' + ket + '.');
   }
 
   // ---------- simpan & muat ----------
@@ -9713,9 +9957,10 @@
           else if(type === 'shopee'){ mergeShopeeSheet(json, file.name); anyRecognized = true; adaMarketBaru = true; }
           else if(type === 'tiktok'){ mergeTiktokSheet(json, file.name); anyRecognized = true; adaMarketBaru = true; }
           else if(type === 'shopify'){ mergeShopifySheet(json, file.name); anyRecognized = true; adaMarketBaru = true; }
+          else if(type === 'lazada'){ mergeLazadaSheet(json, file.name); anyRecognized = true; adaMarketBaru = true; }
         });
         if(!anyRecognized){
-          logMsg('warn', '⚠', '<b>' + file.name + '</b> tidak dikenali. Pastikan formatnya sama dengan jubelio_data.xlsx, LPH_2.xlsx, TO TI DETAIL (TII_DETAIL.xlsx), file master PROD CLASS (kolom Generic + PROD CLASS), ekspor pesanan Shopee, Tokped &amp; TikTok, atau Shopify.');
+          logMsg('warn', '⚠', '<b>' + file.name + '</b> tidak dikenali. Pastikan formatnya sama dengan jubelio_data.xlsx, LPH_2.xlsx, TO TI DETAIL (TII_DETAIL.xlsx), file master PROD CLASS (kolom Generic + PROD CLASS), ekspor pesanan Shopee, Tokped &amp; TikTok, Shopify, atau Lazada.');
         } else {
           scheduleSaveToCloud();
         }
