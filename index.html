@@ -7902,6 +7902,14 @@
   function renderInbox(){
     var box = document.getElementById('inboxIsi');
     if(!box) return;
+
+    // Daftar ini digambar ulang setiap kali ada perubahan di Firestore —
+    // termasuk saat laporan BARU masuk dari orang lain. Tanpa penyelamatan
+    // ini, balasan yang sedang setengah diketik akan lenyap begitu saja.
+    var sedangDiketik = {};
+    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-teks]'), function(t){
+      if(t.value) sedangDiketik[t.getAttribute('data-lap-teks')] = t.value;
+    });
     // Kalau bukan Owner, isinya tidak pernah digambar ke DOM sama sekali —
     // jadi tidak ada yang bisa diintip lewat Inspect Element.
     if(!bolehLihatLaporan()){ box.innerHTML = ''; return; }
@@ -7946,9 +7954,13 @@
             esc(l.balasan) + '</div>'
           : '') +
         '<div class="lap-tulis">' +
+          // Sengaja TIDAK diisi ulang dengan balasan yang sudah tersimpan.
+          // Balasannya sudah tampil di kotak hijau di atas; mengisinya lagi
+          // di sini membuat teks yang sama muncul dua kali dan terlihat
+          // seperti belum terkirim.
           '<textarea class="lap-input" data-lap-teks="' + esc(l.id) + '" rows="2" placeholder="' +
-            (l.balasan ? 'Ubah balasan\u2026' : 'Tulis balasan untuk pelapor\u2026') + '">' +
-            esc(l.balasan || '') + '</textarea>' +
+            (l.balasan ? 'Tulis balasan pengganti\u2026' : 'Tulis balasan untuk pelapor\u2026') +
+            '"></textarea>' +
         '</div>' +
         '<div class="lap-aksi">' +
           '<button type="button" class="btn btn-ghost" data-lap-balas="' + esc(l.id) + '">\u21b3 Kirim Balasan</button>' +
@@ -7972,6 +7984,11 @@
     Array.prototype.forEach.call(box.querySelectorAll('[data-lap-balas]'), function(b){
       b.addEventListener('click', function(){ balasLaporan(b.getAttribute('data-lap-balas')); });
     });
+
+    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-teks]'), function(t){
+      var simpan = sedangDiketik[t.getAttribute('data-lap-teks')];
+      if(simpan) t.value = simpan;
+    });
   }
 
   function balasLaporan(id){
@@ -7991,8 +8008,11 @@
       dibalasOleh: teks ? (window.currentUsername || '') : null,
       dibalasAt: teks ? Date.now() : null
     }).then(function(){
+      // Dikosongkan langsung, tidak menunggu gambar ulang dari Firestore —
+      // supaya jelas terlihat bahwa balasannya sudah terkirim.
+      kotak.value = '';
       logMsg('ok', '\u2713', teks
-        ? 'Balasan terkirim. Pelapor akan melihatnya di tombol \uD83D\uDEA9 miliknya.'
+        ? 'Balasan terkirim. Pelapor akan melihatnya di gelembung laporan miliknya.'
         : 'Balasan dikosongkan.');
     })['catch'](function(err){
       logMsg('warn', '\u26a0', 'Gagal menyimpan balasan: ' + err.message);
