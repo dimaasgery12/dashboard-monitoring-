@@ -293,11 +293,21 @@
     position:relative;
     z-index:1;
   }
-  .hero-logo{
+  /* Logo League merangkap tombol ganti tema, tapi tampilannya dibiarkan
+     bersih tanpa lencana apa pun. Petunjuk bahwa ini bisa ditekan hanya
+     muncul saat kursor lewat: bingkainya menyala dan tooltipnya keluar. */
+  .hero-logo-btn{
     position:absolute;
     top:22px;
     right:40px;
     z-index:2;
+    padding:0; border:none; background:none;
+    cursor:pointer; line-height:0;
+    border-radius:10px;
+  }
+  .hero-logo-btn:focus-visible{outline:2px solid var(--accent); outline-offset:3px;}
+
+  .hero-logo{
     height:34px;
     width:auto;
     display:block;
@@ -306,6 +316,18 @@
     border-radius:10px;
     box-shadow:0 2px 14px var(--shadow-soft);
     border:1px solid var(--hero-border);
+    transition:border-color .15s, box-shadow .15s, transform .12s;
+  }
+  .hero-logo-btn:hover .hero-logo{
+    border-color:var(--accent);
+    box-shadow:0 4px 18px var(--shadow-soft);
+    transform:translateY(-1px);
+  }
+  .hero-logo-btn:active .hero-logo{transform:none;}
+
+  @media (max-width:520px){
+    .hero-logo-btn{top:14px; right:14px;}
+    .hero-logo{height:28px; padding:6px 10px;}
   }
   .hero-sub{
     max-width:680px;
@@ -323,7 +345,8 @@
     flex-wrap:wrap;
     gap:10px 16px;
     margin-bottom:10px;
-    padding-right:120px;
+    /* ruang untuk logo di pojok kanan */
+    padding-right:150px;
   }
   .hero-topline .eyebrow{margin-bottom:0;}
   .hero-clock{
@@ -1102,6 +1125,37 @@
     letter-spacing:.06em; text-transform:uppercase; color:var(--accent-dark);
     margin-bottom:5px;
   }
+  /* ---------- utas percakapan ---------- */
+  .pc-utas{
+    display:flex; flex-direction:column; gap:7px;
+    margin-top:10px; padding-top:10px;
+    border-top:1px dashed var(--line);
+  }
+  .pc-balon{
+    max-width:88%; padding:8px 11px; border-radius:10px;
+    font-size:12.5px; line-height:1.55;
+    white-space:pre-wrap; overflow-wrap:anywhere;
+  }
+  /* Pesan pelapor rata kiri, pesan petugas rata kanan — pola yang sudah
+     dikenal semua orang dari aplikasi pesan, jadi tidak perlu dijelaskan. */
+  .pc-pelapor{
+    align-self:flex-start;
+    background:var(--surface-sunken); color:var(--ink);
+    border:1px solid var(--line);
+    border-bottom-left-radius:3px;
+  }
+  .pc-staf{
+    align-self:flex-end;
+    background:var(--accent-soft); color:var(--ink);
+    border:1px solid var(--line);
+    border-bottom-right-radius:3px;
+  }
+  .pc-kepala{
+    font-size:9.5px; color:var(--muted); margin-bottom:3px;
+    font-family:'IBM Plex Mono',monospace; letter-spacing:.03em;
+  }
+  .pc-teks{white-space:pre-wrap;}
+
   .lap-tulis{margin-top:9px;}
   .lap-input{
     width:100%; padding:8px 10px;
@@ -2285,28 +2339,38 @@
     [data-theme="light"] .shadow-2xl{ box-shadow:0 18px 40px -24px rgba(31,45,36,0.30) !important; }
 
     /* ---------------- Tombol pengalih tema ---------------- */
-    .theme-toggle{
-        display:inline-flex; align-items:center; gap:7px;
-        font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
-        letter-spacing:.06em; text-transform:uppercase;
-        padding:6px 12px; border-radius:20px; cursor:pointer;
-        background:var(--hero-chip);
-        border:1px solid var(--hero-border-strong);
-        color:var(--hero-ink);
-        transition:border-color .15s ease, color .15s ease, background .15s ease;
-        white-space:nowrap;
-    }
-    .theme-toggle:hover{ border-color:var(--accent); color:var(--accent); }
-    .theme-toggle .tt-icon{ font-size:13px; line-height:1; }
-    .theme-toggle .tt-text{ line-height:1; }
-    @media (max-width:520px){ .theme-toggle .tt-text{ display:none; } }
+    /* Gaya pil .theme-toggle dihapus: kedua tombol tema kini berupa logo
+       League (di kartu masuk dan di dashboard), tidak ada lagi yang memakainya. */
 
     /* Versi di dalam kartu login (latar kartu, bukan latar hero) */
-    .login-card .theme-toggle{
-        width:100%; justify-content:center; margin-top:12px;
-        background:transparent; border-color:var(--line); color:var(--muted);
+    /* Pil tema di kartu masuk sudah diganti logo League, yang sekaligus
+       jadi pengalih tema — sama seperti di dashboard. */
+    /* Ditaruh di pojok kanan atas layar masuk, sejajar dengan letaknya di
+       dalam dashboard — supaya orang menemukan benda yang sama di tempat
+       yang sama, sebelum dan sesudah masuk. */
+    .login-logo-btn{
+      position:absolute;
+      top:22px; right:40px;
+      padding:0; border:none; background:none;
+      cursor:pointer; line-height:0;
+      border-radius:10px;
     }
-    .login-card .theme-toggle:hover{ border-color:var(--accent); color:var(--accent); }
+    .login-logo-btn:focus-visible{outline:2px solid var(--accent); outline-offset:3px;}
+    .login-logo{
+      height:34px; width:auto; display:block;
+      background:var(--logo-plate);
+      padding:7px 12px; border-radius:10px;
+      border:1px solid var(--hero-border);
+      box-shadow:0 2px 14px var(--shadow-soft);
+      transition:border-color .15s, transform .12s;
+    }
+    .login-logo-btn:hover .login-logo{border-color:var(--accent); transform:translateY(-1px);}
+    .login-logo-btn:active .login-logo{transform:none;}
+    @media (max-width:520px){
+      .login-logo-btn{top:14px; right:14px;}
+      .login-logo{height:28px; padding:6px 10px;}
+    }
+
 </style>
 
 <!-- ===================== MODE LAYAR KECIL =====================
@@ -2459,6 +2523,7 @@
 <div class="watermark-overlay" aria-hidden="true"></div>
 
 <div id="loginOverlay">
+  <button type="button" class="login-logo-btn" data-theme-toggle aria-label="Ganti tema tampilan" title="Ganti tema tampilan"><img src="data:image/webp;base64,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" class="login-logo" alt="" aria-hidden="true"></button>
   <div class="login-card">
     <div class="eyebrow"><span class="dot" style="background:var(--accent);"></span>Akses Dashboard</div>
     <h1>Masuk</h1>
@@ -2502,9 +2567,6 @@
     </form>
     <button type="button" class="login-forgot" id="toggleAuthMode">Belum punya akun? Daftar di sini</button>
     <div class="login-note" id="loginNote">Setiap pengguna diberi peran <b>Owner</b>, <b>Super Admin</b>, <b>Admin</b>, <b>Team</b>, atau <b>Toko</b> yang menentukan hak akses di dashboard ini.</div>
-    <button type="button" class="theme-toggle" data-theme-toggle aria-label="Ganti tema tampilan">
-      <span class="tt-icon" data-tt-icon>🌙</span><span class="tt-text" data-tt-text>Gelap</span>
-    </button>
   </div>
 </div>
 
@@ -2762,7 +2824,7 @@
 </div>
 
 <div class="hero">
-  <img src="data:image/webp;base64,UklGRoATAABXRUJQVlA4IHQTAACQUQCdASo5AXgAPikSh0KhoQitOyYMAUJZ27rYAMAQjMrX9V/IDod9oe8fJgna9KfZ76l9t3a88wD9Mulr5gP1u9Zn0VfZL8AH6b9YB6AHlf/uL8MH7a5T15O/on4deAH8z/F3+e/7P2L/EPpH59+KX9N/4G/lZkfpN80/p/6y/1r/if9j5A/rn5QeZfpp9QL8L/iP9f/qv7I/3T/lf+b5xoQDgL2h+if378hP7j/2/+j6/Gpr30/lv28fYB/C/4r/Tfyg/sX/59wD+3eIN4l/lftm+wD+I/yz/Bf1v+6f+n/GfSL+/f7n/Jful/wvaP+U/2r/d/4L9wP8f///wE/jf8z/yH97/wn/C/xv/+/6X3tew70S/2U/7RpB75rpsk6aqilebUK3MtXDj64WMWp+Q6OSoNCRvN70Kj64WMWqAKC/NFHNCUAXUV1ixuZauHH1wo1gJiL7O/GXTXe0SgT72B0eopWGflhDDtJ6q7soGIhq7TGe0pK/dXae3OyojlZ/RIcKKpDAnnPhxt6HmgbMtRaxivQcCTaZbGLDIslKyMQHmxOeOW88NvcQueOuVkKDCYvndvRdMsMWmuelkU7m5sSwxcUJ2TMsmRHwmX72Abx7WuJUSPPsxz2FX1VkQSLFHlYEDVC6Jvgv/g33V5NvJGz4vUX24dd6GOdj6P/x7bOMcQoVqodPSJi+RwxvbKQDp2LtMKFu5+5S26LlcsQ/SRGgRG3klFawZED0At1VyCtewBtMt2y9ftr9ITbjMYtLWAFptO0h4WE7AmtirOGAFX+QKOxF9QI6oX+OEo4PaB9ah70a4goOzwMfD7JNbYPzpLhMa9y3IawjhmWycwBtUwBt1LTc5tXfLoATDTGheG+6wswAAP7/PWyo7NAQRNhFUIYRHjwIiY8z9LzS2jiZXf8c1Ga/8g30sPp3p141XkLPNdPL4ydCStKM/Kv/PqWVDT5Xp4bLRvEfLK1rOAyw6sdgtXakUFnqW6X8iErFYNRRVRGk4FoaVBTWngQlYOykzdXVpOR5SWFnGSNUkjQAXRKK96fjBFbj/pNe2AB3qKkiTQLfno6N7LdMS983A8LvoLVY5hSduaLtaLF0VVfVOMkKaMjwF1nGXj3XWrcXXFfRr8Qq4Z/gt4QjMXkI6KnP2yizHg6XzM3BmWiP92fOIe1jLedK0HoseEm4RX0Cvf+jyN4WDq7Z2lve+cqP/lLYlVr6pJJyjQ0l9dNgaJLO5yDfCsADNHr87ORvSWQANZVzK4+m7NRSOXEAgTLiiwq5yA5YG08OOByZgTSq00n3QyyzYX8ks36gHMlemkbAEqRbfX5ueQR0eW+F8Px7n/nZ4ZHXj4nf7IJ+C5tVTj18S6OZ4bOsdMhNEqxG3QuBaRx/XJxyFZjicwn1WhpJWGMbdG/VOF+3X8rfu45hi860WnqZ1M9E7xgOymdlzSZI+mX5cXCxmyrDCN/SgMnhFYgAAd3LBoLTPj2RKiySgS/cAoukWOzj6FU4cyOo+y8mkQnOdiXtNdoAEDJyw+eQVc7pK/rVLuVh3B15QKccZE/yIe1xNHN0UMCjH+WMZ0ETIupoA3c+SenIa8d7mpbiFOZbPWWErfmm2/4fsEx4+B9SfyjK+jOhMT0nbrwW4WDBQi3q9mC6wpw9evzv8RAE7KEitfvUwEHLI8uDGrBihYlaau9kPYMS33/O/Tufkk9LfDga3bvO+5FKpMJyEN/TadJ5BciIEmV0dMQHC7uDeN8WrdIegaa8o172u7D+EiK4pIxLc6EScpj1FIXT9eE5TBIPezWXi3yqusWosadSmr+xrm1LQmqHKd5MwZzoc7IHDC+FesnqLRXGHh/Dm7I3tmo9h5HjMy0RBJVNyDph7/6aMY6/gVoMZQ0ReNjxxKvBn0ygvo2SwtwQTED41PXalRz/urOTBvkm5VwLirks/m7/kJ/8oB+wg7IO3kDJ8X7xDKeP7G0jtLUWOqA06i1uT/+d3EyKNOwhWoyCoJaiKZ4bSwzBFsOW2w532fGqissgvKF2mSXgSycWPZVFBfKWzAkIJZlavZ0fa6sy0PI8nKlMJbX+JtwQ4Ps5ZYZ2zIdl8ztyg+6WKQfksoz4ti6wo+pbw+Gp0OZi96XMCPMvdWigaQS5h2WfxyXwx2P9CVfkIB6Nrkx3bazGPI9NxHW59nyOIhsQs7pQXU+pNZNdrLLKaUPsEhHAg6nTN4nzZr5vLwvsXXipzZ+cmdYfTO2weGJ3L/VfJl5FciCoxZJ0I3vyH73XrQqPHOE2ZXmQ47pFhh42pNhRzv/8SoznY6Hnz/pc85FYChR8PYnhhAedP/9IKIW2Ku5i/6aSOvBS3XOfzBBT9xAyJ5ayez4Jlo5qiMwxK0IzUM8GH6qbxZfi7B8N+1/TS1hsBjYTkefS4sEHkuPrUI9q8ELJO2aoyxK+OCNNLfvKaklmrXF3xfFerW9bSdyW6IrSPWwlP+dMECNuvVAiutdXtecXqOBy6jY+eoeIsG5z1rXFJ9EFx+JKzdpmmaXMcD3kpo5lIzo4X2eRbDxpsmPszX7FbK1OzvyuIP9CJD3QyUeFe5UrKVpWcL/PvqdAaP9rtw/6t/+TAgNM+CkqdZBp8K/gV8dVY+EPCL3tCTmsBxTD6DukUG/xB7INQefb6IaOotKJiRYi+pVPNFkIrsSJGx7nGQV/Q22vCqzt/tlsTKsVkNzpzZHFItAloj3YujsuiaExXOIr55nh9urJ1PR4XC6N8VC74HIQ4RkxbZ+FsiUlmYlts2EYzffgPV+IbfGNBZDT3oGcGiKBWiekHKHKIoKJQ6sdmPmcuCRTqn8pDftpuFzHTC8LcgRBNm7d5H8720bjOSrdgGKpVzC+SeWHr8KV72jepD5Ct6dm+EY1bCRSGClCzQfgaDukYdMJoEHcrzw8V+vqXAA/26Wbl7xvlbS5mS9uI8AbPpnJFtBE7hZiEjxJ/8AWnyz2+r4miHUmBlm3sPGtg6Vs+uLToxLQRUdvx2cW88Q5byvwaLvf3e1Koh24tc8hhQaz8H9XCBZ8WBAS8FQ2IrGPGQSnTf4cOlurL3J+e9Rt4qp/1gwtojm0zXqoRL4hG7WVxASGq1wC1QHrHAndz/d3i6z7hLavd3RB9ccPjftXm6LXGeLUNxX8dzyC3FHh+SZAhT3fDyTBdicP93tUv6MHdG9rWLJPiDO9U++6+mephWSZOQJwiRSHKgzDDBxCYz04aLy7vNIo7bpR+/MDprjPKpSbxxbFerLu1xRohH+wGhOfSQSLP/i68T9J3VZ4mT6eLBZo18FBHGrTvmR1nl3yU1hFM68t7QFZ/eLnyHN4tBtpbBVZNcyguT40IMBG7XcT3u3Qvk8YBPpfaVa1x+C8L26mc/NCbhtn/be2AyutHeExbysMk+kU6nC73ZYq7cJxKfXmRuyyKdT48sp7YMgfwBCTBjsX2cw87WAblB7s7H70aaCRaU5ObZFy626fbM5KlsfCoK5dc7qqx3K7vtRne7GAuLSPqUFf/jSTxj3+Nmal0UhRhRtl4DsK4JxsjH7+vB8+G86WwQgteJDjDzoy6hWEhvmF7iSKpSAWTKNOhV/1F48aBjyUL7QxXDp2eOth95blk4T+ScI0COWPTtGZVPZIUrqK+kpD6WyKfhn0aAmvtlGbLPO3rrTqT9KFL89NGtYV8CHKgwFKUby4qTpZwCv1PLMKdKFm6D/od+Zz9Z7TDGNNms08QJi3E1Ydp4AwIZXuCvYT/h1UOb5SQtdPQEwkVcLbpt4Ic2rVw2bAWZPv+yYOPybG/1xgGuLI0njqRBmgMJ18iklaktLzvJ4PXo6JCbLAUM4JLtLHRU9dBqyncj0O5TG3AhrQx+hqBI49X2jWawHHuMT9/wMw4sVsLa3tNsu+mcV2E74+QYbbqZ/mBs9RZMAtOPuPUSN9+9+n2tKrBvQ3xTd9BZGKtUNuBaHP/Z4GxJjBnvCWFuGXZLggMetff6CiaN7WWS/dwPPCNhO6cR4g+3t9LQdlwGWc8J21JMIv3TyIPAzfU3h9eTkuEAHZhzo4AAjW/8TJTjIK/L/awoQU+Xku3oaQqdya2hbNzqTdK9jB/FXnPFoQ8zej4FxWs9jPX90bBaHUM8lv+Ob+JTMasoQP3AQgZiDh6AbuX2tnADK2J/Xk6BbtEKFxifiCqnQT7h+pozKxVa04Tm18Po3wrFFysAQ42grNOPBtpwafLH5cc9cs9+IzX0T2E44vSsEwzJLQ/J/gfwqEJ3MS9EC5qXHPCvhfm3+vS8D+Y2OP4l7g3YN7KCpLZx5jXVtvcsrSqD/4+m244rN3HDGlw39zxTIRfo5deniQW456d+XHfwwsuOzQ1OcgasOiVCvVX4ZdlqpVlkc+3C3mSjDZuqLZPdXRvOayphMs/sxfq7Z/+Canw9KVDx8iwYjzt+aGWrDLoBHMmqrnSyipfgwzcPEkY+AmWlUaoGlRk+paJ5dQuPKivorCDIGEcD2V/PmNzUgVU2E0Bc2yWJ7WbG+LSisk+/5vlShYw41a9edexgYnH/WxKbsV6VYevU6aHK6qDrzuwTv8lZQnk4pzh2eixiw5/e062aXIqzf+ahf+9xJP6pdphzXBTWXHhf+cOgfswrbqBZYcNgozezLUy1MtTBXxV9EWy48p9isAyz9OT61n4RdBuhSwG5dTALTf/BlDg6PRdDcP/ZjSjXOnuY609kxBuHm5uNAI1jTYHvBuiozk9ySrb25Uclp+sK2v4vuWSVLlUS59H3rqo2By0qQIRIhBF3EG7/4X86+oYfl9QITufBRj0So8UJAOpBfnqPOk8hvEYuL9DLlTkoLDXikf9hvYfwFzQoUaTPvnphqk86At93MZ90Qbz9jMfPpLp+qltAbXcpU5nDPB4ShdoFaEzQOi9sEcBeBs79aefKp+ZLKSAuFdGm434d3hVrNY8O0DB1bGpf82aQfBBtO2luB5uNRRUpld4DumRR4DoD7A3CpnkI6Z7CsIvwKBO5itZTqL1gfliRNdQAh2kverOCaJdJJlh7hZbuCtT+2qRCYz5jYxBfwEVNP9AstCR5N/4HT1sCaaIcZbkuR0Y8KmIWWIPflc6r6cOy67DAX7Kno0UT9MIOeMdMtVVy7To+l2VopKMGJX+Btd26ICKxniPNi+BW2TQkCEaTSkIk85i98n/+PyjdqiyeAJO4364jLbbnpalsHRpLAb1U2MAsfDP7vVWcku6FC6mIPe8EFXSgMXwqlBoZFCfrCbdHz7bODjzOtoQ6jGlp3rDdfnZMakKQhaTaSuN8mQvyX4UAzufz7DA+/nnbgqwaQ+AsC0CtlaaJ9ISH8e5y+Mvkw2UuPtgfKYjHf6NkCx0mFzzhMH4cdCUfUh949p7gNXM0xk6Yx+oWRubG0cvrGmbFsjmvctdrg1dxJHD49nG2T0V3ok1t2Kt+dORqj1SZlzZJvSq+4ji3QzrihnOqxjjviV3PlUtlePD9WVK1nizyrqlCrlmFt7jJRGAR8+6sFP8GPIl8oCbSTzesYjeNXSzlhy9SjtYU2chFAwlfacudkTnpBSeDTdL8xpoD9UsnW53ty2bim5yk5iTTsbouiQmxcQh/WoFo766FKRUnoBcGeRN7sYkR8HRcclnS+n7xPugTk7WpNquUUpedXfmo6RLNM3NIL2i5p4LPYiW7OfZY521j8QlvYDSBwVgmWnxfAdtpZrxM9K58bzErI618P3wqeyT0jIEpA6qjPsfiS1yBisT/+4Rg2U01Q8UWIy8y15IloWi6JtWFeA/xRcanPufGyrSgdExaAPgWlbC6WTPMMHi1/x4dhXPLF6PSLY+MDLLzTsDNaOn0HqjYY1vbyFozPNI7T7zlFI9kZDmF3J0mlsit0XPkv4tcXcnVnApQH9lrNxWZPd6oszTpGdc7xbFueQsp9ijAeMdzQbhT7acrelOVcCHLzhVnEGGbV6yLv560xge+LtklB7HWd0I9FBnK59Yohrrr8uyc42U0T+Ro0w+uIO9Z252x1b1eZKkWrxz/QwE7BbTvV7FOGIvgs6gcxgT/cDL/TnW4j3pOLJfTM25BFo7yOfd+wfsVwVTB0w1ygEEA/46e30b7eRxO0TxyD4Aqs/G//ZMFr0HWhrYYnImFn2akvCVofKkFVZiznOu1MjdSql4nb51BMfRR7EgRc5IHaDlrIaC/XJQ/jeQ+b/RDkolqomm/5svkdwyBlKNdh6kMVs4GL2Vu+oMryuG95G0UrxMUpIAvzhzehkUKMsrXmLTpT1UZn3Os4/Cb3yTuUusKITk2tAVQG4yACPB6NaNezANRz7MwhA242T0JV2JyDHgXE+IbbT7zZ5yt++1FSqPf1mG7zi4hgbFtQFHqlz48iwhpUyoDtOpmPiDBTXoIFhxvKqdyaleAF99lZbr1DUI7Tr8P3UpjUcJD42KccvhxPRqf5xH32+W8JxfB7iBAGr0E+XsVwS7TmwGOHQ2F/7r0eWdgoZx8L0fKN4yecqvCL2ipMmeZjFVHoTDI2NBG3HEgBIzsW+j8SEIdwXpQWCUSbzUuUAunwOrr6imkNLgxpytlQmPipwbj0WHoYLxAgTQdiV8kuIVkr8Lw4PeGDBEC2hyckk7poFIxZIk3JWZ/PA7Z8sg1mesYN+ZOB7pqPjAJeqAAA=" alt="League — Lead The Way" class="hero-logo">
+  <button type="button" class="hero-logo-btn" data-theme-toggle aria-label="Ganti tema tampilan" title="Ganti tema tampilan"><img src="data:image/webp;base64,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" class="hero-logo" alt="" aria-hidden="true"></button>
   <div class="hero-topline">
     <div class="hero-clock mono">
       <i class="fas fa-clock" style="color:var(--accent);"></i>
@@ -2770,9 +2832,6 @@
       <span class="hero-clock-sep">·</span>
       <span class="hero-clock-time" id="heroClockTime">–</span>
     </div>
-    <button type="button" class="theme-toggle" data-theme-toggle aria-label="Ganti tema tampilan">
-      <span class="tt-icon" data-tt-icon>🌙</span><span class="tt-text" data-tt-text>Gelap</span>
-    </button>
   </div>
   <h1>Monitoring Jubelio</h1>
   <p class="hero-sub">Menggabungkan data pesanan marketplace (<b>Jubelio</b>) dengan bukti serah barang gudang
@@ -7784,8 +7843,60 @@
   };
 
   function bolehLihatLaporan(){
-    // Sesuai permintaan: HANYA Owner. Super Admin pun tidak.
-    return window.currentRole === 'owner';
+    // Owner dan Super Admin. Disamakan dengan hak membalas percakapan,
+    // supaya tidak ada peran yang bisa membalas tapi tidak bisa membaca.
+    return window.currentRole === 'owner' || window.currentRole === 'superadmin';
+  }
+
+  // Satu pesan dalam percakapan. Disimpan sebagai larik di dokumen laporan,
+  // bukan sub-koleksi — percakapannya pendek dan selalu dibaca utuh, jadi
+  // satu dokumen lebih murah dan aturannya lebih mudah dijaga.
+  function buatPesan(teks, staf){
+    return {
+      teks: teks,
+      oleh: window.currentUsername || '',
+      peran: window.currentRole || '',
+      staf: staf ? 1 : 0,
+      at: Date.now()
+    };
+  }
+
+  // Percakapan digambar sama persis di dua tempat: kotak masuk petugas dan
+  // daftar "Laporan saya" milik pelapor. Satu fungsi supaya keduanya tidak
+  // pernah berbeda tampilan.
+  function gambarPercakapan(l){
+    var isi = (l.percakapan || []);
+    if(!isi.length) return '';
+    return '<div class="pc-utas">' + isi.map(function(p){
+      return '<div class="pc-balon ' + (p.staf ? 'pc-staf' : 'pc-pelapor') + '">' +
+        '<div class="pc-kepala">' + esc(p.oleh || '-') +
+          (p.staf ? ' \u00b7 petugas' : '') +
+          (p.at ? ' \u00b7 ' + fmtWaktuID(p.at) : '') + '</div>' +
+        '<div class="pc-teks">' + esc(p.teks || '') + '</div></div>';
+    }).join('') + '</div>';
+  }
+
+  // Adakah pesan petugas yang belum dibaca pelapor? Dipakai untuk penanda
+  // merah pada gelembung: pesan TERAKHIR berasal dari petugas.
+  function adaBalasanBaru(l){
+    var isi = l.percakapan || [];
+    if(!isi.length) return !!l.balasan;   // dokumen lama, sebelum ada percakapan
+    return isi[isi.length - 1].staf === 1;
+  }
+
+  function kirimPesanUtas(id, teks, staf){
+    if(!teks) return Promise.resolve();
+    if(teks.length > 1000){
+      window.alert('Pesan terlalu panjang. Maksimal 1000 karakter.');
+      return Promise.resolve();
+    }
+    return db.collection('laporan').doc(id).update({
+      percakapan: firebase.firestore.FieldValue.arrayUnion(buatPesan(teks, staf)),
+      updatedAt: Date.now()
+    })['catch'](function(err){
+      logMsg('warn', '\u26a0', 'Pesan gagal terkirim: ' + err.message);
+      throw err;
+    });
   }
 
   function namaTabSekarang(){
@@ -7945,7 +8056,10 @@
       perangkat: deviceLabel(),
       jenis: laporJenisTerpilih,
       pesan: pesan,
-      status: 'baru'
+      status: 'baru',
+      // Wajib ada dan kosong saat dibuat — aturan Firestore memeriksanya,
+      // supaya tidak ada yang bisa menyelundupkan pesan palsu sejak awal.
+      percakapan: []
     }).then(function(){
       pesanEl.value = '';
       hitungSisaLapor();
@@ -7999,7 +8113,7 @@
 
     var n = bolehLihatLaporan()
       ? LAPORAN.filter(function(l){ return l.status !== 'ditangani'; }).length
-      : LAPORAN_SAYA.filter(function(l){ return l.balasan; }).length;
+      : LAPORAN_SAYA.filter(adaBalasanBaru).length;
 
     badge.hidden = !n;
     badge.textContent = n > 99 ? '99+' : String(n);
@@ -8109,27 +8223,14 @@
     var kotak = document.querySelector('[data-lap-teks="' + id + '"]');
     if(!kotak) return;
     var teks = (kotak.value || '').trim();
+    if(!teks){ kotak.focus(); return; }
 
-    if(teks.length > 1000){
-      window.alert('Balasan terlalu panjang. Maksimal 1000 karakter.');
-      return;
-    }
-    if(!teks && !window.confirm('Kosongkan balasan untuk laporan ini?')) return;
-
-    db.collection('laporan').doc(id).update({
-      balasan: teks || null,
-      dibalasOleh: teks ? (window.currentUsername || '') : null,
-      dibalasAt: teks ? Date.now() : null
-    }).then(function(){
-      // Dikosongkan langsung, tidak menunggu gambar ulang dari Firestore —
-      // supaya jelas terlihat bahwa balasannya sudah terkirim.
+    kirimPesanUtas(id, teks, true).then(function(){
+      // Dikosongkan langsung, tidak menunggu gambar ulang dari Firestore,
+      // supaya jelas terlihat bahwa pesannya sudah terkirim.
       kotak.value = '';
-      logMsg('ok', '\u2713', teks
-        ? 'Balasan terkirim. Pelapor akan melihatnya di gelembung laporan miliknya.'
-        : 'Balasan dikosongkan.');
-    })['catch'](function(err){
-      logMsg('warn', '\u26a0', 'Gagal menyimpan balasan: ' + err.message);
-    });
+      logMsg('ok', '\u2713', 'Balasan terkirim ke pelapor.');
+    })['catch'](function(){ /* pesan gagal sudah ditampilkan di dalam fungsinya */ });
   }
 
   function tandaiLaporan(id, selesai){
@@ -8175,9 +8276,17 @@
   function renderLaporanSaya(){
     var box = document.getElementById('laporanSaya');
     if(!box) return;
+
+    // Sama seperti di kotak masuk petugas: daftar ini digambar ulang setiap
+    // ada perubahan, jadi ketikan yang belum terkirim harus diselamatkan.
+    var sedangDiketikSaya = {};
+    Array.prototype.forEach.call(box.querySelectorAll('[data-saya-teks]'), function(t){
+      if(t.value) sedangDiketikSaya[t.getAttribute('data-saya-teks')] = t.value;
+    });
+
     if(!LAPORAN_SAYA.length){ box.innerHTML = ''; return; }
 
-    var adaBalasan = LAPORAN_SAYA.filter(function(l){ return l.balasan; }).length;
+    var adaBalasan = LAPORAN_SAYA.filter(adaBalasanBaru).length;
 
     var bungkus = document.getElementById('lpRiwayatBungkus');
     if(bungkus) bungkus.hidden = false;
@@ -8192,13 +8301,45 @@
                    : '<span class="lap-meta">menunggu ditangani</span>') +
           '</div>' +
           '<div class="lap-pesan">' + esc(l.pesan || '') + '</div>' +
-          (l.balasan
-            ? '<div class="lap-balasan"><div class="lap-balasan-kepala">\u21b3 Balasan Owner' +
+          (l.balasan && !(l.percakapan || []).length
+            ? '<div class="lap-balasan"><div class="lap-balasan-kepala">\u21b3 Balasan' +
               (l.dibalasAt ? ' \u00b7 ' + fmtWaktuID(l.dibalasAt) : '') + '</div>' +
               esc(l.balasan) + '</div>'
             : '') +
+          gambarPercakapan(l) +
+          // Pelapor kini bisa membalas balik, jadi utasnya jalan dua arah.
+          // Utas yang sudah ditandai selesai tetap bisa dilanjutkan; kalau
+          // ditutup rapat, orang terpaksa membuat laporan baru untuk hal
+          // yang sama dan riwayatnya jadi terpencar.
+          '<div class="lap-tulis">' +
+            '<textarea class="lap-input" data-saya-teks="' + esc(l.id) + '" rows="2" ' +
+              'placeholder="Balas\u2026"></textarea>' +
+          '</div>' +
+          '<div class="lap-aksi">' +
+            '<button type="button" class="btn btn-ghost" data-saya-kirim="' + esc(l.id) +
+              '">\u21b3 Kirim</button>' +
+          '</div>' +
           '</div>';
       }).join('');
+
+    Array.prototype.forEach.call(box.querySelectorAll('[data-saya-kirim]'), function(b){
+      b.addEventListener('click', function(){
+        var id = b.getAttribute('data-saya-kirim');
+        var kotak = box.querySelector('[data-saya-teks="' + id + '"]');
+        if(!kotak) return;
+        var teks = (kotak.value || '').trim();
+        if(!teks){ kotak.focus(); return; }
+        kirimPesanUtas(id, teks, false).then(function(){
+          kotak.value = '';
+          logMsg('ok', '\u2713', 'Pesan terkirim.');
+        })['catch'](function(){});
+      });
+    });
+
+    Array.prototype.forEach.call(box.querySelectorAll('[data-saya-teks]'), function(t){
+      var simpan = sedangDiketikSaya[t.getAttribute('data-saya-teks')];
+      if(simpan) t.value = simpan;
+    });
   }
 
   function pasangLaporanUI(){
