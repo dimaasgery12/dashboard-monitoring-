@@ -7789,6 +7789,7 @@
   // dashboard \u2014 karena itu ikonnya diberi penanda angka, supaya tidak
   // menumpuk berminggu-minggu tanpa ada yang sadar.
   var LAPORAN = [];
+  var laporanGagal = null;      // pesan error terakhir dari Firestore, bila ada
   var inboxSaring = 'baru';
   var BATAS_PESAN_LAPOR = 1000;
 
@@ -8085,11 +8086,13 @@
 
   // ---------- kotak masuk (khusus Owner) ----------
   function pantauLaporan(){
-    // Hanya dijalankan untuk Owner. Peran lain tidak punya izin baca koleksi
-    // ini, jadi memasang pemantau untuk mereka hanya menghasilkan error.
+    // Hanya dijalankan untuk Owner & Super Admin. Peran lain tidak punya izin
+    // baca koleksi ini, jadi memasang pemantau untuk mereka hanya
+    // menghasilkan error.
     if(!bolehLihatLaporan()) return;
     db.collection('laporan').orderBy('at', 'desc').limit(200)
       .onSnapshot(function(qs){
+        laporanGagal = null;
         LAPORAN = [];
         qs.forEach(function(d){
           var o = d.data() || {};
@@ -8099,7 +8102,16 @@
         renderBadgeLaporan();
         renderInbox();
       }, function(err){
+        // Kegagalan izin TIDAK boleh diam-diam. Sebelumnya hanya masuk
+        // Console, sehingga kotaknya tampak kosong dan orang menyangka
+        // laporannya memang belum masuk — padahal ditolak Firestore.
         console.warn('Gagal memantau laporan:', err && err.message);
+        laporanGagal = err && err.message ? err.message : 'tidak diketahui';
+        renderInbox();
+        logMsg('warn', '\u26a0',
+          '<b>Kotak Laporan tidak bisa dibaca:</b> ' + esc(laporanGagal) +
+          '. Kalau pesannya soal izin, <b>firestore.rules</b> versi terbaru belum dipublish \u2014 ' +
+          'akses Super Admin ke koleksi <b>laporan</b> ada di situ.');
       });
   }
 
@@ -8144,6 +8156,14 @@
     var daftar = inboxSaring === 'baru'
       ? LAPORAN.filter(function(l){ return l.status !== 'ditangani'; })
       : LAPORAN;
+
+    if(laporanGagal){
+      box.innerHTML = '<div class="users-msg">\u26a0 Kotak Laporan tidak bisa dibaca dari cloud.<br><br>' +
+        '<b>' + esc(laporanGagal) + '</b><br><br>' +
+        'Kalau pesannya menyebut izin, berarti <b>firestore.rules</b> versi terbaru belum dipublish. ' +
+        'Aturan lama hanya mengizinkan Owner; akses Super Admin ada di versi baru.</div>';
+      return;
+    }
 
     if(!daftar.length){
       box.innerHTML = '<div class="users-msg">' +
