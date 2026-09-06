@@ -794,6 +794,14 @@
   }
   .users-table select:hover{border-color:var(--accent);}
   .users-table select:focus{outline:none; border-color:var(--accent);}
+  /* Baris pengguna nonaktif diredupkan supaya terlihat jelas bedanya dari
+     yang masih aktif, tapi tetap terbaca — bukan disembunyikan. */
+  .users-table tr.baris-nonaktif td{opacity:.55;}
+  .users-table tr.baris-nonaktif .del-user{
+    border-color:var(--accent) !important;
+    color:var(--accent) !important;
+  }
+
   .users-table .user-actions{
     display:flex; flex-direction:column; gap:5px; align-items:stretch;
     min-width:110px;
@@ -1073,6 +1081,17 @@
   .lp-kirim:hover{background:var(--accent-dark);}
   .lp-kirim:disabled{opacity:.6; cursor:not-allowed;}
 
+  .lp-kaki-aksi{display:flex; gap:6px; flex-wrap:wrap; justify-content:center;}
+  #lpSuara{
+    display:inline-flex; align-items:center; gap:6px;
+    margin-top:6px; padding:5px 10px;
+    border:1px solid var(--line); border-radius:14px;
+    background:var(--paper-raised); color:var(--muted);
+    font-family:'Inter',sans-serif; font-size:10.5px; cursor:pointer;
+  }
+  #lpSuara:hover{color:var(--ink); border-color:var(--muted);}
+  #lpSuara.mati{opacity:.65;}
+
   .lp-kaki{
     padding:9px 16px 11px; font-size:10px; color:var(--muted);
     text-align:center; border-top:1px solid var(--line);
@@ -1125,6 +1144,62 @@
     letter-spacing:.06em; text-transform:uppercase; color:var(--accent-dark);
     margin-bottom:5px;
   }
+  /* ---------- ruang percakapan ---------- */
+  .lp-chat-info{
+    padding:11px 16px; border-bottom:1px solid var(--line);
+    background:var(--surface-sunken);
+    font-size:11px; color:var(--muted); line-height:1.55;
+  }
+  .lp-chat-info b{color:var(--ink);}
+  .lp-chat-pesan{display:flex; flex-direction:column; gap:8px; padding:14px 16px 6px;}
+
+  /* Bilah ketik menempel di dasar panel, tidak ikut tergulir bersama pesan —
+     persis seperti aplikasi pesan yang sudah dikenal semua orang. */
+  .lp-bilah{
+    display:flex; align-items:flex-end; gap:8px;
+    padding:10px 12px;
+    border-top:1px solid var(--line);
+    background:var(--paper-raised);
+  }
+  .lp-bilah textarea{
+    flex:1 1 auto; min-width:0;
+    max-height:110px; padding:9px 12px;
+    border:1px solid var(--line); border-radius:18px;
+    background:var(--surface-sunken); color:var(--ink);
+    font-family:'Inter',sans-serif; font-size:12.5px; line-height:1.5;
+    resize:none; overflow-y:auto;
+  }
+  .lp-bilah textarea:focus{outline:none; border-color:var(--accent);}
+  .lp-bilah button{
+    flex:0 0 auto; width:36px; height:36px; border-radius:50%;
+    border:none; background:var(--accent); color:var(--hero-ink);
+    font-size:13px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .lp-bilah button:hover{background:var(--accent-dark);}
+  .lp-bilah button:disabled{opacity:.5; cursor:not-allowed;}
+
+  /* Baris percakapan di daftar — mirip daftar chat: nama, cuplikan pesan
+     terakhir, waktu, dan titik penanda kalau ada yang belum dibaca. */
+  .lp-utas-waktu{font-size:10px; color:var(--muted); flex:0 0 auto; margin-left:6px;}
+  /* Nama pelapor di atas tiap utas pada kotak masuk petugas — dia perlu
+     tahu siapa yang bicara sebelum membuka percakapannya. */
+  .lp-utas-pelapor{
+    font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700;
+    letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+    padding:9px 16px 0;
+  }
+  .lp-titik{
+    flex:0 0 auto; width:8px; height:8px; border-radius:50%;
+    background:var(--warn); margin-left:6px;
+  }
+  .lp-status-tag{
+    display:inline-block; font-size:9px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; padding:1px 6px; border-radius:8px; margin-left:6px;
+  }
+  .lp-status-tag.buka{background:var(--warn-bg); color:var(--warn);}
+  .lp-status-tag.tutup{background:var(--ok-bg); color:var(--ok);}
+
   /* ---------- utas percakapan ---------- */
   .pc-utas{
     display:flex; flex-direction:column; gap:7px;
@@ -2602,7 +2677,7 @@
           <option value="superadmin">Super Admin</option>
           <option value="admin">Admin</option>
           <option value="viewer">Team</option>
-          <option value="toko">Toko</option>
+          <option value="toko">Toko</option><option value="nonaktif">Nonaktif</option>
         </select>
         <select id="newLokasi" title="Batasi akun ini hanya ke satu lokasi">
           <option value="">Semua lokasi (tanpa batasan)</option>
@@ -2695,7 +2770,13 @@
       </div>
     </div>
 
-    <!-- Tampilan 3: kotak laporan (hanya Owner) -->
+    <!-- Tampilan 4: ruang percakapan -->
+    <div id="lpChat" hidden="">
+      <div class="lp-chat-info" id="lpChatInfo"></div>
+      <div class="lp-chat-pesan" id="lpChatPesan"></div>
+    </div>
+
+    <!-- Tampilan 3: kotak laporan (petugas) -->
     <div id="lpInbox" hidden="">
       <div class="lp-saring">
         <div class="an-toggle" id="inboxSaring">
@@ -2718,11 +2799,25 @@
     </div>
   </div>
 
+  <!-- Bilah ketik menempel di dasar panel, seperti aplikasi pesan. Hanya
+       tampil di ruang percakapan. -->
+  <div class="lp-bilah" id="lpBilah" hidden="">
+    <textarea id="lpKetik" rows="1" placeholder="Tulis pesan…"></textarea>
+    <button type="button" id="lpKirimPesan" aria-label="Kirim pesan">
+      <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+    </button>
+  </div>
+
   <div class="lp-kaki">
     <span>Laporan dibaca oleh Owner · balasannya muncul di sini</span>
-    <button type="button" id="fabSembunyi">
-      <i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Sembunyikan tombol ini
-    </button>
+    <div class="lp-kaki-aksi">
+      <button type="button" id="lpSuara">
+        <i class="fa-solid fa-bell" aria-hidden="true"></i> <span>Suara: nyala</span>
+      </button>
+      <button type="button" id="fabSembunyi">
+        <i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Sembunyikan tombol ini
+      </button>
+    </div>
   </div>
 </div>
 
@@ -3618,6 +3713,14 @@
     db.collection('users').doc(user.uid).get().then(function(snap){
       if(snap.exists){
         var d = snap.data();
+        // Peran 'nonaktif' = akses dicabut tanpa menghapus dokumennya.
+        // Dokumen sengaja dipertahankan supaya pemulihannya cukup mengubah
+        // peran — tidak perlu password lama, tidak perlu buka Firebase Console.
+        if(d.role === 'nonaktif'){
+          showLoginError('Akses akun ini sedang dinonaktifkan. Hubungi Owner untuk mengaktifkannya kembali.');
+          firebase.auth().signOut();
+          return;
+        }
         applyRole(d.username || user.email, d.role, d.lokasi);
         startAppIfNeeded();
       } else if(user.email === OWNER_EMAIL){
@@ -3842,8 +3945,10 @@
       qs.forEach(function(doc){
         var d = doc.data();
         var isOwnerRow = d.role === 'owner';
+        var nonaktif = d.role === 'nonaktif';
         rows.push(
-          '<tr data-uid="' + doc.id + '" data-username="' + (d.username || '') + '">' +
+          '<tr class="' + (nonaktif ? 'baris-nonaktif' : '') + '" data-uid="' + doc.id +
+          '" data-username="' + (d.username || '') + '">' +
             '<td>' + (d.username || '-') + '</td>' +
             '<td>' + (d.email || '-') + '</td>' +
             '<td>' + (isOwnerRow ? 'Owner' :
@@ -3852,13 +3957,15 @@
                 '<option value="admin"' + (d.role==='admin'?' selected':'') + '>Admin</option>' +
                 '<option value="viewer"' + (d.role==='viewer'?' selected':'') + '>Team</option>' +
                 '<option value="toko"' + (d.role==='toko'?' selected':'') + '>Toko</option>' +
+                '<option value="nonaktif"' + (d.role==='nonaktif'?' selected':'') + '>\u2014 Nonaktif</option>' +
               '</select>') +
             '</td>' +
             '<td>' + (isOwnerRow ? '<span style="color:var(--muted);">Semua lokasi</span>' :
               '<select class="lokasi-select">' + lokasiOptionsHtml(d.lokasi) + '</select>') + '</td>' +
             '<td><div class="user-actions">' +
               '<button type="button" class="reset-pw" data-email="' + (d.email || '') + '">Reset Password</button>' +
-              (isOwnerRow ? '' : '<button type="button" class="del-user">Cabut Akses</button>') +
+              (isOwnerRow ? '' : '<button type="button" class="del-user">' +
+                (nonaktif ? '\u21ba Aktifkan' : 'Nonaktifkan') + '</button>') +
             '</div></td>' +
           '</tr>'
         );
@@ -3913,17 +4020,54 @@
           var tr = this.closest('tr');
           var uid = tr.getAttribute('data-uid');
           var uname = tr.getAttribute('data-username') || '';
-          if(!window.confirm('Cabut akses pengguna ini? Pengguna tidak akan bisa masuk lagi ke dashboard.\n\nCatatan: akun email-nya tetap ada di Firebase Authentication, jadi email yang sama masih bisa dipulihkan lewat form "Tambah Pengguna Baru".')) return;
-          db.collection('users').doc(uid).delete().then(function(){
-            // mapping username -> email juga dibersihkan supaya login via username tidak nyangkut
-            if(uname) return db.collection('usernames').doc(uname).delete()['catch'](function(){});
+          var sedangNonaktif = tr.classList.contains('baris-nonaktif');
+          var msg = document.getElementById('usersMsg');
+
+          if(sedangNonaktif){
+            // Mengaktifkan kembali: cukup kembalikan perannya. TIDAK perlu
+            // password lama, tidak perlu membuka Firebase Console — itulah
+            // alasan dokumennya tidak dihapus sejak awal.
+            var peran = window.prompt(
+              'Aktifkan kembali ' + (uname || 'pengguna ini') + ' dengan peran apa?\n\n' +
+              'Ketik salah satu: superadmin, admin, viewer, toko', 'toko');
+            if(!peran) return;
+            peran = String(peran).trim().toLowerCase();
+            if(['superadmin','admin','viewer','toko'].indexOf(peran) === -1){
+              msg.className = 'users-msg err';
+              msg.textContent = 'Peran tidak dikenal: ' + peran;
+              return;
+            }
+            db.collection('users').doc(uid).update({role: peran}).then(function(){
+              msg.className = 'users-msg ok';
+              msg.textContent = 'Akses ' + (uname || uid) + ' diaktifkan kembali sebagai ' + peran + '.';
+              loadUsersList();
+            })['catch'](function(err){
+              msg.className = 'users-msg err';
+              msg.textContent = 'Gagal mengaktifkan: ' + err.message;
+            });
+            return;
+          }
+
+          if(!window.confirm('Nonaktifkan akses ' + (uname || 'pengguna ini') + '?\n\n' +
+             'Dia tidak akan bisa masuk lagi, tapi datanya tetap tersimpan \u2014 ' +
+             'aksesnya bisa dipulihkan kapan saja hanya dengan satu klik, ' +
+             'tanpa perlu password lama.')) return;
+
+          // Dokumen TIDAK dihapus. Menghapusnya membuat akun Authentication
+          // menggantung tanpa peran, dan memulihkannya menuntut password asli
+          // pemiliknya — masalah yang sempat mengunci akun Toni.
+          db.collection('users').doc(uid).update({
+            role: 'nonaktif',
+            nonaktifOleh: window.currentUsername || '',
+            nonaktifAt: Date.now()
           }).then(function(){
-            tr.remove();
-            document.getElementById('usersMsg').className = 'users-msg ok';
-            document.getElementById('usersMsg').textContent = 'Akses pengguna dicabut. Akun email-nya masih ada di Authentication dan bisa dipulihkan kapan saja.';
+            msg.className = 'users-msg ok';
+            msg.textContent = 'Akses ' + (uname || uid) + ' dinonaktifkan. ' +
+              'Tekan \u21ba Aktifkan untuk memulihkannya.';
+            loadUsersList();
           })['catch'](function(err){
-            document.getElementById('usersMsg').className = 'users-msg err';
-            document.getElementById('usersMsg').textContent = 'Gagal mencabut akses: ' + err.message;
+            msg.className = 'users-msg err';
+            msg.textContent = 'Gagal menonaktifkan: ' + err.message;
           });
         });
       });
@@ -7963,9 +8107,12 @@
   }
 
   function tampilkanDaftarLapor(){
+    chatId = null;
     document.getElementById('lpDaftar').hidden = false;
     document.getElementById('lpForm').hidden = true;
     document.getElementById('lpInbox').hidden = true;
+    document.getElementById('lpChat').hidden = true;
+    document.getElementById('lpBilah').hidden = true;
     document.getElementById('lpKembali').hidden = true;
     document.getElementById('lpJudul').textContent = 'Ada masalah data?';
     document.getElementById('lpSub').textContent = 'Pilih jenisnya, laporan masuk langsung ke Owner';
@@ -7998,19 +8145,25 @@
 
   function bukaInbox(){
     if(!bolehLihatLaporan()) return;
+    chatId = null;
     document.getElementById('lpDaftar').hidden = true;
     document.getElementById('lpForm').hidden = true;
+    document.getElementById('lpChat').hidden = true;
+    document.getElementById('lpBilah').hidden = true;
     document.getElementById('lpInbox').hidden = false;
     document.getElementById('lpKembali').hidden = false;
     document.getElementById('lpJudul').textContent = 'Kotak Laporan';
-    document.getElementById('lpSub').textContent = 'Laporan dari seluruh pengguna';
+    document.getElementById('lpSub').textContent = 'Percakapan dari seluruh pengguna';
     renderInbox();
   }
 
   function bukaFormLapor(jenis){
     laporJenisTerpilih = jenis;
+    chatId = null;
     document.getElementById('lpDaftar').hidden = true;
     document.getElementById('lpInbox').hidden = true;
+    document.getElementById('lpChat').hidden = true;
+    document.getElementById('lpBilah').hidden = true;
     document.getElementById('lpForm').hidden = false;
     document.getElementById('lpKembali').hidden = false;
     document.getElementById('lpJudul').textContent = 'Tulis laporan';
@@ -8101,6 +8254,8 @@
         });
         renderBadgeLaporan();
         renderInbox();
+        if(chatId) renderChat();
+        periksaSuara();
       }, function(err){
         // Kegagalan izin TIDAK boleh diam-diam. Sebelumnya hanya masuk
         // Console, sehingga kotaknya tampak kosong dan orang menyangka
@@ -8141,21 +8296,7 @@
   function renderInbox(){
     var box = document.getElementById('inboxIsi');
     if(!box) return;
-
-    // Daftar ini digambar ulang setiap kali ada perubahan di Firestore —
-    // termasuk saat laporan BARU masuk dari orang lain. Tanpa penyelamatan
-    // ini, balasan yang sedang setengah diketik akan lenyap begitu saja.
-    var sedangDiketik = {};
-    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-teks]'), function(t){
-      if(t.value) sedangDiketik[t.getAttribute('data-lap-teks')] = t.value;
-    });
-    // Kalau bukan Owner, isinya tidak pernah digambar ke DOM sama sekali —
-    // jadi tidak ada yang bisa diintip lewat Inspect Element.
     if(!bolehLihatLaporan()){ box.innerHTML = ''; return; }
-
-    var daftar = inboxSaring === 'baru'
-      ? LAPORAN.filter(function(l){ return l.status !== 'ditangani'; })
-      : LAPORAN;
 
     if(laporanGagal){
       box.innerHTML = '<div class="users-msg">\u26a0 Kotak Laporan tidak bisa dibaca dari cloud.<br><br>' +
@@ -8165,93 +8306,37 @@
       return;
     }
 
+    var daftar = inboxSaring === 'baru'
+      ? LAPORAN.filter(function(l){ return l.status !== 'ditangani'; })
+      : LAPORAN;
+
     if(!daftar.length){
       box.innerHTML = '<div class="users-msg">' +
         (inboxSaring === 'baru'
-          ? 'Tidak ada laporan yang belum ditangani. \uD83D\uDC4D'
+          ? 'Tidak ada percakapan yang belum ditangani. \uD83D\uDC4D'
           : 'Belum ada laporan masuk.') + '</div>';
       return;
     }
 
-    box.innerHTML = daftar.map(function(l){
-      var sudah = l.status === 'ditangani';
-      var meta = [
-        l.role ? esc(l.role) : null,
-        l.lokasi ? esc(l.lokasi) : null,
-        l.tab ? 'tab ' + esc(l.tab) : null,
-        l.perangkat ? esc(l.perangkat) : null
-      ].filter(Boolean).join(' \u00b7 ');
+    // Diurutkan dari yang pesannya paling baru, seperti daftar chat.
+    daftar = daftar.slice().sort(function(a, b){ return waktuUtas(b) - waktuUtas(a); });
 
-      return '<div class="lap-item ' + (sudah ? 'ditangani' : 'baru') + '">' +
-        '<div class="lap-kepala">' +
-          '<span class="lap-jenis">' + esc(l.jenis || 'Lainnya') + '</span>' +
-          '<span class="lap-oleh">' + esc(l.oleh || '-') + '</span>' +
-          '<span class="lap-meta">' + (l.at ? fmtWaktuID(l.at) : '-') + '</span>' +
-        '</div>' +
-        '<div class="lap-meta" style="margin-bottom:7px;">' + meta + '</div>' +
-        '<div class="lap-pesan">' + esc(l.pesan || '') + '</div>' +
-        (sudah
-          ? '<div class="lap-meta" style="margin-top:8px;">\u2713 Ditangani oleh <b>' +
-            esc(l.ditanganiOleh || '-') + '</b>' +
-            (l.ditanganiAt ? ' \u00b7 ' + fmtWaktuID(l.ditanganiAt) : '') + '</div>'
-          : '') +
-        (l.balasan
-          ? '<div class="lap-balasan"><div class="lap-balasan-kepala">\u21b3 Balasan Owner' +
-            (l.dibalasAt ? ' \u00b7 ' + fmtWaktuID(l.dibalasAt) : '') + '</div>' +
-            esc(l.balasan) + '</div>'
-          : '') +
-        '<div class="lap-tulis">' +
-          // Sengaja TIDAK diisi ulang dengan balasan yang sudah tersimpan.
-          // Balasannya sudah tampil di kotak hijau di atas; mengisinya lagi
-          // di sini membuat teks yang sama muncul dua kali dan terlihat
-          // seperti belum terkirim.
-          '<textarea class="lap-input" data-lap-teks="' + esc(l.id) + '" rows="2" placeholder="' +
-            (l.balasan ? 'Tulis balasan pengganti\u2026' : 'Tulis balasan untuk pelapor\u2026') +
-            '"></textarea>' +
-        '</div>' +
-        '<div class="lap-aksi">' +
-          '<button type="button" class="btn btn-ghost" data-lap-balas="' + esc(l.id) + '">\u21b3 Kirim Balasan</button>' +
-          (sudah
-            ? '<button type="button" class="btn btn-ghost" data-lap-buka="' + esc(l.id) + '">\u21ba Tandai belum ditangani</button>'
-            : '<button type="button" class="btn btn-ghost" data-lap-selesai="' + esc(l.id) + '">\u2713 Tandai sudah ditangani</button>') +
-          '<button type="button" class="btn btn-ghost" data-lap-hapus="' + esc(l.id) +
-            '" style="border-color:var(--warn); color:var(--warn);">\uD83D\uDDD1 Hapus</button>' +
-        '</div></div>';
+    box.innerHTML = daftar.map(function(l){
+      var isi = l.percakapan || [];
+      // Titik merah bila pesan terakhir datang dari pelapor — artinya
+      // menunggu jawaban petugas.
+      var perluDijawab = isi.length ? isi[isi.length - 1].staf === 0 : true;
+      return '<div class="lp-utas-pelapor">' + esc(l.oleh || '-') + '</div>' +
+             barisUtas(l, perluDijawab && l.status !== 'ditangani');
     }).join('');
 
-    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-selesai]'), function(b){
-      b.addEventListener('click', function(){ tandaiLaporan(b.getAttribute('data-lap-selesai'), true); });
-    });
-    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-buka]'), function(b){
-      b.addEventListener('click', function(){ tandaiLaporan(b.getAttribute('data-lap-buka'), false); });
-    });
-    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-hapus]'), function(b){
-      b.addEventListener('click', function(){ hapusLaporan(b.getAttribute('data-lap-hapus')); });
-    });
-    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-balas]'), function(b){
-      b.addEventListener('click', function(){ balasLaporan(b.getAttribute('data-lap-balas')); });
-    });
-
-    Array.prototype.forEach.call(box.querySelectorAll('[data-lap-teks]'), function(t){
-      var simpan = sedangDiketik[t.getAttribute('data-lap-teks')];
-      if(simpan) t.value = simpan;
+    Array.prototype.forEach.call(box.querySelectorAll('[data-buka-chat]'), function(b){
+      b.addEventListener('click', function(){ bukaChat(b.getAttribute('data-buka-chat'), 'inbox'); });
     });
   }
 
-  function balasLaporan(id){
-    if(!bolehLihatLaporan()) return;
-    var kotak = document.querySelector('[data-lap-teks="' + id + '"]');
-    if(!kotak) return;
-    var teks = (kotak.value || '').trim();
-    if(!teks){ kotak.focus(); return; }
-
-    kirimPesanUtas(id, teks, true).then(function(){
-      // Dikosongkan langsung, tidak menunggu gambar ulang dari Firestore,
-      // supaya jelas terlihat bahwa pesannya sudah terkirim.
-      kotak.value = '';
-      logMsg('ok', '\u2713', 'Balasan terkirim ke pelapor.');
-    })['catch'](function(){ /* pesan gagal sudah ditampilkan di dalam fungsinya */ });
-  }
+  // balasLaporan() dihapus: membalas kini lewat bilah ketik di ruang
+  // percakapan, bukan kotak kecil di tiap kartu.
 
   function tandaiLaporan(id, selesai){
     if(!bolehLihatLaporan()) return;
@@ -8276,89 +8361,328 @@
   // membaca laporan yang uid-nya miliknya sendiri — tidak lebih.
   var LAPORAN_SAYA = [];
 
+  var LAPORAN_SAYA_UID = [];
+  var LAPORAN_SAYA_EMAIL = [];
+  var laporanSayaGagal = null;
+
+  function gabungLaporanSaya(){
+    // Digabung berdasarkan id dokumen supaya laporan yang tertangkap kedua
+    // kueri tidak muncul dua kali.
+    var peta = {};
+    LAPORAN_SAYA_UID.concat(LAPORAN_SAYA_EMAIL).forEach(function(l){ peta[l.id] = l; });
+    LAPORAN_SAYA = Object.keys(peta).map(function(k){ return peta[k]; });
+    LAPORAN_SAYA.sort(function(a, b){ return (b.at || 0) - (a.at || 0); });
+    renderLaporanSaya();
+    renderBadgeLaporan();
+    if(chatId) renderChat();
+    periksaSuara();
+  }
+
   function pantauLaporanSaya(){
     var user = firebase.auth().currentUser;
     if(!user) return;
-    // Sengaja tanpa orderBy: menggabungkan where + orderBy pada kolom berbeda
-    // menuntut indeks gabungan di Firestore. Pengurutan dilakukan di sini saja.
-    db.collection('laporan').where('uid', '==', user.uid).limit(50)
-      .onSnapshot(function(qs){
-        LAPORAN_SAYA = [];
-        qs.forEach(function(d){ var o = d.data() || {}; o.id = d.id; LAPORAN_SAYA.push(o); });
-        LAPORAN_SAYA.sort(function(a, b){ return (b.at || 0) - (a.at || 0); });
-        renderLaporanSaya();
-        renderBadgeLaporan();
-      }, function(err){
-        console.warn('Gagal memantau laporan sendiri:', err && err.message);
-      });
+
+    function pasang(kolom, nilai, simpanKe){
+      if(!nilai) return;
+      // Sengaja tanpa orderBy: menggabungkan where + orderBy pada kolom
+      // berbeda menuntut indeks gabungan di Firestore. Diurutkan di sini.
+      db.collection('laporan').where(kolom, '==', nilai).limit(50)
+        .onSnapshot(function(qs){
+          laporanSayaGagal = null;
+          var arr = [];
+          qs.forEach(function(d){ var o = d.data() || {}; o.id = d.id; arr.push(o); });
+          if(simpanKe === 'uid') LAPORAN_SAYA_UID = arr; else LAPORAN_SAYA_EMAIL = arr;
+          gabungLaporanSaya();
+        }, function(err){
+          console.warn('Gagal memantau laporan sendiri (' + kolom + '):', err && err.message);
+          laporanSayaGagal = err && err.message ? err.message : 'tidak diketahui';
+          renderLaporanSaya();
+        });
+    }
+
+    pasang('uid', user.uid, 'uid');
+    // Laporan lama dikirim SEBELUM kolom uid ada, jadi tidak akan pernah
+    // tertangkap kueri di atas — dan balasan petugas atasnya tidak akan
+    // pernah sampai. Kueri kedua ini menjaring laporan lama lewat email.
+    pasang('email', user.email, 'email');
   }
 
   function renderLaporanSaya(){
     var box = document.getElementById('laporanSaya');
     if(!box) return;
 
-    // Sama seperti di kotak masuk petugas: daftar ini digambar ulang setiap
-    // ada perubahan, jadi ketikan yang belum terkirim harus diselamatkan.
-    var sedangDiketikSaya = {};
-    Array.prototype.forEach.call(box.querySelectorAll('[data-saya-teks]'), function(t){
-      if(t.value) sedangDiketikSaya[t.getAttribute('data-saya-teks')] = t.value;
-    });
-
+    if(laporanSayaGagal){
+      box.innerHTML = '<div class="users-msg">\u26a0 Percakapan Anda tidak bisa dibaca dari cloud.<br><br>' +
+        '<b>' + esc(laporanSayaGagal) + '</b><br><br>' +
+        'Kalau pesannya menyebut izin, <b>firestore.rules</b> versi terbaru belum dipublish.</div>';
+      return;
+    }
     if(!LAPORAN_SAYA.length){ box.innerHTML = ''; return; }
 
-    var adaBalasan = LAPORAN_SAYA.filter(adaBalasanBaru).length;
+    // Daftar utas, bukan kartu berisi kotak ketik. Satu ketukan membuka
+    // ruang percakapannya — pola yang sama dengan aplikasi pesan.
+    box.innerHTML = LAPORAN_SAYA.map(function(l){
+      return barisUtas(l, adaBalasanBaru(l));
+    }).join('');
+
+    Array.prototype.forEach.call(box.querySelectorAll('[data-buka-chat]'), function(b){
+      b.addEventListener('click', function(){ bukaChat(b.getAttribute('data-buka-chat'), 'saya'); });
+    });
 
     var bungkus = document.getElementById('lpRiwayatBungkus');
     if(bungkus) bungkus.hidden = false;
-    box.innerHTML =
-      LAPORAN_SAYA.map(function(l){
-        var sudah = l.status === 'ditangani';
-        return '<div class="lap-item ' + (sudah ? 'ditangani' : 'baru') + '" style="margin-top:8px;">' +
-          '<div class="lap-kepala">' +
-            '<span class="lap-jenis">' + esc(l.jenis || 'Lainnya') + '</span>' +
-            '<span class="lap-meta">' + (l.at ? fmtWaktuID(l.at) : '-') + '</span>' +
-            (sudah ? '<span class="lap-meta">\u2713 sudah ditangani</span>'
-                   : '<span class="lap-meta">menunggu ditangani</span>') +
-          '</div>' +
-          '<div class="lap-pesan">' + esc(l.pesan || '') + '</div>' +
-          (l.balasan && !(l.percakapan || []).length
-            ? '<div class="lap-balasan"><div class="lap-balasan-kepala">\u21b3 Balasan' +
-              (l.dibalasAt ? ' \u00b7 ' + fmtWaktuID(l.dibalasAt) : '') + '</div>' +
-              esc(l.balasan) + '</div>'
-            : '') +
-          gambarPercakapan(l) +
-          // Pelapor kini bisa membalas balik, jadi utasnya jalan dua arah.
-          // Utas yang sudah ditandai selesai tetap bisa dilanjutkan; kalau
-          // ditutup rapat, orang terpaksa membuat laporan baru untuk hal
-          // yang sama dan riwayatnya jadi terpencar.
-          '<div class="lap-tulis">' +
-            '<textarea class="lap-input" data-saya-teks="' + esc(l.id) + '" rows="2" ' +
-              'placeholder="Balas\u2026"></textarea>' +
-          '</div>' +
-          '<div class="lap-aksi">' +
-            '<button type="button" class="btn btn-ghost" data-saya-kirim="' + esc(l.id) +
-              '">\u21b3 Kirim</button>' +
-          '</div>' +
-          '</div>';
-      }).join('');
+  }
 
-    Array.prototype.forEach.call(box.querySelectorAll('[data-saya-kirim]'), function(b){
-      b.addEventListener('click', function(){
-        var id = b.getAttribute('data-saya-kirim');
-        var kotak = box.querySelector('[data-saya-teks="' + id + '"]');
-        if(!kotak) return;
-        var teks = (kotak.value || '').trim();
-        if(!teks){ kotak.focus(); return; }
-        kirimPesanUtas(id, teks, false).then(function(){
-          kotak.value = '';
-          logMsg('ok', '\u2713', 'Pesan terkirim.');
-        })['catch'](function(){});
+
+  // ---------- suara pemberitahuan ----------
+  // Dibunyikan dengan Web Audio API, bukan berkas suara. Alasannya: tidak
+  // menambah unduhan, tidak bergantung CDN, dan tidak bisa gagal karena
+  // berkasnya hilang. Nadanya sengaja pendek dan lembut \u2014 dashboard ini
+  // dibuka seharian, dering yang tajam akan cepat menyiksa.
+  var KUNCI_SUARA = 'laporSuara';
+  var ctxSuara = null;
+
+  function suaraNyala(){
+    try{ return localStorage.getItem(KUNCI_SUARA) !== '0'; }   // bawaan: nyala
+    catch(e){ return true; }
+  }
+
+  function setSuaraNyala(nilai){
+    try{ localStorage.setItem(KUNCI_SUARA, nilai ? '1' : '0'); }
+    catch(e){ /* mode penyamaran \u2014 abaikan */ }
+  }
+
+  function bunyikanNotifikasi(){
+    if(!suaraNyala()) return;
+    try{
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return;
+      if(!ctxSuara) ctxSuara = new AC();
+      // Browser membekukan AudioContext sampai ada interaksi. Di dashboard
+      // ini interaksinya sudah pasti terjadi (login), tapi tetap dibangunkan
+      // untuk jaga-jaga.
+      if(ctxSuara.state === 'suspended') ctxSuara.resume();
+
+      var t = ctxSuara.currentTime;
+      // Dua nada naik, seperti dering pesan masuk pada umumnya.
+      [[880, 0], [1174.66, 0.11]].forEach(function(n){
+        var osc = ctxSuara.createOscillator();
+        var gain = ctxSuara.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = n[0];
+        gain.gain.setValueAtTime(0.0001, t + n[1]);
+        gain.gain.exponentialRampToValueAtTime(0.13, t + n[1] + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + n[1] + 0.20);
+        osc.connect(gain); gain.connect(ctxSuara.destination);
+        osc.start(t + n[1]);
+        osc.stop(t + n[1] + 0.22);
       });
-    });
+    }catch(e){
+      console.warn('Suara pemberitahuan gagal:', e && e.message);
+    }
+  }
 
-    Array.prototype.forEach.call(box.querySelectorAll('[data-saya-teks]'), function(t){
-      var simpan = sedangDiketikSaya[t.getAttribute('data-saya-teks')];
-      if(simpan) t.value = simpan;
+  // Menghitung "pesan yang perlu diperhatikan" untuk peran yang sedang masuk.
+  // Petugas: pesan terakhir dari pelapor. Pelapor: pesan terakhir dari petugas.
+  function hitungPerluPerhatian(daftar, sebagaiPetugas){
+    var n = 0;
+    daftar.forEach(function(l){
+      var isi = l.percakapan || [];
+      if(sebagaiPetugas){
+        if(l.status === 'ditangani') return;
+        n += isi.length ? (isi[isi.length - 1].staf === 0 ? 1 : 0) : 1;
+      } else {
+        n += isi.length ? (isi[isi.length - 1].staf === 1 ? 1 : 0) : (l.balasan ? 1 : 0);
+      }
+    });
+    return n;
+  }
+
+  // Angka acuan; null berarti "belum pernah dihitung" alias muatan pertama.
+  var acuanPetugas = null;
+  var acuanPelapor = null;
+
+  function periksaSuara(){
+    var kiniPetugas = bolehLihatLaporan() ? hitungPerluPerhatian(LAPORAN, true) : 0;
+    var kiniPelapor = hitungPerluPerhatian(LAPORAN_SAYA, false);
+
+    // Muatan pertama TIDAK berbunyi. Kalau tidak, setiap kali dashboard
+    // dibuka akan berdering untuk pesan lama yang sudah dibaca kemarin.
+    if(acuanPetugas === null || acuanPelapor === null){
+      acuanPetugas = kiniPetugas;
+      acuanPelapor = kiniPelapor;
+      return;
+    }
+
+    if(kiniPetugas > acuanPetugas || kiniPelapor > acuanPelapor){
+      bunyikanNotifikasi();
+    }
+    acuanPetugas = kiniPetugas;
+    acuanPelapor = kiniPelapor;
+  }
+
+  // ---------- ruang percakapan ----------
+  // Satu tampilan dipakai dua pihak: pelapor dan petugas. Yang membedakan
+  // hanya siapa yang menulis (staf atau bukan) dan dari daftar mana masuk.
+  var chatId = null;
+  var chatAsal = 'saya';     // 'saya' atau 'inbox' — menentukan tombol kembali
+
+  function cariLaporan(id){
+    var semua = LAPORAN.concat(LAPORAN_SAYA);
+    for(var i = 0; i < semua.length; i++){ if(semua[i].id === id) return semua[i]; }
+    return null;
+  }
+
+  // Cuplikan pesan terakhir untuk baris daftar, seperti daftar chat.
+  function cuplikanUtas(l){
+    var isi = l.percakapan || [];
+    var akhir = isi.length ? isi[isi.length - 1].teks : (l.balasan || l.pesan || '');
+    var awalan = isi.length && isi[isi.length - 1].staf ? 'Petugas: ' : '';
+    return awalan + String(akhir || '').replace(/\s+/g, ' ');
+  }
+
+  function waktuUtas(l){
+    var isi = l.percakapan || [];
+    return isi.length ? isi[isi.length - 1].at : (l.at || 0);
+  }
+
+  function barisUtas(l, penandaBaru){
+    var sudah = l.status === 'ditangani';
+    return '<button type="button" class="lp-baris" data-buka-chat="' + esc(l.id) + '">' +
+      '<span class="lp-ikon"><i class="fa-solid fa-comment" aria-hidden="true"></i></span>' +
+      '<span class="lp-teks">' +
+        '<span class="lp-nama">' + esc(l.jenis || 'Laporan') +
+          '<span class="lp-status-tag ' + (sudah ? 'tutup' : 'buka') + '">' +
+          (sudah ? 'selesai' : 'terbuka') + '</span></span>' +
+        '<span class="lp-hint">' + esc(cuplikanUtas(l)) + '</span>' +
+      '</span>' +
+      (waktuUtas(l) ? '<span class="lp-utas-waktu">' + fmtTanggalPendek(waktuUtas(l)) + '</span>' : '') +
+      (penandaBaru ? '<span class="lp-titik"></span>' : '') +
+      '</button>';
+  }
+
+  function fmtTanggalPendek(ms){
+    if(!ms) return '';
+    var d = new Date(ms), kini = new Date();
+    var samaHari = d.toDateString() === kini.toDateString();
+    return samaHari
+      ? d.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'})
+      : d.toLocaleDateString('id-ID', {day: '2-digit', month: 'short'});
+  }
+
+  function bukaChat(id, asal){
+    var l = cariLaporan(id);
+    if(!l) return;
+    chatId = id;
+    chatAsal = asal || 'saya';
+
+    document.getElementById('lpDaftar').hidden = true;
+    document.getElementById('lpForm').hidden = true;
+    document.getElementById('lpInbox').hidden = true;
+    document.getElementById('lpChat').hidden = false;
+    document.getElementById('lpKembali').hidden = false;
+    document.getElementById('lpBilah').hidden = false;
+
+    document.getElementById('lpJudul').textContent = l.jenis || 'Laporan';
+    document.getElementById('lpSub').textContent =
+      (bolehLihatLaporan() ? 'dari ' + (l.oleh || '-') : 'Percakapan dengan petugas');
+
+    renderChat();
+    var k = document.getElementById('lpKetik');
+    if(k) k.focus();
+  }
+
+  function renderChat(){
+    if(!chatId) return;
+    var l = cariLaporan(chatId);
+    var info = document.getElementById('lpChatInfo');
+    var kotak = document.getElementById('lpChatPesan');
+    if(!info || !kotak) return;
+
+    if(!l){
+      // Laporannya dihapus petugas saat percakapan sedang dibuka.
+      info.innerHTML = '';
+      kotak.innerHTML = '<div class="users-msg">Laporan ini sudah dihapus.</div>';
+      document.getElementById('lpBilah').hidden = true;
+      return;
+    }
+
+    var sudah = l.status === 'ditangani';
+    info.innerHTML =
+      '<b>' + esc(l.jenis || 'Laporan') + '</b> \u00b7 ' +
+      (l.at ? fmtWaktuID(l.at) : '-') +
+      (bolehLihatLaporan()
+        ? '<br>Pelapor: <b>' + esc(l.oleh || '-') + '</b>' +
+          (l.role ? ' (' + esc(l.role) + ')' : '') +
+          (l.lokasi ? ' \u00b7 ' + esc(l.lokasi) : '') +
+          (l.tab ? ' \u00b7 tab ' + esc(l.tab) : '')
+        : '') +
+      '<br>Status: <b>' + (sudah ? 'Selesai' : 'Terbuka') + '</b>';
+
+    // Pesan pembuka laporan diperlakukan sebagai pesan pertama dalam utas,
+    // supaya percakapannya terbaca utuh dari awal.
+    var pesan = [{teks: l.pesan, oleh: l.oleh, staf: 0, at: l.at}];
+    if(l.balasan && !(l.percakapan || []).length){
+      pesan.push({teks: l.balasan, oleh: l.dibalasOleh || 'Petugas', staf: 1, at: l.dibalasAt});
+    }
+    pesan = pesan.concat(l.percakapan || []);
+
+    kotak.innerHTML = pesan.map(function(p){
+      return '<div class="pc-balon ' + (p.staf ? 'pc-staf' : 'pc-pelapor') + '">' +
+        '<div class="pc-kepala">' + esc(p.oleh || '-') +
+          (p.staf ? ' \u00b7 petugas' : '') +
+          (p.at ? ' \u00b7 ' + fmtWaktuID(p.at) : '') + '</div>' +
+        '<div class="pc-teks">' + esc(p.teks || '') + '</div></div>';
+    }).join('');
+
+    // Tombol tandai selesai hanya untuk petugas, ditaruh di bawah utas.
+    if(bolehLihatLaporan()){
+      kotak.innerHTML += '<div class="lap-aksi" style="margin-top:10px;">' +
+        '<button type="button" class="btn btn-ghost" id="chatTandai">' +
+        (sudah ? '\u21ba Buka lagi' : '\u2713 Tandai selesai') + '</button>' +
+        '<button type="button" class="btn btn-ghost" id="chatHapus" ' +
+        'style="border-color:var(--warn); color:var(--warn);">\uD83D\uDDD1 Hapus</button></div>';
+      var bt = document.getElementById('chatTandai');
+      if(bt) bt.addEventListener('click', function(){ tandaiLaporan(chatId, !sudah); });
+      var bh = document.getElementById('chatHapus');
+      if(bh) bh.addEventListener('click', function(){ hapusLaporan(chatId); });
+    }
+
+    // Selalu tergulir ke pesan terbaru, seperti aplikasi pesan.
+    var isi = document.querySelector('#laporPanel .lp-isi');
+    if(isi) isi.scrollTop = isi.scrollHeight;
+  }
+
+  function kirimDariBilah(){
+    if(!chatId) return;
+    var k = document.getElementById('lpKetik');
+    var teks = (k.value || '').trim();
+    if(!teks){ k.focus(); return; }
+
+    var tombol = document.getElementById('lpKirimPesan');
+    var idSaatKirim = chatId;
+
+    // Kotak dikosongkan SEKETIKA, tidak menunggu Firestore mengonfirmasi.
+    // Kalau menunggu, di jaringan lambat teksnya tertinggal beberapa detik
+    // dan orang mengira pesannya gagal lalu menekan kirim lagi —
+    // hasilnya pesan ganda.
+    k.value = '';
+    k.style.height = 'auto';
+    tombol.disabled = true;
+    k.focus();
+
+    kirimPesanUtas(idSaatKirim, teks, bolehLihatLaporan()).then(function(){
+      tombol.disabled = false;
+    })['catch'](function(){
+      tombol.disabled = false;
+      // Gagal: teksnya dikembalikan supaya tidak hilang percuma — tapi
+      // hanya kalau orangnya masih di percakapan yang sama dan belum
+      // mengetik yang baru, agar tidak menimpa ketikan berikutnya.
+      if(chatId === idSaatKirim && !(k.value || '').trim()){
+        k.value = teks;
+        k.style.height = 'auto';
+        k.style.height = Math.min(k.scrollHeight, 110) + 'px';
+      }
     });
   }
 
@@ -8376,7 +8700,13 @@
       document.getElementById('lpTutup').addEventListener('click', function(){
         panel.hidden = true;
       });
-      document.getElementById('lpKembali').addEventListener('click', tampilkanDaftarLapor);
+      document.getElementById('lpKembali').addEventListener('click', function(){
+        // Dari ruang percakapan, kembali ke daftar asalnya — bukan
+        // selalu ke beranda. Kalau tidak, petugas harus menelusuri ulang
+        // setiap kali selesai membalas satu utas.
+        if(chatId && chatAsal === 'inbox'){ bukaInbox(); return; }
+        tampilkanDaftarLapor();
+      });
       document.getElementById('laporKirim').addEventListener('click', kirimLaporan);
       document.getElementById('laporPesan').addEventListener('input', hitungSisaLapor);
 
@@ -8387,6 +8717,42 @@
         if(panel.contains(e.target) || fab.contains(e.target)) return;
         panel.hidden = true;
       });
+
+      var ketik = document.getElementById('lpKetik');
+      if(ketik){
+        document.getElementById('lpKirimPesan').addEventListener('click', kirimDariBilah);
+        // Enter mengirim, Shift+Enter turun baris — kebiasaan yang sudah
+        // melekat dari aplikasi pesan.
+        ketik.addEventListener('keydown', function(e){
+          if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); kirimDariBilah(); }
+        });
+        // Kotaknya tumbuh mengikuti isi, sampai batas tertentu.
+        ketik.addEventListener('input', function(){
+          ketik.style.height = 'auto';
+          ketik.style.height = Math.min(ketik.scrollHeight, 110) + 'px';
+        });
+      }
+
+      var tombolSuara = document.getElementById('lpSuara');
+      if(tombolSuara){
+        function perbaruiTombolSuara(){
+          var nyala = suaraNyala();
+          tombolSuara.querySelector('span').textContent = 'Suara: ' + (nyala ? 'nyala' : 'mati');
+          tombolSuara.querySelector('i').className =
+            'fa-solid ' + (nyala ? 'fa-bell' : 'fa-bell-slash');
+          tombolSuara.classList.toggle('mati', !nyala);
+        }
+        perbaruiTombolSuara();
+        tombolSuara.addEventListener('click', function(e){
+          e.stopPropagation();
+          var baru = !suaraNyala();
+          setSuaraNyala(baru);
+          perbaruiTombolSuara();
+          // Dibunyikan sekali saat dinyalakan, supaya orang tahu bunyinya
+          // seperti apa dan yakin suaranya benar-benar bekerja.
+          if(baru) bunyikanNotifikasi();
+        });
+      }
 
       var tombolSembunyi = document.getElementById('fabSembunyi');
       var tab = document.getElementById('laporTab');
