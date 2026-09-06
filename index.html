@@ -2726,6 +2726,13 @@
   </div>
 </div>
 
+<!-- Wadah notifikasi. HARUS anak langsung <body>, bukan di dalam salah satu
+     <main> tab. Sebelumnya dia berada di dalam viewMonitoring, sehingga saat
+     tab lain dibuka induknya disetel display:none dan seluruh notifikasi ikut
+     lenyap — termasuk pemberitahuan proses unggah. Elemen position:fixed
+     tetap tidak digambar kalau induknya disembunyikan. -->
+<div id="toastWrap" aria-live="polite" aria-atomic="false"></div>
+
 <!-- Panel laporan bergaya Freshchat/Jubelio: gelembung mengambang di kanan
      bawah, bukan modal di tengah layar. Selalu terlihat tanpa menghalangi
      pekerjaan, dan orang sudah terbiasa dengan polanya. -->
@@ -3028,10 +3035,6 @@
     </div>
   </div>
 </div>
-
-  <!-- Wadah notifikasi. Mengambang di kanan atas dan tidak ikut mendorong isi
-       halaman. Pesan biasa hilang sendiri; peringatan menetap sampai ditutup. -->
-  <div id="toastWrap" aria-live="polite" aria-atomic="false"></div>
 
   <section class="panel">
     <div class="toolbar">
