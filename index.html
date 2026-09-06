@@ -2119,9 +2119,9 @@
   table{
     border-collapse:collapse;
     width:100%;
-    /* 17 kolom. Dinaikkan dari 1500px saat kolom Site ditambahkan, supaya
+    /* 18 kolom. Dinaikkan lagi saat kolom Nilai Bersih ditambahkan, supaya
        kolom terakhir tidak terjepit. Dinolkan lagi di mode kartu HP. */
-    min-width:1600px;
+    min-width:1700px;
     font-size:12.5px;
   }
   thead th{
@@ -3460,6 +3460,7 @@
     {key:'Pelanggan', label:'Pelanggan'},
     {key:'QTY', label:'Qty', align:'right'},
     {key:'amount', label:'Amount', align:'right', money:true},
+    {key:'Nilai Bersih', label:'Nilai Bersih', align:'right', money:true},
     {key:'Sumber', label:'Sumber'},
     {key:'Nama Toko', label:'Nama Toko'},
     {key:'Status', label:'Status', badge:true},
@@ -4635,6 +4636,38 @@
     return 'badge badge-' + s;
   }
 
+  // ---------- nilai bersih dari data marketplace ----------
+  // Data Jubelio TIDAK memuat informasi diskon sama sekali; kolom amount-nya
+  // harga kotor. Satu-satunya sumber nilai setelah potongan platform adalah
+  // ekspor marketplace. Jadi Nilai Bersih hanya bisa diisi untuk pesanan yang
+  // ada di KEDUA sisi — sisanya sengaja dibiarkan kosong, bukan diisi
+  // angka kotar diam-diam, karena itu justru menyesatkan.
+  var mpNilaiLookup = {};
+
+  function bangunLookupBersih(){
+    mpNilaiLookup = {};
+    if(typeof mpRows === 'undefined' || !mpRows.length) return;
+    mpRows.forEach(function(r){
+      var pes = intiPesanan(r['No Pesanan']);
+      var sku = trimKey(r['SKU']).toUpperCase();
+      if(!pes || !sku) return;
+      var k = pes + '|' + sku;
+      var v = Number(r['Subtotal']);
+      if(isNaN(v)) return;
+      // Satu pesanan bisa punya beberapa baris dengan SKU sama (varian atau
+      // qty terpisah), jadi nilainya dijumlahkan.
+      mpNilaiLookup[k] = (mpNilaiLookup[k] || 0) + v;
+    });
+  }
+
+  function nilaiBersihUntuk(row){
+    var pes = intiPesanan(row['No Pesanan']);
+    var sku = trimKey(row['SKU']).toUpperCase();
+    if(!pes || !sku) return null;
+    var v = mpNilaiLookup[pes + '|' + sku];
+    return (v === undefined) ? null : v;
+  }
+
   // ---------- core join logic (dipakai untuk data awal maupun data baru) ----------
   function joinRow(row){
     var noPesanan = trimKey(row['No Pesanan']);
@@ -4651,6 +4684,7 @@
     out['Site'] = noPesanan ? (lphSiteLookup[noPesanan] || null) : null;
     out['No TI (TII)'] = tiC;
     out['No TO (TII)'] = tiE;
+    out['Nilai Bersih'] = nilaiBersihUntuk(row);
     return out;
   }
 
@@ -4710,6 +4744,8 @@
   }
 
   function rebuildRaw(){
+    // Wajib lebih dulu: joinRow() membacanya untuk mengisi kolom Nilai Bersih.
+    bangunLookupBersih();
     rebuildProdClassIndex();
     var semua = bubuhiKunci(jubelioRows.map(joinRow));
 
@@ -4793,10 +4829,27 @@
     var completed = rows.filter(function(r){ return String(r.Status).toUpperCase()==='COMPLETED'; }).length;
     var omzetSub = isFiltered ? 'sesuai filter yang dipilih' : 'seluruh sumber';
 
+    // Nilai bersih hanya ada untuk baris yang punya padanan di data
+    // marketplace. Jumlah padanannya ditampilkan apa adanya — angka
+    // bersih tanpa keterangan cakupannya mudah disalahpahami sebagai
+    // total seluruh penjualan.
+    var adaBersih = rows.filter(function(r){ return r['Nilai Bersih'] !== null && r['Nilai Bersih'] !== undefined; });
+    var totalBersih = adaBersih.reduce(function(a, r){ return a + (Number(r['Nilai Bersih']) || 0); }, 0);
+    var kotarPadanan = adaBersih.reduce(function(a, r){ return a + (Number(r.amount) || 0); }, 0);
+    var selisih = kotarPadanan - totalBersih;
+    var persenCocok = total ? Math.round(adaBersih.length / total * 100) : 0;
+
     var cards = [
       {key:'pesanan', label:'Total Pesanan', value: total.toLocaleString('id-ID'), sub: completed.toLocaleString('id-ID') + ' completed', cls:''},
       {key:'qty', label:'Total Qty', value: totalQty.toLocaleString('id-ID'), sub:'unit terjual', cls:''},
-      {key:'omzet', label:'Total Omzet', value: fmtMoney(totalAmount), sub: omzetSub, cls:'accent'},
+      {key:'omzet', label:'Total Omzet', value: fmtMoney(totalAmount), sub: 'harga kotor Jubelio \u00b7 ' + omzetSub, cls:'accent'},
+      {key:'bersih', label:'Nilai Bersih',
+       value: adaBersih.length ? fmtMoney(totalBersih) : '\u2013',
+       sub: adaBersih.length
+         ? ('dibayar pembeli \u00b7 ' + persenCocok + '% baris cocok' +
+            (selisih > 0 ? ' \u00b7 potongan ' + fmtMoney(selisih) : ''))
+         : 'belum ada padanan di data marketplace',
+       cls: adaBersih.length ? 'ok' : ''},
       {key:'lph', label:'Match ke LPH', value: total ? Math.round(matchLph/total*100) + '%' : '0%', sub: matchLph.toLocaleString('id-ID') + ' dari ' + total.toLocaleString('id-ID'), cls:'ok'},
       {key:'tii', label:'MATCH KE TO TI DETAIL', value: total ? Math.round(matchTii/total*100) + '%' : '0%', sub: matchTii.toLocaleString('id-ID') + ' dari ' + total.toLocaleString('id-ID'), cls: (total && matchTii/total < 0.5) ? 'warn' : 'ok'}
     ];
@@ -6732,7 +6785,14 @@
         if(c.badge){
           content = v ? '<span class="' + badgeClass(v) + '">' + v + '</span>' : '';
         } else if(c.money){
-          content = fmtMoney(v);
+          // Nilai Bersih yang kosong berarti pesanannya tidak punya padanan
+          // di data marketplace — bukan berarti nilainya nol. Dibedakan
+          // dengan tanda strip supaya tidak terbaca sebagai penjualan nihil.
+          if(c.key === 'Nilai Bersih' && (v === null || v === undefined)){
+            content = '<span class="pill-empty" title="Pesanan ini belum ada di data marketplace">\u2014</span>';
+          } else {
+            content = fmtMoney(v);
+          }
           cellCls += ' amt';
         } else if(c.match){
           content = v ? '<span class="pill-match">' + v + '</span>' : '<span class="pill-empty">—</span>';
@@ -9836,6 +9896,9 @@
         mpRows = semua;
         if(adaLama) simpanMarketKeCloud();
         renderMarket();
+        // Kolom Nilai Bersih di tab Monitoring diisi dari data ini, jadi
+        // barisnya harus disusun ulang setelah datanya tiba dari cloud.
+        refreshAll();
       });
     })['catch'](function(err){
       console.warn('Gagal memuat data marketplace:', err && err.message);
