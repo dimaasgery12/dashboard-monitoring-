@@ -724,6 +724,16 @@
   }
   .pb-nama{font-size:11px; color:var(--muted); line-height:1.35; overflow-wrap:anywhere;}
   tr.pb-mundur td{background:var(--warn-bg);}
+  /* Penanda pada kolom Nilai Bersih */
+  .pill-skubeda{
+    background:var(--warn-bg) !important; color:var(--warn) !important;
+    font-size:9.5px; font-weight:700; letter-spacing:.03em;
+  }
+  .tag-perkiraan{
+    display:inline-block; margin-left:5px;
+    font-size:11px; color:var(--amber); font-weight:700;
+    cursor:help;
+  }
   /* Baris bisa diklik untuk melompat ke tabel Monitoring. Petunjuknya
      disembunyikan sampai kursor lewat, supaya tabelnya tidak penuh
      tulisan "Lihat di Monitoring" berulang-ulang. */
@@ -4642,30 +4652,69 @@
   // ekspor marketplace. Jadi Nilai Bersih hanya bisa diisi untuk pesanan yang
   // ada di KEDUA sisi — sisanya sengaja dibiarkan kosong, bukan diisi
   // angka kotar diam-diam, karena itu justru menyesatkan.
-  var mpNilaiLookup = {};
+  var mpNilaiLookup = {};      // pesanan|SKU -> subtotal  (pencocokan tepat)
+  var mpPesananLookup = {};    // pesanan      -> {nilai, baris}  (cadangan)
 
   function bangunLookupBersih(){
     mpNilaiLookup = {};
+    mpPesananLookup = {};
     if(typeof mpRows === 'undefined' || !mpRows.length) return;
     mpRows.forEach(function(r){
       var pes = intiPesanan(r['No Pesanan']);
-      var sku = trimKey(r['SKU']).toUpperCase();
-      if(!pes || !sku) return;
-      var k = pes + '|' + sku;
+      if(!pes) return;
       var v = Number(r['Subtotal']);
       if(isNaN(v)) return;
-      // Satu pesanan bisa punya beberapa baris dengan SKU sama (varian atau
-      // qty terpisah), jadi nilainya dijumlahkan.
-      mpNilaiLookup[k] = (mpNilaiLookup[k] || 0) + v;
+
+      var sku = trimKey(r['SKU']).toUpperCase();
+      if(sku){
+        // Satu pesanan bisa punya beberapa baris dengan SKU sama (varian
+        // atau qty terpisah), jadi nilainya dijumlahkan.
+        var k = pes + '|' + sku;
+        mpNilaiLookup[k] = (mpNilaiLookup[k] || 0) + v;
+      }
+
+      // Cadangan tingkat pesanan, dipakai kalau SKU-nya tidak cocok.
+      if(!mpPesananLookup[pes]) mpPesananLookup[pes] = {nilai: 0, baris: 0};
+      mpPesananLookup[pes].nilai += v;
+      mpPesananLookup[pes].baris++;
     });
   }
 
-  function nilaiBersihUntuk(row){
+  // Hasilnya: {nilai, cara} — 'sku' bila cocok tepat, 'pesanan' bila
+  // hanya nomor pesanannya yang cocok, null bila memang tidak ada.
+  function cariNilaiBersih(row){
     var pes = intiPesanan(row['No Pesanan']);
+    if(!pes) return null;
+
     var sku = trimKey(row['SKU']).toUpperCase();
-    if(!pes || !sku) return null;
-    var v = mpNilaiLookup[pes + '|' + sku];
-    return (v === undefined) ? null : v;
+    if(sku){
+      var tepat = mpNilaiLookup[pes + '|' + sku];
+      if(tepat !== undefined) return {nilai: tepat, cara: 'sku'};
+    }
+
+    // Cadangan: pesanannya ADA di marketplace tapi SKU-nya tidak cocok —
+    // biasanya karena salah satu sistem mencatat ukuran yang keliru
+    // (mis. 1021325122N065 di Jubelio vs N060 di marketplace).
+    //
+    // Hanya dipakai bila pesanan itu berisi TEPAT SATU baris di kedua sisi.
+    // Kalau lebih, nilainya tidak bisa dibagi ke baris mana pun tanpa
+    // menebak, dan menebak angka uang lebih buruk daripada mengosongkannya.
+    var p = mpPesananLookup[pes];
+    if(p && p.baris === 1 && (jubBarisPerPesanan[pes] || 0) === 1){
+      return {nilai: p.nilai, cara: 'pesanan'};
+    }
+    return null;
+  }
+
+  // Berapa baris Jubelio untuk tiap pesanan — penentu boleh tidaknya
+  // cadangan tingkat pesanan dipakai.
+  var jubBarisPerPesanan = {};
+  function hitungBarisPerPesanan(){
+    jubBarisPerPesanan = {};
+    jubelioRows.forEach(function(r){
+      var pes = intiPesanan(r['No Pesanan']);
+      if(pes) jubBarisPerPesanan[pes] = (jubBarisPerPesanan[pes] || 0) + 1;
+    });
   }
 
   // ---------- core join logic (dipakai untuk data awal maupun data baru) ----------
@@ -4684,7 +4733,12 @@
     out['Site'] = noPesanan ? (lphSiteLookup[noPesanan] || null) : null;
     out['No TI (TII)'] = tiC;
     out['No TO (TII)'] = tiE;
-    out['Nilai Bersih'] = nilaiBersihUntuk(row);
+    var nb = cariNilaiBersih(row);
+    out['Nilai Bersih'] = nb ? nb.nilai : null;
+    // Ditandai supaya bisa dibedakan di tabel: cocok tepat, cocok lewat
+    // nomor pesanan saja, atau pesanannya ada tapi SKU-nya beda.
+    out['__caraBersih'] = nb ? nb.cara
+      : (mpPesananLookup[intiPesanan(row['No Pesanan'])] ? 'skuBeda' : null);
     return out;
   }
 
@@ -4746,6 +4800,7 @@
   function rebuildRaw(){
     // Wajib lebih dulu: joinRow() membacanya untuk mengisi kolom Nilai Bersih.
     bangunLookupBersih();
+    hitungBarisPerPesanan();
     rebuildProdClassIndex();
     var semua = bubuhiKunci(jubelioRows.map(joinRow));
 
@@ -6788,8 +6843,20 @@
           // Nilai Bersih yang kosong berarti pesanannya tidak punya padanan
           // di data marketplace — bukan berarti nilainya nol. Dibedakan
           // dengan tanda strip supaya tidak terbaca sebagai penjualan nihil.
-          if(c.key === 'Nilai Bersih' && (v === null || v === undefined)){
-            content = '<span class="pill-empty" title="Pesanan ini belum ada di data marketplace">\u2014</span>';
+          if(c.key === 'Nilai Bersih'){
+            if(v === null || v === undefined){
+              // Dibedakan: pesanannya memang tidak ada, versus pesanannya ada
+              // tapi SKU-nya beda. Yang kedua perlu ditindaklanjuti — salah
+              // satu sistem mencatat SKU yang keliru.
+              content = (r.__caraBersih === 'skuBeda')
+                ? '<span class="pill-empty pill-skubeda" title="Pesanan ini ADA di data marketplace, tapi SKU-nya berbeda — periksa mana yang benar">SKU beda</span>'
+                : '<span class="pill-empty" title="Pesanan ini belum ada di data marketplace">\u2014</span>';
+            } else if(r.__caraBersih === 'pesanan'){
+              content = fmtMoney(v) +
+                '<span class="tag-perkiraan" title="SKU tidak cocok, tapi pesanan ini hanya berisi satu baris di kedua sisi — jadi nilainya pasti milik baris ini">≈</span>';
+            } else {
+              content = fmtMoney(v);
+            }
           } else {
             content = fmtMoney(v);
           }
