@@ -1459,6 +1459,32 @@
     .heat-sel{min-height:15px;}
   }
 
+  /* ---------- cek silang marketplace vs jubelio ---------- */
+  .silang{
+    margin:16px 0 0; padding:16px 18px 14px;
+    border:1px solid var(--line); border-radius:11px;
+    background:var(--surface-sunken);
+  }
+  .silang-kepala{
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:14px; flex-wrap:wrap; margin-bottom:12px;
+  }
+  .silang-kepala h3{
+    font-family:'Oswald',sans-serif; font-size:14px; font-weight:600;
+    text-transform:uppercase; letter-spacing:.04em; margin:0; color:var(--ink);
+  }
+  .silang-sub{font-size:11.5px; color:var(--muted); margin:5px 0 0; line-height:1.6;}
+  .silang-wrap{max-height:360px; overflow-y:auto; overflow-x:auto;}
+  .silang-tabel{min-width:0;}
+  .silang-tabel th{background:var(--surface-sunken);}
+  .silang-tabel td{font-size:11.5px; padding:8px;}
+  .silang-tabel td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  @media (max-width:720px){
+    .silang{padding:13px 12px;}
+    .silang-kepala{flex-direction:column;}
+    .silang-tabel{min-width:640px;}
+  }
+
   /* ---------- data mentah marketplace ---------- */
   .mp-catatan{
     font-size:12px; line-height:1.55;
@@ -3334,6 +3360,21 @@
     </div>
 
     <div class="stats" id="mpStats"></div>
+
+    <section class="silang" id="mpSilang">
+      <div class="silang-kepala">
+        <div>
+          <h3>Cek Silang dengan Jubelio</h3>
+          <p class="silang-sub" id="silangSub"></p>
+        </div>
+        <div class="an-toggle" id="silangArah">
+          <button type="button" data-val="mp" class="on">Belum masuk Jubelio</button>
+          <button type="button" data-val="jub">Belum masuk Marketplace</button>
+        </div>
+        <button type="button" class="btn btn-ghost" id="silangUnduh">↓ Unduh</button>
+      </div>
+      <div id="silangIsi"></div>
+    </section>
 
     <div class="table-wrap mp-wrap">
       <table id="mpTable">
@@ -9460,6 +9501,194 @@
     recordActivity('Unggah Data Marketplace', fileName + ' (Lazada) \u2014 ' + ket + '.');
   }
 
+
+  // ==================== CEK SILANG MARKETPLACE <-> JUBELIO ====================
+  // Jubelio membungkus nomor asli marketplace dengan awalan kanal dan akhiran
+  // kode toko. Mencocokkan nomor apa adanya akan menyatakan SEMUA pesanan
+  // tidak cocok, jadi pembungkusnya harus dikupas lebih dulu.
+  //
+  //   SP-260902VHXXTUTW           -> 260902VHXXTUTW        (Shopee)
+  //   TP-585848619104110290-96721 -> 585848619104110290    (Tokopedia)
+  //   TT-585864518893799017-96730 -> 585864518893799017    (TikTok)
+  //   LZ-2784711498294505-96690   -> 2784711498294505      (Lazada)
+  //   SHF-LW-1241-127789          -> LW-1241               (Shopify)
+  function intiPesanan(no){
+    var t = trimKey(no);
+    if(!t) return '';
+    var m;
+    // Shopify diperiksa lebih dulu: nomornya sendiri mengandung tanda hubung.
+    m = t.match(/^SHF-(.+?)-\d+$/i);            if(m) return m[1].toUpperCase();
+    m = t.match(/^(?:TP|TT|LZ)-(.+?)-\d+$/i);   if(m) return m[1].toUpperCase();
+    m = t.match(/^SP-(.+)$/i);                  if(m) return m[1].toUpperCase();
+    return t.toUpperCase();
+  }
+
+  var silangArah = 'mp';
+  var silangHasil = null;
+
+  function hitungCekSilang(){
+    var jub = RAW_SEMUA || [];
+    if(!mpRows.length || !jub.length){
+      return {kosong: true, alasan: !mpRows.length
+        ? 'Belum ada data marketplace. Unggah ekspor pesanan lebih dulu.'
+        : 'Belum ada data Jubelio untuk dibandingkan.'};
+    }
+
+    function tglJub(r){ return String(r['Tanggal'] || '').slice(0, 10); }
+    function tglMp(r){ return String(r['Tanggal'] || '').slice(0, 10); }
+
+    var tJub = jub.map(tglJub).filter(Boolean).sort();
+    var tMp  = mpRows.map(tglMp).filter(Boolean).sort();
+    if(!tJub.length || !tMp.length) return {kosong: true, alasan: 'Kolom tanggal tidak terbaca.'};
+
+    // INI YANG MENENTUKAN hasilnya berguna atau jadi sampah: kedua sumber
+    // hampir tidak pernah mencakup rentang tanggal yang sama. Jubelio memuat
+    // berbulan-bulan, ekspor marketplace mungkin cuma beberapa hari. Tanpa
+    // diiriskan, ribuan pesanan Jubelio akan dilaporkan "hilang" padahal
+    // memang di luar jangkauan ekspornya.
+    var mulai = (tJub[0] > tMp[0]) ? tJub[0] : tMp[0];
+    var akhir = (tJub[tJub.length - 1] < tMp[tMp.length - 1])
+                ? tJub[tJub.length - 1] : tMp[tMp.length - 1];
+    if(mulai > akhir){
+      return {kosong: true, alasan: 'Rentang tanggal kedua sumber tidak beririsan sama sekali \u2014 ' +
+        'Jubelio ' + tJub[0] + ' s/d ' + tJub[tJub.length - 1] +
+        ', marketplace ' + tMp[0] + ' s/d ' + tMp[tMp.length - 1] + '.'};
+    }
+
+    function dalam(t){ return t && t >= mulai && t <= akhir; }
+
+    var petaJub = {}, petaMp = {};
+    jub.forEach(function(r){
+      if(!dalam(tglJub(r))) return;
+      var k = intiPesanan(r['No Pesanan']);
+      if(k && !petaJub[k]) petaJub[k] = r;
+    });
+    mpRows.forEach(function(r){
+      if(!dalam(tglMp(r))) return;
+      var k = intiPesanan(r['No Pesanan']);
+      if(k && !petaMp[k]) petaMp[k] = r;
+    });
+
+    var hanyaMp = [], hanyaJub = [];
+    Object.keys(petaMp).forEach(function(k){ if(!petaJub[k]) hanyaMp.push(petaMp[k]); });
+    Object.keys(petaJub).forEach(function(k){ if(!petaMp[k]) hanyaJub.push(petaJub[k]); });
+
+    hanyaMp.sort(function(a, b){ return String(b['Tanggal']).localeCompare(String(a['Tanggal'])); });
+    hanyaJub.sort(function(a, b){ return String(b['Tanggal']).localeCompare(String(a['Tanggal'])); });
+
+    return {
+      kosong: false, mulai: mulai, akhir: akhir,
+      totalMp: Object.keys(petaMp).length,
+      totalJub: Object.keys(petaJub).length,
+      cocok: Object.keys(petaMp).filter(function(k){ return petaJub[k]; }).length,
+      hanyaMp: hanyaMp, hanyaJub: hanyaJub
+    };
+  }
+
+  function renderCekSilang(){
+    var box = document.getElementById('silangIsi');
+    var sub = document.getElementById('silangSub');
+    if(!box || !sub) return;
+
+    silangHasil = hitungCekSilang();
+    var h = silangHasil;
+
+    if(h.kosong){
+      sub.textContent = '';
+      box.innerHTML = '<div class="users-msg">' + esc(h.alasan) + '</div>';
+      return;
+    }
+
+    sub.innerHTML =
+      'Dibandingkan hanya pada rentang yang <b>dimiliki kedua sumber</b>: <b>' +
+      esc(h.mulai) + '</b> s/d <b>' + esc(h.akhir) + '</b> \u00b7 ' +
+      h.cocok.toLocaleString('id-ID') + ' pesanan cocok \u00b7 ' +
+      '<b style="color:var(--warn)">' + h.hanyaMp.length + '</b> belum masuk Jubelio \u00b7 ' +
+      '<b style="color:var(--amber)">' + h.hanyaJub.length + '</b> belum masuk Marketplace';
+
+    var mp = silangArah === 'mp';
+    var daftar = mp ? h.hanyaMp : h.hanyaJub;
+
+    if(!daftar.length){
+      box.innerHTML = '<div class="users-msg">\u2713 Tidak ada selisih \u2014 semua pesanan ' +
+        (mp ? 'marketplace sudah masuk Jubelio' : 'Jubelio sudah ada di data marketplace') +
+        ' pada rentang ini.</div>';
+      return;
+    }
+
+    var judul = mp
+      ? ['Kanal', 'No. Pesanan', 'Waktu', 'Status', 'SKU', 'Produk', 'Subtotal']
+      : ['Sumber', 'No. Pesanan', 'Tanggal', 'Status', 'SKU', 'Nama Barang', 'Amount'];
+
+    var baris = daftar.slice(0, 300).map(function(r){
+      var nilai = mp
+        ? [r['Kanal'], r['No Pesanan'], r['Tanggal'], r['Status'], r['SKU'], r['Nama Produk'], r['Subtotal']]
+        : [r['Sumber'], r['No Pesanan'], r['Tanggal'], r['Status'], r['SKU'], r['Nama Barang'], r['amount']];
+      return '<tr>' + nilai.map(function(v, i){
+        var angka = (i === 6);
+        return '<td' + (angka ? ' class="num"' : '') + '>' +
+          (v === null || v === undefined ? '' :
+            (angka ? 'Rp ' + Number(v).toLocaleString('id-ID') : esc(String(v)))) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+
+    box.innerHTML =
+      '<div class="table-wrap silang-wrap"><table class="exec-rank silang-tabel"><thead><tr>' +
+      judul.map(function(j){ return '<th>' + j + '</th>'; }).join('') +
+      '</tr></thead><tbody>' + baris + '</tbody></table></div>' +
+      (daftar.length > 300
+        ? '<div class="users-msg">Menampilkan 300 dari ' + daftar.length.toLocaleString('id-ID') +
+          ' baris. Gunakan tombol Unduh untuk daftar lengkapnya.</div>'
+        : '');
+  }
+
+  function unduhCekSilang(){
+    if(!silangHasil || silangHasil.kosong){
+      window.alert('Belum ada hasil cek silang untuk diunduh.');
+      return;
+    }
+    var wb = XLSX.utils.book_new();
+
+    var j1 = ['Kanal','No. Pesanan','Waktu Dibuat','Status','SKU','Nama Produk','Qty','Subtotal','Gudang'];
+    var d1 = silangHasil.hanyaMp.map(function(r){
+      return [r['Kanal'], r['No Pesanan'], r['Tanggal'], r['Status'], r['SKU'],
+              r['Nama Produk'], r['Qty'], r['Subtotal'], r['Gudang']];
+    });
+    var ws1 = XLSX.utils.aoa_to_sheet([j1].concat(d1));
+    ws1['!cols'] = j1.map(function(k){ return {wch: k === 'Nama Produk' ? 40 : 18}; });
+    XLSX.utils.book_append_sheet(wb, ws1, 'Belum di Jubelio');
+
+    var j2 = ['Sumber','No. Pesanan','Tanggal','Status','SKU','Nama Barang','QTY','Amount','Lokasi'];
+    var d2 = silangHasil.hanyaJub.map(function(r){
+      return [r['Sumber'], r['No Pesanan'], r['Tanggal'], r['Status'], r['SKU'],
+              r['Nama Barang'], r['QTY'], r['amount'], r['Lokasi']];
+    });
+    var ws2 = XLSX.utils.aoa_to_sheet([j2].concat(d2));
+    ws2['!cols'] = j2.map(function(k){ return {wch: k === 'Nama Barang' ? 40 : 18}; });
+    XLSX.utils.book_append_sheet(wb, ws2, 'Belum di Marketplace');
+
+    var ws3 = XLSX.utils.aoa_to_sheet([
+      ['Keterangan', 'Nilai'],
+      ['Rentang dibandingkan', silangHasil.mulai + ' s/d ' + silangHasil.akhir],
+      ['Pesanan marketplace di rentang itu', silangHasil.totalMp],
+      ['Pesanan Jubelio di rentang itu', silangHasil.totalJub],
+      ['Cocok di kedua sumber', silangHasil.cocok],
+      ['Hanya di marketplace', silangHasil.hanyaMp.length],
+      ['Hanya di Jubelio', silangHasil.hanyaJub.length],
+      [],
+      ['Catatan', 'Perbandingan dibatasi pada rentang tanggal yang dimiliki KEDUA sumber. ' +
+       'Nomor pesanan Jubelio dikupas dari pembungkusnya (SP-, TP-, TT-, LZ-, SHF-...) ' +
+       'agar sebanding dengan nomor asli marketplace.']
+    ]);
+    ws3['!cols'] = [{wch: 38}, {wch: 60}];
+    XLSX.utils.book_append_sheet(wb, ws3, 'Ringkasan');
+
+    XLSX.writeFile(wb, 'Cek Silang Marketplace vs Jubelio ' + tanggalHariIni() + '.xlsx');
+    recordActivity('Unduh Cek Silang',
+      silangHasil.hanyaMp.length + ' belum di Jubelio, ' +
+      silangHasil.hanyaJub.length + ' belum di marketplace.');
+  }
+
   // ---------- simpan & muat ----------
   function mpChunkRef(i){ return db.collection('mpChunks').doc('mp_' + i); }
 
@@ -9819,6 +10048,7 @@
 
     mpRenderStats();
     mpRenderDiag();
+    renderCekSilang();
   }
 
   function mpHapusBaris(id){
@@ -9858,18 +10088,30 @@
     var box = document.getElementById('mpStats');
     if(!box) return;
     var d = mpState.hasil;
-    var pesanan = {}, qty = 0, bayar = 0, batal = 0;
+    var pesanan = {}, qty = 0, bayar = 0, jual = 0, batal = 0;
     d.forEach(function(r){
-      pesanan[r['No Pesanan']] = true;
+      var no = r['No Pesanan'];
       qty += Number(r['Qty']) || 0;
-      bayar += Number(r['Total Bayar']) || 0;
+      // Subtotal bersifat PER BARANG, jadi boleh dijumlahkan langsung.
+      jual += Number(r['Subtotal']) || 0;
+      // Total Bayar bersifat PER PESANAN dan diulang di setiap baris
+      // barangnya. Menjumlahkannya per baris membuat pesanan berisi tiga
+      // barang terhitung tiga kali — itulah yang membuat angkanya
+      // menggelembung jauh di atas nilai barangnya sendiri.
+      if(!pesanan[no]){
+        pesanan[no] = true;
+        bayar += Number(r['Total Bayar']) || 0;
+      }
       if(/batal/i.test(r['Status'] || '')) batal++;
     });
     var kartu = [
       ['Baris', d.length.toLocaleString('id-ID'), 'setelah filter'],
       ['Pesanan Unik', Object.keys(pesanan).length.toLocaleString('id-ID'), 'satu pesanan bisa banyak SKU'],
       ['Total Qty', qty.toLocaleString('id-ID'), 'unit'],
-      ['Total Bayar', 'Rp ' + bayar.toLocaleString('id-ID', {maximumFractionDigits: 0}), 'apa adanya dari ekspor'],
+      ['Penjualan Bersih', 'Rp ' + jual.toLocaleString('id-ID', {maximumFractionDigits: 0}),
+       'nilai barang setelah diskon — sebanding dengan Total Omzet di Monitoring'],
+      ['Total Bayar Pembeli', 'Rp ' + bayar.toLocaleString('id-ID', {maximumFractionDigits: 0}),
+       'per pesanan unik, termasuk ongkir'],
       ['Baris Batal', batal.toLocaleString('id-ID'), d.length ? (batal / d.length * 100).toFixed(1).replace('.', ',') + '% dari baris' : '\u2013']
     ];
     box.innerHTML = kartu.map(function(k){
@@ -10412,6 +10654,21 @@
     });
     document.getElementById('mpUnduhBtn').addEventListener('click', mpUnduhExcel);
     document.getElementById('mpRekapBtn').addEventListener('click', mpUnduhRekap);
+
+    var kotakArah = document.getElementById('silangArah');
+    if(kotakArah){
+      Array.prototype.forEach.call(kotakArah.querySelectorAll('button'), function(b){
+        b.addEventListener('click', function(){
+          silangArah = b.getAttribute('data-val');
+          Array.prototype.forEach.call(kotakArah.querySelectorAll('button'), function(x){
+            x.classList.toggle('on', x === b);
+          });
+          renderCekSilang();
+        });
+      });
+    }
+    var btnSilang = document.getElementById('silangUnduh');
+    if(btnSilang) btnSilang.addEventListener('click', unduhCekSilang);
 
     var btnPulihMp = document.getElementById('mpPulihkanBtn');
     if(btnPulihMp){
