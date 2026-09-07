@@ -3381,6 +3381,7 @@
           <button type="button" data-val="mp" class="on">Belum masuk Jubelio</button>
           <button type="button" data-val="jub">Belum masuk Marketplace</button>
         </div>
+        <button type="button" class="btn btn-ghost" id="silangPeriksa" title="Periksa satu nomor pesanan di kedua sumber">🔎 Periksa Nomor</button>
         <button type="button" class="btn btn-ghost" id="silangUnduh">↓ Unduh</button>
       </div>
       <div id="silangIsi"></div>
@@ -9684,21 +9685,42 @@
 
     function dalam(t){ return t && t >= mulai && t <= akhir; }
 
-    var petaJub = {}, petaMp = {};
+    // PENTING — dan ini sempat salah: rentang tanggal hanya menentukan
+    // pesanan mana yang DITANYAKAN, bukan di mana pencariannya dilakukan.
+    //
+    // Sebelumnya kedua sisi disaring dengan rentang yang sama. Akibatnya
+    // pesanan yang tanggalnya dicatat berbeda antara Jubelio dan marketplace
+    // (atau jatuh di tepi rentang) tersaring keluar dari salah satu sisi,
+    // lalu dilaporkan "belum masuk" padahal ada. Sekarang pencarian selalu
+    // dilakukan pada SELURUH data di sisi lawan.
+    var semuaJub = {}, semuaMp = {};
+    jub.forEach(function(r){
+      var k = intiPesanan(r['No Pesanan']);
+      if(k && !semuaJub[k]) semuaJub[k] = r;
+    });
+    mpRows.forEach(function(r){
+      var k = intiPesanan(r['No Pesanan']);
+      if(k && !semuaMp[k]) semuaMp[k] = r;
+    });
+
+    // Yang ditanyakan: hanya pesanan di dalam rentang beririsan.
+    var tanyaJub = {}, tanyaMp = {};
     jub.forEach(function(r){
       if(!dalam(tglJub(r))) return;
       var k = intiPesanan(r['No Pesanan']);
-      if(k && !petaJub[k]) petaJub[k] = r;
+      if(k && !tanyaJub[k]) tanyaJub[k] = r;
     });
     mpRows.forEach(function(r){
       if(!dalam(tglMp(r))) return;
       var k = intiPesanan(r['No Pesanan']);
-      if(k && !petaMp[k]) petaMp[k] = r;
+      if(k && !tanyaMp[k]) tanyaMp[k] = r;
     });
 
     var hanyaMp = [], hanyaJub = [];
-    Object.keys(petaMp).forEach(function(k){ if(!petaJub[k]) hanyaMp.push(petaMp[k]); });
-    Object.keys(petaJub).forEach(function(k){ if(!petaMp[k]) hanyaJub.push(petaJub[k]); });
+    Object.keys(tanyaMp).forEach(function(k){ if(!semuaJub[k]) hanyaMp.push(tanyaMp[k]); });
+    Object.keys(tanyaJub).forEach(function(k){ if(!semuaMp[k]) hanyaJub.push(tanyaJub[k]); });
+
+    var petaMp = tanyaMp, petaJub = tanyaJub;
 
     hanyaMp.sort(function(a, b){ return String(b['Tanggal']).localeCompare(String(a['Tanggal'])); });
     hanyaJub.sort(function(a, b){ return String(b['Tanggal']).localeCompare(String(a['Tanggal'])); });
@@ -9707,7 +9729,7 @@
       kosong: false, mulai: mulai, akhir: akhir,
       totalMp: Object.keys(petaMp).length,
       totalJub: Object.keys(petaJub).length,
-      cocok: Object.keys(petaMp).filter(function(k){ return petaJub[k]; }).length,
+      cocok: Object.keys(petaMp).filter(function(k){ return semuaJub[k]; }).length,
       hanyaMp: hanyaMp, hanyaJub: hanyaJub
     };
   }
@@ -9767,6 +9789,50 @@
         ? '<div class="users-msg">Menampilkan 300 dari ' + daftar.length.toLocaleString('id-ID') +
           ' baris. Gunakan tombol Unduh untuk daftar lengkapnya.</div>'
         : '');
+  }
+
+  // Alat diagnosa: menelusuri satu nomor pesanan di kedua sumber dan
+  // melaporkan apa yang sebenarnya terjadi — supaya kalau hasil cek silang
+  // terasa keliru, penyebabnya bisa dipastikan, bukan ditebak.
+  function periksaNomor(){
+    var input = window.prompt(
+      'Masukkan nomor pesanan (boleh format Jubelio atau marketplace):\n\n' +
+      'contoh: SP-260902VKTCDSNA  atau  260902VKTCDSNA');
+    if(!input) return;
+    var k = intiPesanan(input);
+
+    var diJub = (RAW_SEMUA || []).filter(function(r){ return intiPesanan(r['No Pesanan']) === k; });
+    var diMp = mpRows.filter(function(r){ return intiPesanan(r['No Pesanan']) === k; });
+
+    var pesan = 'Nomor inti: ' + k + '\n\n';
+    pesan += 'DI JUBELIO: ' + (diJub.length ? diJub.length + ' baris' : 'TIDAK ADA') + '\n';
+    diJub.slice(0, 6).forEach(function(r){
+      pesan += '  \u00b7 ' + r['No Pesanan'] + ' | ' + r['SKU'] + ' | ' +
+               String(r['Tanggal']).slice(0, 10) + ' | ' + r['Status'] + '\n';
+    });
+    pesan += '\nDI MARKETPLACE: ' + (diMp.length ? diMp.length + ' baris' : 'TIDAK ADA') + '\n';
+    diMp.slice(0, 6).forEach(function(r){
+      pesan += '  \u00b7 ' + r['No Pesanan'] + ' | ' + r['SKU'] + ' | ' +
+               String(r['Tanggal']).slice(0, 10) + ' | ' + r['Status'] + '\n';
+    });
+
+    if(diJub.length && diMp.length){
+      var skuJ = diJub.map(function(r){ return trimKey(r['SKU']).toUpperCase(); }).sort().join(', ');
+      var skuM = diMp.map(function(r){ return trimKey(r['SKU']).toUpperCase(); }).sort().join(', ');
+      pesan += '\nKESIMPULAN: ada di kedua sumber.';
+      if(skuJ !== skuM){
+        pesan += '\n\u26a0 SKU-nya BERBEDA:\n  Jubelio    : ' + skuJ +
+                 '\n  Marketplace: ' + skuM +
+                 '\n\nItu sebabnya kolom Nilai Bersih bisa kosong walau pesanannya ada.';
+      }
+    } else if(diJub.length){
+      pesan += '\nKESIMPULAN: hanya ada di Jubelio.';
+    } else if(diMp.length){
+      pesan += '\nKESIMPULAN: hanya ada di data marketplace.';
+    } else {
+      pesan += '\nKESIMPULAN: tidak ditemukan di mana pun. Periksa lagi nomornya.';
+    }
+    window.alert(pesan);
   }
 
   function unduhCekSilang(){
@@ -10799,6 +10865,8 @@
     }
     var btnSilang = document.getElementById('silangUnduh');
     if(btnSilang) btnSilang.addEventListener('click', unduhCekSilang);
+    var btnPeriksa = document.getElementById('silangPeriksa');
+    if(btnPeriksa) btnPeriksa.addEventListener('click', periksaNomor);
 
     var btnPulihMp = document.getElementById('mpPulihkanBtn');
     if(btnPulihMp){
