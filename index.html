@@ -3126,6 +3126,7 @@
       <div class="spacer"></div>
       <button class="btn btn-ghost" id="resetBtn">Reset filter</button>
       <button class="btn btn-primary" id="downloadBtn">⬇ Unduh Excel</button>
+      <button class="btn btn-primary" id="reportTokoBtn" data-role-hide="admin,viewer,toko" title="Unduh report harian per toko, dikelompokkan per lokasi dengan penanda SO/TI/TO belum lengkap">🏬 Report Harian Toko</button>
       <button class="btn btn-primary" id="downloadSalesBtn" data-role-hide="admin,viewer,toko" title="Unduh data penjualan sesuai filter tabel, memakai template Data Sales Harian">📅 Unduh Data Sales</button>
     </div>
 
@@ -7674,6 +7675,219 @@
     return wb;
   }
 
+  // ============================================================
+  // Pembangun "Report Harian Jubelio per Toko".
+  // Meniru template yang dilampirkan: satu sheet, dikelompokkan per Lokasi,
+  // tiap kelompok punya judul biru, kepala kolom, baris data, dan Subtotal.
+  // Baris yang SO/TI/TO-nya belum lengkap diberi latar merah muda lewat
+  // conditional formatting — jadi penandaannya hilang sendiri begitu nomor
+  // dokumennya diisi, tanpa perlu membuat ulang laporannya.
+  // ============================================================
+  function buatWorkbookReportToko(baris){
+    var EJS = window.ExcelJS;
+
+    var FONT = 'Arial';
+    var NAVY = 'FF1F3864';      // kepala kolom & judul utama
+    var BIRU = 'FF2E5C9A';      // judul kelompok toko
+    var BIRU_MUDA = 'FFD9E2F3'; // baris subtotal
+    var MERAH_MUDA = 'FFFCE4E4';// penanda belum lengkap
+    var ABU = 'FF595959';
+    var NUM = '#,##0';
+
+    var KOLOM = ['No', 'SKU', 'Nama Barang', 'No. Pesanan', 'No. Invoice', 'Sumber',
+                 'Status', 'No SO (LPH)', 'No TI', 'No TO', 'Site', 'Kelengkapan',
+                 'Qty', 'Amount'];
+    var LEBAR = [5.7, 19.4, 45.7, 34.3, 18.3, 13.7, 14.9, 17.1, 17.1, 17.1,
+                 8, 18.3, 8, 14.9];
+
+    function tk(v){ return (v === null || v === undefined) ? '' : String(v).trim(); }
+
+    // Dikelompokkan per Lokasi. Lokasi kosong disatukan agar tidak hilang.
+    var kelompok = {};
+    (baris || []).forEach(function(r){
+      var lok = tk(r['Lokasi']) || '(tanpa lokasi)';
+      if(!kelompok[lok]) kelompok[lok] = [];
+      kelompok[lok].push(r);
+    });
+
+    // Urutan: toko dengan baris terbanyak lebih dulu — sama seperti template,
+    // dan memang itu yang paling perlu diperiksa.
+    var namaLokasi = Object.keys(kelompok).sort(function(a, b){
+      var d = kelompok[b].length - kelompok[a].length;
+      return d !== 0 ? d : a.localeCompare(b, 'id');
+    });
+
+    function lengkap(r){
+      return !!(tk(r['No SO (LPH)']) && tk(r['No TI (TII)']) && tk(r['No TO (TII)']));
+    }
+
+    var wb = new EJS.Workbook();
+    wb.creator = 'Monitoring Jubelio';
+    wb.created = new Date();
+    var ws = wb.addWorksheet('Sheet1', {views: [{showGridLines: false}]});
+
+    LEBAR.forEach(function(w, i){ ws.getColumn(i + 1).width = w; });
+
+    function garis(){
+      var t = {style: 'thin', color: {argb: 'FFD9D9D9'}};
+      return {top: t, left: t, bottom: t, right: t};
+    }
+
+    // ---- judul utama ----
+    var j1 = ws.getCell('A1');
+    j1.value = 'SEMUA ORDER \u2014 LENGKAP & BELUM LENGKAP SO / TI / TO';
+    j1.font = {name: FONT, size: 14, bold: true, color: {argb: NAVY}};
+
+    var j2 = ws.getCell('B2');
+    j2.value = 'Baris berlatar merah muda = SO / TI / TO belum ada. Penandaan ini memakai ' +
+               'conditional formatting, jadi otomatis hilang begitu nomor dokumen diisi.';
+    j2.font = {name: FONT, size: 9, color: {argb: ABU}};
+    ws.getCell('A2').value = '   ';
+
+    var r = 4;
+
+    namaLokasi.forEach(function(lok){
+      var isi = kelompok[lok];
+      var nLengkap = isi.filter(lengkap).length;
+      var nBelum = isi.length - nLengkap;
+
+      // ---- judul kelompok ----
+      ws.mergeCells(r, 1, r, KOLOM.length);
+      var jk = ws.getRow(r).getCell(1);
+      jk.value = lok + '  \u2014  ' + isi.length + ' baris  \u00b7  ' +
+                 nLengkap + ' lengkap  \u00b7  ' + nBelum + ' belum lengkap';
+      jk.font = {name: FONT, size: 11, bold: true, color: {argb: 'FFFFFFFF'}};
+      jk.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: BIRU}};
+      jk.alignment = {horizontal: 'left', vertical: 'middle'};
+      ws.getRow(r).height = 20;
+      r++;
+
+      // ---- kepala kolom ----
+      var rowH = ws.getRow(r);
+      KOLOM.forEach(function(nama, i){
+        var c = rowH.getCell(i + 1);
+        c.value = nama;
+        c.font = {name: FONT, size: 10, bold: true, color: {argb: 'FFFFFFFF'}};
+        c.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: NAVY}};
+        c.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
+        c.border = garis();
+      });
+      rowH.height = 22;
+      r++;
+
+      var awal = r;
+
+      // ---- baris data ----
+      isi.forEach(function(d, idx){
+        var row = ws.getRow(r);
+        var nilai = [
+          idx + 1,
+          tk(d['SKU']),
+          tk(d['Nama Barang']),
+          tk(d['No Pesanan']),
+          tk(d['No Invoice']),
+          tk(d['Sumber']),
+          tk(d['Status']),
+          tk(d['No SO (LPH)']),
+          tk(d['No TI (TII)']),
+          tk(d['No TO (TII)']),
+          tk(d['Site']),
+          null,                       // Kelengkapan: rumus, diisi di bawah
+          Number(d['QTY']) || 0,
+          Number(d['amount']) || 0
+        ];
+        nilai.forEach(function(v, i){
+          var c = row.getCell(i + 1);
+          if(v !== null) c.value = v;
+          c.font = {name: FONT, size: 10};
+          c.border = garis();
+          c.alignment = {
+            horizontal: (i === 0 || i === 11 || i === 12) ? 'center'
+                      : (i === 13 ? 'right' : 'left'),
+            vertical: 'top'
+          };
+          if(i === 13) c.numFmt = NUM;
+        });
+        // Kelengkapan sebagai RUMUS, bukan teks. Ini yang membuat laporannya
+        // hidup: begitu nomor SO/TI/TO diisi manual di Excel, statusnya dan
+        // warna barisnya berubah sendiri.
+        row.getCell(12).value = {formula: 'IF(COUNTA($H' + r + ':$J' + r + ')=3,"LENGKAP","BELUM LENGKAP")'};
+        r++;
+      });
+
+      var akhir = r - 1;
+
+      // ---- subtotal ----
+      var rowS = ws.getRow(r);
+      rowS.getCell(1).value = 'Subtotal';
+      rowS.getCell(12).value = {formula: 'COUNTIF($L' + awal + ':$L' + akhir + ',"BELUM LENGKAP")&" belum lengkap"'};
+      rowS.getCell(13).value = {formula: 'SUM(M' + awal + ':M' + akhir + ')'};
+      rowS.getCell(14).value = {formula: 'SUM(N' + awal + ':N' + akhir + ')'};
+      for(var c = 1; c <= KOLOM.length; c++){
+        var sel = rowS.getCell(c);
+        sel.font = {name: FONT, size: 10, bold: true};
+        sel.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: BIRU_MUDA}};
+        sel.alignment = {horizontal: (c === 1 ? 'left' : (c === 14 ? 'right' : 'center'))};
+        if(c === 14) sel.numFmt = NUM;
+      }
+      ws.mergeCells(r, 1, r, 11);
+      r++;
+
+      // ---- penandaan otomatis baris belum lengkap ----
+      ws.addConditionalFormatting({
+        ref: 'A' + awal + ':N' + akhir,
+        rules: [{
+          type: 'expression',
+          formulae: ['$L' + awal + '="BELUM LENGKAP"'],
+          style: {fill: {type: 'pattern', pattern: 'solid', bgColor: {argb: MERAH_MUDA}}}
+        }]
+      });
+
+      r++;   // satu baris kosong sebelum kelompok berikutnya
+    });
+
+    return wb;
+  }
+
+  function unduhReportToko(){
+    // Mengikuti persis apa yang sedang tampil di tabel Monitoring Jubelio:
+    // filter, pencarian, dan batas periode semuanya berlaku.
+    var baris = state.filtered || [];
+    if(!baris.length){
+      window.alert('Tidak ada baris pada filter ini. Longgarkan filter lalu coba lagi.');
+      return;
+    }
+    if(!window.ExcelJS){
+      window.alert('Pustaka ExcelJS belum termuat. Periksa koneksi internet, '
+                 + 'lalu muat ulang halaman dan coba lagi.');
+      return;
+    }
+    try{
+      var wb = buatWorkbookReportToko(baris);
+      wb.xlsx.writeBuffer().then(function(buf){
+        var blob = new Blob([buf], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'REPORT HARIAN JUBELIO TOKO ' + tanggalHariIni() + '.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        var belum = baris.filter(function(r){
+          return !(trimKey(r['No SO (LPH)']) && trimKey(r['No TI (TII)']) && trimKey(r['No TO (TII)']));
+        }).length;
+        logMsg('ok', '\u2713', 'Report harian toko diunduh \u2014 <b>' + baris.length +
+          ' baris</b>, <b>' + belum + '</b> di antaranya belum lengkap SO/TI/TO.');
+        recordActivity('Unduh Report Harian Toko', baris.length + ' baris, ' + belum + ' belum lengkap.');
+      })['catch'](function(err){
+        window.alert('Gagal menyusun report: ' + err.message);
+      });
+    }catch(err){
+      window.alert('Gagal menyusun report: ' + err.message);
+    }
+  }
+
   function downloadSalesHarian(){
     var r = window.currentRole;
     if(r !== 'owner' && r !== 'superadmin'){
@@ -9654,6 +9868,23 @@
   var silangArah = 'mp';
   var silangHasil = null;
 
+  // Jubelio memakai nama sumber sendiri; dipetakan ke kanal marketplace.
+  // Kanal yang TIDAK ada di daftar ini (BLIBLI, INTERNAL, dsb.) memang tidak
+  // punya ekspor pembanding, jadi dikeluarkan dari pemeriksaan — kalau
+  // diikutkan, seluruh pesanannya akan selamanya dilaporkan "hilang".
+  var PETA_KANAL = {
+    'SHOPEE': 'SHOPEE',
+    'TOKOPEDIA': 'TOKPED & TIKTOK',
+    'SHOP | TOKOPEDIA': 'TOKPED & TIKTOK',
+    'TIKTOK': 'TOKPED & TIKTOK',
+    'SHOPIFY': 'SHOPIFY',
+    'LAZADA': 'LAZADA'
+  };
+
+  function kanalJub(r){
+    return PETA_KANAL[String(r['Sumber'] || '').trim().toUpperCase()] || null;
+  }
+
   function hitungCekSilang(){
     var jub = RAW_SEMUA || [];
     if(!mpRows.length || !jub.length){
@@ -9662,37 +9893,24 @@
         : 'Belum ada data Jubelio untuk dibandingkan.'};
     }
 
-    function tglJub(r){ return String(r['Tanggal'] || '').slice(0, 10); }
-    function tglMp(r){ return String(r['Tanggal'] || '').slice(0, 10); }
+    function tgl(r){ return String(r['Tanggal'] || '').slice(0, 10); }
 
-    var tJub = jub.map(tglJub).filter(Boolean).sort();
-    var tMp  = mpRows.map(tglMp).filter(Boolean).sort();
-    if(!tJub.length || !tMp.length) return {kosong: true, alasan: 'Kolom tanggal tidak terbaca.'};
+    // Rentang dihitung PER KANAL. Sebelumnya satu rentang global dipakai untuk
+    // semua kanal, padahal jangkauan ekspornya berbeda-beda — ekspor Shopee
+    // bisa sampai 6 September sementara Lazada cuma sehari. Akibatnya pesanan
+    // di luar jangkauan satu kanal ikut dinyatakan hilang.
+    var rentang = {};
+    mpRows.forEach(function(r){
+      var k = trimKey(r['Kanal']).toUpperCase();
+      var t = tgl(r);
+      if(!k || !t) return;
+      if(!rentang[k]) rentang[k] = {min: t, maks: t};
+      if(t < rentang[k].min) rentang[k].min = t;
+      if(t > rentang[k].maks) rentang[k].maks = t;
+    });
 
-    // INI YANG MENENTUKAN hasilnya berguna atau jadi sampah: kedua sumber
-    // hampir tidak pernah mencakup rentang tanggal yang sama. Jubelio memuat
-    // berbulan-bulan, ekspor marketplace mungkin cuma beberapa hari. Tanpa
-    // diiriskan, ribuan pesanan Jubelio akan dilaporkan "hilang" padahal
-    // memang di luar jangkauan ekspornya.
-    var mulai = (tJub[0] > tMp[0]) ? tJub[0] : tMp[0];
-    var akhir = (tJub[tJub.length - 1] < tMp[tMp.length - 1])
-                ? tJub[tJub.length - 1] : tMp[tMp.length - 1];
-    if(mulai > akhir){
-      return {kosong: true, alasan: 'Rentang tanggal kedua sumber tidak beririsan sama sekali \u2014 ' +
-        'Jubelio ' + tJub[0] + ' s/d ' + tJub[tJub.length - 1] +
-        ', marketplace ' + tMp[0] + ' s/d ' + tMp[tMp.length - 1] + '.'};
-    }
-
-    function dalam(t){ return t && t >= mulai && t <= akhir; }
-
-    // PENTING — dan ini sempat salah: rentang tanggal hanya menentukan
-    // pesanan mana yang DITANYAKAN, bukan di mana pencariannya dilakukan.
-    //
-    // Sebelumnya kedua sisi disaring dengan rentang yang sama. Akibatnya
-    // pesanan yang tanggalnya dicatat berbeda antara Jubelio dan marketplace
-    // (atau jatuh di tepi rentang) tersaring keluar dari salah satu sisi,
-    // lalu dilaporkan "belum masuk" padahal ada. Sekarang pencarian selalu
-    // dilakukan pada SELURUH data di sisi lawan.
+    // Kunci pencarian: SELURUH data di kedua sisi, tanpa saringan tanggal.
+    // Rentang hanya menentukan pesanan mana yang ditanyakan.
     var semuaJub = {}, semuaMp = {};
     jub.forEach(function(r){
       var k = intiPesanan(r['No Pesanan']);
@@ -9703,33 +9921,48 @@
       if(k && !semuaMp[k]) semuaMp[k] = r;
     });
 
-    // Yang ditanyakan: hanya pesanan di dalam rentang beririsan.
-    var tanyaJub = {}, tanyaMp = {};
-    jub.forEach(function(r){
-      if(!dalam(tglJub(r))) return;
-      var k = intiPesanan(r['No Pesanan']);
-      if(k && !tanyaJub[k]) tanyaJub[k] = r;
-    });
+    var hanyaMp = [], hanyaJub = [], diperiksaMp = {}, diperiksaJub = {};
+    var diabaikan = {};
+
+    // Sisi marketplace: semuanya diperiksa, karena setiap barisnya pasti
+    // berasal dari kanal yang ekspornya memang kita punya.
     mpRows.forEach(function(r){
-      if(!dalam(tglMp(r))) return;
       var k = intiPesanan(r['No Pesanan']);
-      if(k && !tanyaMp[k]) tanyaMp[k] = r;
+      if(!k || diperiksaMp[k]) return;
+      diperiksaMp[k] = true;
+      if(!semuaJub[k]) hanyaMp.push(r);
     });
 
-    var hanyaMp = [], hanyaJub = [];
-    Object.keys(tanyaMp).forEach(function(k){ if(!semuaJub[k]) hanyaMp.push(tanyaMp[k]); });
-    Object.keys(tanyaJub).forEach(function(k){ if(!semuaMp[k]) hanyaJub.push(tanyaJub[k]); });
+    // Sisi Jubelio: hanya kanal yang punya ekspor, dan hanya dalam jangkauan
+    // tanggal ekspor kanal itu sendiri.
+    jub.forEach(function(r){
+      var kan = kanalJub(r);
+      if(!kan){
+        var s0 = trimKey(r['Sumber']) || '(tanpa sumber)';
+        diabaikan[s0] = (diabaikan[s0] || 0) + 1;
+        return;
+      }
+      var rg = rentang[kan];
+      if(!rg) return;
+      var t = tgl(r);
+      if(!t || t < rg.min || t > rg.maks) return;
 
-    var petaMp = tanyaMp, petaJub = tanyaJub;
+      var k = intiPesanan(r['No Pesanan']);
+      if(!k || diperiksaJub[k]) return;
+      diperiksaJub[k] = true;
+      if(!semuaMp[k]) hanyaJub.push(r);
+    });
 
     hanyaMp.sort(function(a, b){ return String(b['Tanggal']).localeCompare(String(a['Tanggal'])); });
     hanyaJub.sort(function(a, b){ return String(b['Tanggal']).localeCompare(String(a['Tanggal'])); });
 
     return {
-      kosong: false, mulai: mulai, akhir: akhir,
-      totalMp: Object.keys(petaMp).length,
-      totalJub: Object.keys(petaJub).length,
-      cocok: Object.keys(petaMp).filter(function(k){ return semuaJub[k]; }).length,
+      kosong: false,
+      rentang: rentang,
+      diabaikan: diabaikan,
+      totalMp: Object.keys(diperiksaMp).length,
+      totalJub: Object.keys(diperiksaJub).length,
+      cocok: Object.keys(diperiksaMp).filter(function(k){ return semuaJub[k]; }).length,
       hanyaMp: hanyaMp, hanyaJub: hanyaJub
     };
   }
@@ -9748,12 +9981,29 @@
       return;
     }
 
+    // Keterangan harus menyebut BATAS pemeriksaannya, bukan cuma angkanya.
+    // Tanpa itu, pesanan Blibli dan pesanan yang lebih baru dari ekspor akan
+    // terbaca sebagai "hilang" padahal memang tidak punya pembanding.
+    var kanalTeks = Object.keys(h.rentang).sort().map(function(k){
+      return '<b>' + esc(k) + '</b> ' + h.rentang[k].min + '\u2013' + h.rentang[k].maks;
+    }).join(' \u00b7 ');
+
+    var abai = Object.keys(h.diabaikan || {}).sort(function(a, b){
+      return h.diabaikan[b] - h.diabaikan[a];
+    });
+
     sub.innerHTML =
-      'Dibandingkan hanya pada rentang yang <b>dimiliki kedua sumber</b>: <b>' +
-      esc(h.mulai) + '</b> s/d <b>' + esc(h.akhir) + '</b> \u00b7 ' +
+      'Tiap kanal dibandingkan hanya pada jangkauan ekspornya sendiri:<br>' +
+      kanalTeks + '<br>' +
       h.cocok.toLocaleString('id-ID') + ' pesanan cocok \u00b7 ' +
       '<b style="color:var(--warn)">' + h.hanyaMp.length + '</b> belum masuk Jubelio \u00b7 ' +
-      '<b style="color:var(--amber)">' + h.hanyaJub.length + '</b> belum masuk Marketplace';
+      '<b style="color:var(--amber)">' + h.hanyaJub.length + '</b> belum masuk Marketplace' +
+      (abai.length
+        ? '<br><span style="color:var(--muted)">Tidak diperiksa (belum ada ekspornya): ' +
+          abai.map(function(k){
+            return esc(k) + ' (' + h.diabaikan[k].toLocaleString('id-ID') + ' baris)';
+          }).join(', ') + '</span>'
+        : '');
 
     var mp = silangArah === 'mp';
     var daftar = mp ? h.hanyaMp : h.hanyaJub;
@@ -9860,19 +10110,28 @@
     ws2['!cols'] = j2.map(function(k){ return {wch: k === 'Nama Barang' ? 40 : 18}; });
     XLSX.utils.book_append_sheet(wb, ws2, 'Belum di Marketplace');
 
-    var ws3 = XLSX.utils.aoa_to_sheet([
-      ['Keterangan', 'Nilai'],
-      ['Rentang dibandingkan', silangHasil.mulai + ' s/d ' + silangHasil.akhir],
-      ['Pesanan marketplace di rentang itu', silangHasil.totalMp],
-      ['Pesanan Jubelio di rentang itu', silangHasil.totalJub],
-      ['Cocok di kedua sumber', silangHasil.cocok],
-      ['Hanya di marketplace', silangHasil.hanyaMp.length],
-      ['Hanya di Jubelio', silangHasil.hanyaJub.length],
-      [],
-      ['Catatan', 'Perbandingan dibatasi pada rentang tanggal yang dimiliki KEDUA sumber. ' +
-       'Nomor pesanan Jubelio dikupas dari pembungkusnya (SP-, TP-, TT-, LZ-, SHF-...) ' +
-       'agar sebanding dengan nomor asli marketplace.']
-    ]);
+    var infoBaris = [['Keterangan', 'Nilai']];
+    Object.keys(silangHasil.rentang).sort().forEach(function(k){
+      infoBaris.push(['Jangkauan ekspor ' + k,
+        silangHasil.rentang[k].min + ' s/d ' + silangHasil.rentang[k].maks]);
+    });
+    infoBaris.push(['Pesanan marketplace diperiksa', silangHasil.totalMp]);
+    infoBaris.push(['Pesanan Jubelio diperiksa', silangHasil.totalJub]);
+    infoBaris.push(['Cocok di kedua sumber', silangHasil.cocok]);
+    infoBaris.push(['Hanya di marketplace', silangHasil.hanyaMp.length]);
+    infoBaris.push(['Hanya di Jubelio', silangHasil.hanyaJub.length]);
+    infoBaris.push([]);
+    Object.keys(silangHasil.diabaikan || {}).sort().forEach(function(k){
+      infoBaris.push(['Tidak diperiksa — ' + k, silangHasil.diabaikan[k] + ' baris']);
+    });
+    infoBaris.push([]);
+    infoBaris.push(['Catatan',
+      'Tiap kanal dibandingkan hanya pada jangkauan tanggal ekspornya sendiri. ' +
+      'Kanal tanpa ekspor pembanding (mis. BLIBLI, INTERNAL) sengaja TIDAK diperiksa — ' +
+      'kalau diikutkan, seluruh pesanannya akan selamanya terbaca hilang. ' +
+      'Nomor pesanan Jubelio dikupas dari pembungkusnya (SP-, TP-, TT-, LZ-, SHF-...) ' +
+      'agar sebanding dengan nomor asli marketplace.']);
+    var ws3 = XLSX.utils.aoa_to_sheet(infoBaris);
     ws3['!cols'] = [{wch: 38}, {wch: 60}];
     XLSX.utils.book_append_sheet(wb, ws3, 'Ringkasan');
 
@@ -11466,6 +11725,8 @@
 
     document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
     document.getElementById('downloadSalesBtn').addEventListener('click', downloadSalesHarian);
+    var btnRT = document.getElementById('reportTokoBtn');
+    if(btnRT) btnRT.addEventListener('click', unduhReportToko);
 
     document.getElementById('clearDataBtn').addEventListener('click', function(){
       if(currentRole !== 'owner'){ window.alert('Hanya Owner yang bisa menghapus semua data.'); return; }
