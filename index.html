@@ -1469,6 +1469,23 @@
     .heat-sel{min-height:15px;}
   }
 
+  /* ---------- email report ---------- */
+  .email-aksi{display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:11px;}
+  .email-status{font-size:11.5px; color:var(--muted);}
+  .email-status.ok{color:var(--accent-dark); font-weight:600;}
+  #emailTeks{
+    width:100%; min-height:420px; padding:14px 16px;
+    border:1px solid var(--line); border-radius:9px;
+    background:var(--surface-sunken); color:var(--ink);
+    /* Huruf lebar-tetap: laporan ini akan dibaca sebagai teks polos di email,
+       jadi pratinjaunya harus memperlihatkan bentuk yang sama. */
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px; line-height:1.65;
+    resize:vertical; white-space:pre; overflow-x:auto;
+  }
+  #emailTeks:focus{outline:none; border-color:var(--accent);}
+  .email-catatan{font-size:11px; color:var(--muted); margin:8px 0 0;}
+
   /* ---------- cek silang marketplace vs jubelio ---------- */
   .silang{
     margin:16px 0 0; padding:16px 18px 14px;
@@ -2864,6 +2881,27 @@
   </div>
 </div>
 
+<div class="chart-overlay users-modal" id="emailOverlay">
+  <div class="chart-modal" style="max-width:820px;">
+    <div class="chart-modal-head">
+      <div>
+        <h3>Email Report</h3>
+        <div class="sub" id="emailSub">Disusun dari data yang sedang tampil di tabel Monitoring</div>
+      </div>
+      <button class="chart-modal-close" id="emailClose" aria-label="Tutup">✕</button>
+    </div>
+    <div class="chart-modal-body">
+      <div class="email-aksi">
+        <button type="button" class="btn btn-primary" id="emailSalin">📋 Salin ke Clipboard</button>
+        <button type="button" class="btn btn-ghost" id="emailUnduh">↓ Unduh .txt</button>
+        <span class="email-status" id="emailStatus"></span>
+      </div>
+      <textarea id="emailTeks" spellcheck="false"></textarea>
+      <p class="email-catatan">Teks di atas bisa disunting sebelum disalin — perubahanmu ikut tersalin dan terunduh.</p>
+    </div>
+  </div>
+</div>
+
 <div class="chart-overlay users-modal" id="perubahanOverlay">
   <div class="chart-modal">
     <div class="chart-modal-head">
@@ -3126,6 +3164,7 @@
       <div class="spacer"></div>
       <button class="btn btn-ghost" id="resetBtn">Reset filter</button>
       <button class="btn btn-primary" id="downloadBtn">⬇ Unduh Excel</button>
+      <button class="btn btn-primary" id="emailReportBtn" data-role-hide="admin,viewer,toko" title="Susun teks email laporan harian dari data yang sedang tampil">✉ Email Report</button>
       <button class="btn btn-primary" id="reportTokoBtn" data-role-hide="admin,viewer,toko" title="Unduh report harian per toko, dikelompokkan per lokasi dengan penanda SO/TI/TO belum lengkap">🏬 Report Harian Toko</button>
       <button class="btn btn-primary" id="downloadSalesBtn" data-role-hide="admin,viewer,toko" title="Unduh data penjualan sesuai filter tabel, memakai template Data Sales Harian">📅 Unduh Data Sales</button>
     </div>
@@ -7849,6 +7888,192 @@
     return wb;
   }
 
+
+  // ==================== EMAIL REPORT ====================
+  // Menyusun teks email laporan harian dari baris yang SEDANG TAMPIL di tabel
+  // Monitoring. Bukan berkas Excel: keluarannya teks siap tempel ke Outlook,
+  // karena itu yang benar-benar dipakai \u2014 lampiran Excel sudah ada
+  // tombolnya sendiri.
+  function fmtTglPanjang(iso){
+    if(!iso) return '-';
+    var b = ['Januari','Februari','Maret','April','Mei','Juni',
+             'Juli','Agustus','September','Oktober','November','Desember'];
+    var p = String(iso).slice(0, 10).split('-');
+    if(p.length < 3) return iso;
+    return parseInt(p[2], 10) + ' ' + b[parseInt(p[1], 10) - 1] + ' ' + p[0];
+  }
+
+  function susunEmailReport(baris){
+    // Dikelompokkan per PESANAN, bukan per baris. Satu pesanan bisa berisi
+    // beberapa barang, dan status SO/TO/TI berlaku untuk pesanannya.
+    var perPesanan = {};
+    baris.forEach(function(r){
+      var no = trimKey(r['No Pesanan']) || '(tanpa nomor)';
+      if(!perPesanan[no]){
+        perPesanan[no] = {
+          no: no, invoice: trimKey(r['No Invoice']),
+          qty: 0, nilai: 0, lengkap: true,
+          status: {}, lokasi: {}, tgl: String(r['Tanggal'] || '').slice(0, 10)
+        };
+      }
+      var p = perPesanan[no];
+      p.qty += Number(r['QTY']) || 0;
+      p.nilai += Number(r['amount']) || 0;
+      if(!p.invoice) p.invoice = trimKey(r['No Invoice']);
+      // Satu baris saja belum lengkap, seluruh pesanannya dianggap belum \u2014
+      // karena dokumen SO/TO/TI dibentuk untuk pesanannya, bukan per barang.
+      if(!(trimKey(r['No SO (LPH)']) && trimKey(r['No TI (TII)']) && trimKey(r['No TO (TII)']))){
+        p.lengkap = false;
+      }
+      var st = trimKey(r['Status']); if(st) p.status[st] = true;
+      var lk = trimKey(r['Lokasi']); if(lk) p.lokasi[lk] = true;
+      var t = String(r['Tanggal'] || '').slice(0, 10);
+      if(t && (!p.tgl || t < p.tgl)) p.tgl = t;
+    });
+
+    var daftar = Object.keys(perPesanan).map(function(k){ return perPesanan[k]; });
+    var belum = daftar.filter(function(p){ return !p.lengkap; });
+    var sudah = daftar.length - belum.length;
+
+    var totalQty = daftar.reduce(function(a, p){ return a + p.qty; }, 0);
+    var totalNilai = daftar.reduce(function(a, p){ return a + p.nilai; }, 0);
+
+    // Lokasi & status dikumpulkan apa adanya. Kalau cuma satu, ditulis
+    // langsung; kalau banyak, dirinci dengan jumlahnya supaya penerima email
+    // tahu sebarannya tanpa membuka lampiran.
+    var lokHitung = {}, stHitung = {};
+    daftar.forEach(function(p){
+      Object.keys(p.lokasi).forEach(function(l){ lokHitung[l] = (lokHitung[l] || 0) + 1; });
+      Object.keys(p.status).forEach(function(x){ stHitung[x] = (stHitung[x] || 0) + 1; });
+    });
+    function ringkasPeta(peta, satuan){
+      var k = Object.keys(peta).sort(function(a, b){ return peta[b] - peta[a]; });
+      if(!k.length) return '-';
+      if(k.length === 1) return k[0];
+      return k.map(function(x){ return x + ' (' + peta[x] + ' ' + satuan + ')'; }).join(', ');
+    }
+
+    var tglSemua = daftar.map(function(p){ return p.tgl; }).filter(Boolean).sort();
+    var dari = tglSemua.length ? tglSemua[0] : '';
+    var sampai = tglSemua.length ? tglSemua[tglSemua.length - 1] : '';
+    var periode = (dari === sampai)
+      ? fmtTglPanjang(dari)
+      : (String(dari).slice(8, 10) + '\u2013' + String(sampai).slice(8, 10) + ' ' +
+         fmtTglPanjang(sampai).split(' ').slice(1).join(' '));
+    var hariIni = new Date();
+    var isoHariIni = hariIni.getFullYear() + '-' +
+      String(hariIni.getMonth() + 1).padStart(2, '0') + '-' +
+      String(hariIni.getDate()).padStart(2, '0');
+
+    var persen = daftar.length ? Math.round(belum.length / daftar.length * 100) : 0;
+    var rp = function(n){ return 'Rp ' + Math.round(n).toLocaleString('id-ID'); };
+
+    var t = [];
+    t.push('Subject: [Laporan Harian] Order Online/Jubelio \u2014 Status SO/TO/TI per ' + fmtTglPanjang(isoHariIni));
+    t.push('');
+    t.push('Selamat pagi Bapak/Ibu,');
+    t.push('');
+    t.push('Berikut laporan harian order online (Jubelio) beserta status pembentukan ' +
+           'dokumen SO / TO / TI untuk periode ' + periode + '.');
+    t.push('');
+    t.push('RINGKASAN');
+    t.push('- Total order: ' + daftar.length.toLocaleString('id-ID') + ' order');
+    t.push('- Total kuantitas: ' + totalQty.toLocaleString('id-ID') + ' pcs');
+    t.push('- Total nilai: ' + rp(totalNilai));
+    t.push('- Lokasi: ' + ringkasPeta(lokHitung, 'order'));
+    t.push('- Status pesanan: ' +
+      (Object.keys(stHitung).length === 1
+        ? 'seluruhnya ' + Object.keys(stHitung)[0]
+        : ringkasPeta(stHitung, 'order')));
+    t.push('');
+    t.push('STATUS SO/TO/TI');
+    t.push('- Sudah terbentuk: ' + sudah.toLocaleString('id-ID') + ' order');
+    t.push('- Belum terbentuk: ' + belum.length.toLocaleString('id-ID') + ' order (' + persen + '%)');
+    t.push('');
+
+    if(belum.length){
+      t.push('DAFTAR ORDER YANG BELUM TERBENTUK SO/TO/TI');
+      belum.sort(function(a, b){ return String(a.tgl).localeCompare(String(b.tgl)); });
+      belum.forEach(function(p, i){
+        t.push((i + 1) + '. ' + p.no + ' / ' + (p.invoice || '(tanpa invoice)'));
+      });
+      t.push('');
+      t.push('Dokumen SO/TO/TI dibentuk melalui proses otomatis. Sampai laporan ini dibuat, ' +
+             'proses otomatis atas order di atas belum berjalan, sehingga statusnya masih dalam ' +
+             'pemantauan. Status akan kami update pada laporan berikutnya begitu nomor dokumen terbentuk.');
+      t.push('');
+      t.push('Apabila dalam 2x24 jam sejak order masuk proses otomatis masih belum berjalan, ' +
+             'akan kami sampaikan email lanjutan berisi instruksi pembuatan SO/TO/TI secara manual. ' +
+             'Untuk saat ini belum diperlukan tindakan dari tim toko.');
+    } else {
+      // Kalimat penutup ikut berubah kalau semuanya sudah beres \u2014 kalau
+      // tidak, emailnya akan menyebut "belum berjalan" padahal sudah selesai.
+      t.push('Seluruh order pada periode ini sudah terbentuk dokumen SO/TO/TI-nya. ' +
+             'Tidak ada yang memerlukan tindakan lanjutan dari tim toko.');
+    }
+
+    t.push('');
+    t.push('Rincian lengkap terlampir.');
+    t.push('');
+    t.push('Terima kasih atas perhatian dan kerja samanya.');
+    t.push('');
+    t.push('Salam,');
+    t.push(window.currentUsername || 'E-Commerce');
+    t.push('E-Commerce');
+
+    return {teks: t.join('\n'), order: daftar.length, belum: belum.length};
+  }
+
+  function bukaEmailReport(){
+    var baris = state.filtered || [];
+    if(!baris.length){
+      window.alert('Tidak ada baris pada filter ini. Longgarkan filter lalu coba lagi.');
+      return;
+    }
+    var h = susunEmailReport(baris);
+    document.getElementById('emailTeks').value = h.teks;
+    document.getElementById('emailSub').textContent =
+      h.order + ' order \u00b7 ' + h.belum + ' belum terbentuk SO/TO/TI \u00b7 ' +
+      'disusun dari ' + baris.length + ' baris yang sedang tampil';
+    document.getElementById('emailStatus').textContent = '';
+    document.getElementById('emailOverlay').classList.add('open');
+  }
+
+  function salinEmailReport(){
+    var ta = document.getElementById('emailTeks');
+    var st = document.getElementById('emailStatus');
+    function sukses(){
+      st.textContent = '\u2713 Tersalin \u2014 tinggal tempel di Outlook';
+      st.className = 'email-status ok';
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(ta.value).then(sukses)['catch'](function(){
+        // Clipboard API ditolak (mis. halaman tidak HTTPS). Cara lama masih
+        // bekerja, jadi dipakai sebagai cadangan daripada gagal begitu saja.
+        ta.select(); document.execCommand('copy'); sukses();
+      });
+    } else {
+      ta.select(); document.execCommand('copy'); sukses();
+    }
+    recordActivity('Salin Email Report', 'Teks laporan harian disalin.');
+  }
+
+  function unduhEmailReport(){
+    var teks = document.getElementById('emailTeks').value;
+    var blob = new Blob([teks], {type: 'text/plain;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'email report order jubelio ' + tanggalHariIni() + '.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    document.getElementById('emailStatus').textContent = '\u2713 Berkas .txt terunduh';
+    document.getElementById('emailStatus').className = 'email-status ok';
+    recordActivity('Unduh Email Report', 'Berkas teks laporan harian diunduh.');
+  }
+
   function unduhReportToko(){
     // Mengikuti persis apa yang sedang tampil di tabel Monitoring Jubelio:
     // filter, pencarian, dan batas periode semuanya berlaku.
@@ -11727,6 +11952,20 @@
     document.getElementById('downloadSalesBtn').addEventListener('click', downloadSalesHarian);
     var btnRT = document.getElementById('reportTokoBtn');
     if(btnRT) btnRT.addEventListener('click', unduhReportToko);
+
+    var btnEmail = document.getElementById('emailReportBtn');
+    if(btnEmail) btnEmail.addEventListener('click', bukaEmailReport);
+    var ovEmail = document.getElementById('emailOverlay');
+    if(ovEmail){
+      document.getElementById('emailClose').addEventListener('click', function(){
+        ovEmail.classList.remove('open');
+      });
+      ovEmail.addEventListener('click', function(e){
+        if(e.target === this) ovEmail.classList.remove('open');
+      });
+      document.getElementById('emailSalin').addEventListener('click', salinEmailReport);
+      document.getElementById('emailUnduh').addEventListener('click', unduhEmailReport);
+    }
 
     document.getElementById('clearDataBtn').addEventListener('click', function(){
       if(currentRole !== 'owner'){ window.alert('Hanya Owner yang bisa menghapus semua data.'); return; }
