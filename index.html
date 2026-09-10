@@ -2904,7 +2904,10 @@
           <button type="button" data-val="email" class="on">✉ Email</button>
           <button type="button" data-val="wa">💬 WhatsApp</button>
         </div>
-        <button type="button" class="btn btn-primary" id="emailSalin">📋 Salin ke Clipboard</button>
+        <button type="button" class="btn btn-primary" id="emailBuka">📧 Buka di Zimbra</button>
+        <button type="button" class="btn btn-ghost" id="emailSalinSubjek">📋 Subjek</button>
+        <button type="button" class="btn btn-ghost" id="emailSalin">📋 Salin ke Clipboard</button>
+        <button type="button" class="btn btn-ghost" id="emailSetel" title="Setel alamat jendela tulis Zimbra">⚙</button>
         <button type="button" class="btn btn-ghost" id="emailUnduh">↓ Unduh .txt</button>
         <span class="email-status" id="emailStatus"></span>
       </div>
@@ -8103,12 +8106,140 @@
     return {teks: t.join('\n'), order: h.total, belum: h.belum.length};
   }
 
+
+  // ---------- alamat Zimbra ----------
+  // Zimbra antarmuka BARU memakai rute # dan tidak menerima subjek/isi lewat
+  // URL \u2014 itulah sebabnya percobaan pertama gagal. Karena tiap pemasangan
+  // Zimbra berbeda, alamatnya dibuat bisa disetel sendiri, bukan dipaku di
+  // kode. Kalau Zimbra-mu ternyata mendukung parameter, tinggal masukkan
+  // polanya lewat tombol \u2699 \u2014 tanpa perlu saya ubah kodenya.
+  var KUNCI_ZIMBRA = 'zimbraComposeUrl';
+  var ZIMBRA_BAWAAN = 'https://webmail.bercaretail.com';
+
+  function urlZimbra(){
+    try{ return localStorage.getItem(KUNCI_ZIMBRA) || ZIMBRA_BAWAAN; }
+    catch(e){ return ZIMBRA_BAWAAN; }
+  }
+
+  function setelZimbra(){
+    var kini = urlZimbra();
+    var baru = window.prompt(
+      'Alamat jendela tulis Zimbra.\n\n' +
+      'Cara mengetahuinya: buka Zimbra, tekan tombol "Tulis"/"New Message", ' +
+      'lalu salin alamat yang muncul di bilah alamat browser.\n\n' +
+      'Kalau Zimbra-mu mendukung isi lewat URL, boleh pakai penanda:\n' +
+      '  {subject}  dan  {body}\n\n' +
+      'Contoh: https://webmail.bercaretail.com/?view=compose&subject={subject}&body={body}',
+      kini);
+    if(baru === null) return;
+    baru = baru.trim();
+    try{ localStorage.setItem(KUNCI_ZIMBRA, baru || ZIMBRA_BAWAAN); }catch(e){}
+    var st = document.getElementById('emailStatus');
+    st.textContent = '\u2713 Alamat Zimbra disimpan';
+    st.className = 'email-status ok';
+  }
+
+  function salinKeClipboard(teks){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      return navigator.clipboard.writeText(teks);
+    }
+    return new Promise(function(res, rej){
+      try{
+        var ta = document.getElementById('emailTeks');
+        var simpan = ta.value;
+        ta.value = teks;
+        ta.select();
+        document.execCommand('copy');
+        ta.value = simpan;
+        res();
+      }catch(e){ rej(e); }
+    });
+  }
+
+  function pisahSubjek(teks){
+    var baris = String(teks || '').split('\n');
+    var subjek = '', mulai = 0;
+    if(/^subject\s*:/i.test(baris[0] || '')){
+      subjek = baris[0].replace(/^subject\s*:\s*/i, '').trim();
+      mulai = 1;
+      while(mulai < baris.length && !baris[mulai].trim()) mulai++;
+    }
+    return {subjek: subjek, isi: baris.slice(mulai).join('\n')};
+  }
+
+  function bukaDiAplikasi(){
+    var teks = document.getElementById('emailTeks').value || '';
+    var st = document.getElementById('emailStatus');
+
+    if(emailMode === 'wa'){
+      window.open('https://wa.me/?text=' + encodeURIComponent(teks), '_blank');
+      st.textContent = '\u2713 WhatsApp dibuka \u2014 pilih tujuannya lalu kirim';
+      st.className = 'email-status ok';
+      recordActivity('Buka WA Report', 'Teks laporan dibuka di WhatsApp.');
+      return;
+    }
+
+    var p = pisahSubjek(teks);
+    var pola = urlZimbra();
+
+    // Kalau pola memuat penanda, isinya dititipkan lewat URL.
+    if(pola.indexOf('{subject}') !== -1 || pola.indexOf('{body}') !== -1){
+      var url = pola
+        .replace('{subject}', encodeURIComponent(p.subjek))
+        .replace('{body}', encodeURIComponent(p.isi));
+      window.open(url, '_blank');
+      st.textContent = '\u2713 Zimbra dibuka dengan isi terisi';
+      st.className = 'email-status ok';
+      recordActivity('Buka Email Report', 'Zimbra dibuka lewat pola URL.');
+      return;
+    }
+
+    // Tanpa penanda: ISI disalin ke clipboard lalu Zimbra dibuka. Cara ini
+    // TIDAK bergantung pada dukungan Zimbra sama sekali, jadi selalu bekerja.
+    // Subjeknya disalin lewat tombol tersendiri, karena clipboard hanya bisa
+    // memuat satu hal sekaligus.
+    salinKeClipboard(p.isi).then(function(){
+      window.open(pola, '_blank');
+      st.innerHTML = '\u2713 <b>Isi email tersalin.</b> Di Zimbra: tekan Tulis \u2192 ' +
+                     'klik badan email \u2192 Ctrl+V. Subjeknya ambil lewat tombol \uD83D\uDCCB Subjek.';
+      st.className = 'email-status ok';
+    })['catch'](function(){
+      window.open(pola, '_blank');
+      st.textContent = '\u26a0 Zimbra dibuka, tapi isi gagal disalin \u2014 pakai tombol Salin ke Clipboard.';
+      st.className = 'email-status';
+    });
+    recordActivity('Buka Email Report', 'Isi disalin lalu Zimbra dibuka.');
+  }
+
+  function salinSubjek(){
+    var p = pisahSubjek(document.getElementById('emailTeks').value || '');
+    var st = document.getElementById('emailStatus');
+    if(!p.subjek){
+      st.textContent = '\u26a0 Tidak ada baris "Subject:" pada teks ini.';
+      st.className = 'email-status';
+      return;
+    }
+    salinKeClipboard(p.subjek).then(function(){
+      st.textContent = '\u2713 Subjek tersalin \u2014 tempel di kolom Subject Zimbra';
+      st.className = 'email-status ok';
+    })['catch'](function(){
+      st.textContent = '\u26a0 Gagal menyalin subjek.';
+      st.className = 'email-status';
+    });
+  }
+
   function gambarTeksLaporan(){
     var baris = state.filtered || [];
     var h = (emailMode === 'wa') ? susunWaReport(baris) : susunEmailReport(baris);
     var ta = document.getElementById('emailTeks');
     ta.value = h.teks;
     ta.classList.toggle('mode-wa', emailMode === 'wa');
+    var btnBuka = document.getElementById('emailBuka');
+    if(btnBuka){
+      btnBuka.innerHTML = (emailMode === 'wa')
+        ? '\uD83D\uDCAC Buka di WhatsApp'
+        : '\uD83D\uDCE7 Buka di Zimbra';
+    }
     document.getElementById('emailSub').textContent =
       h.order + ' order \u00b7 ' + h.belum + ' belum terbentuk SO/TO/TI \u00b7 ' +
       'disusun dari ' + baris.length + ' baris yang sedang tampil';
@@ -12096,6 +12227,9 @@
         });
       }
 
+      document.getElementById('emailBuka').addEventListener('click', bukaDiAplikasi);
+      document.getElementById('emailSalinSubjek').addEventListener('click', salinSubjek);
+      document.getElementById('emailSetel').addEventListener('click', setelZimbra);
       document.getElementById('emailSalin').addEventListener('click', salinEmailReport);
       document.getElementById('emailUnduh').addEventListener('click', unduhEmailReport);
     }
