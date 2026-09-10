@@ -1485,6 +1485,14 @@
   }
   #emailTeks:focus{outline:none; border-color:var(--accent);}
   .email-catatan{font-size:11px; color:var(--muted); margin:8px 0 0;}
+  /* Mode WhatsApp: pesannya jauh lebih pendek dan dibaca di layar sempit,
+     jadi kotaknya ikut mengecil dan pakai huruf biasa — bukan lebar-tetap
+     seperti versi email. */
+  #emailTeks.mode-wa{
+    min-height:280px; max-width:420px;
+    font-family:'Inter',sans-serif; font-size:13px; line-height:1.6;
+    white-space:pre-wrap;
+  }
 
   /* ---------- cek silang marketplace vs jubelio ---------- */
   .silang{
@@ -2892,6 +2900,10 @@
     </div>
     <div class="chart-modal-body">
       <div class="email-aksi">
+        <div class="an-toggle" id="emailMode">
+          <button type="button" data-val="email" class="on">✉ Email</button>
+          <button type="button" data-val="wa">💬 WhatsApp</button>
+        </div>
         <button type="button" class="btn btn-primary" id="emailSalin">📋 Salin ke Clipboard</button>
         <button type="button" class="btn btn-ghost" id="emailUnduh">↓ Unduh .txt</button>
         <span class="email-status" id="emailStatus"></span>
@@ -7903,9 +7915,11 @@
     return parseInt(p[2], 10) + ' ' + b[parseInt(p[1], 10) - 1] + ' ' + p[0];
   }
 
-  function susunEmailReport(baris){
-    // Dikelompokkan per PESANAN, bukan per baris. Satu pesanan bisa berisi
-    // beberapa barang, dan status SO/TO/TI berlaku untuk pesanannya.
+  // Satu sumber angka untuk KEDUA versi (email & WhatsApp). Kalau masing-masing
+  // menghitung sendiri, cepat atau lambat keduanya akan menyebut angka berbeda
+  // untuk hari yang sama — dan itu jenis kesalahan yang paling merusak
+  // kepercayaan pada laporan.
+  function ringkasPerPesanan(baris){
     var perPesanan = {};
     baris.forEach(function(r){
       var no = trimKey(r['No Pesanan']) || '(tanpa nomor)';
@@ -7966,7 +7980,26 @@
       String(hariIni.getDate()).padStart(2, '0');
 
     var persen = daftar.length ? Math.round(belum.length / daftar.length * 100) : 0;
+    belum.sort(function(a, b){ return String(a.tgl).localeCompare(String(b.tgl)); });
+
+    return {
+      total: daftar.length, qty: totalQty, nilai: totalNilai,
+      sudah: sudah, belum: belum, persen: persen,
+      periode: periode, isoHariIni: isoHariIni,
+      lokasiRingkas: ringkasPeta(lokHitung, 'order'),
+      statusRingkas: (Object.keys(stHitung).length === 1
+        ? 'seluruhnya ' + Object.keys(stHitung)[0]
+        : ringkasPeta(stHitung, 'order')),
+      lokasiTunggal: Object.keys(lokHitung).length === 1,
+      statusTunggal: Object.keys(stHitung).length === 1
+    };
+  }
+
+  function susunEmailReport(baris){
+    var h = ringkasPerPesanan(baris);
+    var daftarPanjang = h.belum;
     var rp = function(n){ return 'Rp ' + Math.round(n).toLocaleString('id-ID'); };
+    var periode = h.periode, isoHariIni = h.isoHariIni, persen = h.persen;
 
     var t = [];
     t.push('Subject: [Laporan Harian] Order Online/Jubelio \u2014 Status SO/TO/TI per ' + fmtTglPanjang(isoHariIni));
@@ -7977,24 +8010,20 @@
            'dokumen SO / TO / TI untuk periode ' + periode + '.');
     t.push('');
     t.push('RINGKASAN');
-    t.push('- Total order: ' + daftar.length.toLocaleString('id-ID') + ' order');
-    t.push('- Total kuantitas: ' + totalQty.toLocaleString('id-ID') + ' pcs');
-    t.push('- Total nilai: ' + rp(totalNilai));
-    t.push('- Lokasi: ' + ringkasPeta(lokHitung, 'order'));
-    t.push('- Status pesanan: ' +
-      (Object.keys(stHitung).length === 1
-        ? 'seluruhnya ' + Object.keys(stHitung)[0]
-        : ringkasPeta(stHitung, 'order')));
+    t.push('- Total order: ' + h.total.toLocaleString('id-ID') + ' order');
+    t.push('- Total kuantitas: ' + h.qty.toLocaleString('id-ID') + ' pcs');
+    t.push('- Total nilai: ' + rp(h.nilai));
+    t.push('- Lokasi: ' + h.lokasiRingkas);
+    t.push('- Status pesanan: ' + h.statusRingkas);
     t.push('');
     t.push('STATUS SO/TO/TI');
-    t.push('- Sudah terbentuk: ' + sudah.toLocaleString('id-ID') + ' order');
-    t.push('- Belum terbentuk: ' + belum.length.toLocaleString('id-ID') + ' order (' + persen + '%)');
+    t.push('- Sudah terbentuk: ' + h.sudah.toLocaleString('id-ID') + ' order');
+    t.push('- Belum terbentuk: ' + daftarPanjang.length.toLocaleString('id-ID') + ' order (' + persen + '%)');
     t.push('');
 
-    if(belum.length){
+    if(daftarPanjang.length){
       t.push('DAFTAR ORDER YANG BELUM TERBENTUK SO/TO/TI');
-      belum.sort(function(a, b){ return String(a.tgl).localeCompare(String(b.tgl)); });
-      belum.forEach(function(p, i){
+      daftarPanjang.forEach(function(p, i){
         t.push((i + 1) + '. ' + p.no + ' / ' + (p.invoice || '(tanpa invoice)'));
       });
       t.push('');
@@ -8021,7 +8050,70 @@
     t.push(window.currentUsername || 'E-Commerce');
     t.push('E-Commerce');
 
-    return {teks: t.join('\n'), order: daftar.length, belum: belum.length};
+    return {teks: t.join('\n'), order: h.total, belum: daftarPanjang.length};
+  }
+
+
+  // ---------- versi WhatsApp ----------
+  // Sengaja jauh lebih pendek daripada versi email. WhatsApp dibaca di layar
+  // kecil dan sering sambil berjalan, jadi yang dipertahankan hanya: berapa
+  // banyak, nilainya, dan nomor mana yang tertahan. Kalimat penjelas panjang
+  // dan salam formal dibuang.
+  var emailMode = 'email';
+  var BATAS_DAFTAR_WA = 10;
+
+  function susunWaReport(baris){
+    var h = ringkasPerPesanan(baris);
+    var rp = function(n){ return 'Rp ' + Math.round(n).toLocaleString('id-ID'); };
+    var hariIni = new Date();
+    var tgl = hariIni.toLocaleDateString('id-ID', {day: '2-digit', month: 'short', year: 'numeric'});
+
+    var t = [];
+    // *tebal* adalah penanda bold di WhatsApp \u2014 bukan hiasan, tapi supaya
+    // angka pentingnya menonjol saat dibaca cepat.
+    t.push('*LAPORAN HARIAN ORDER JUBELIO*');
+    t.push(tgl + (h.lokasiRingkas ? ' \u00b7 ' + h.lokasiRingkas : ''));
+    t.push('');
+    t.push('Order: *' + h.total + '* \u00b7 Qty: *' + h.qty + ' pcs*');
+    t.push('Nilai: *' + rp(h.nilai) + '*');
+    t.push('Status: ' + h.statusRingkas);
+    t.push('');
+
+    if(h.belum.length){
+      t.push('*Belum terbentuk SO/TO/TI: ' + h.belum.length + ' dari ' + h.total +
+             ' (' + h.persen + '%)*');
+      h.belum.slice(0, BATAS_DAFTAR_WA).forEach(function(p, i){
+        t.push((i + 1) + '. ' + p.no);
+      });
+      if(h.belum.length > BATAS_DAFTAR_WA){
+        // Daftar dipotong, bukan dibuang \u2014 dan sisanya disebutkan supaya
+        // penerima tahu ada yang tidak tertulis.
+        t.push('...dan ' + (h.belum.length - BATAS_DAFTAR_WA) + ' order lainnya');
+      }
+      t.push('');
+      t.push('Proses otomatis belum berjalan. Belum perlu tindakan dari tim toko.');
+    } else {
+      t.push('*Semua order sudah terbentuk SO/TO/TI* \u2705');
+      t.push('Tidak ada yang perlu ditindaklanjuti.');
+    }
+
+    t.push('');
+    t.push('\u2014 ' + (window.currentUsername || 'E-Commerce') + ', E-Commerce');
+
+    return {teks: t.join('\n'), order: h.total, belum: h.belum.length};
+  }
+
+  function gambarTeksLaporan(){
+    var baris = state.filtered || [];
+    var h = (emailMode === 'wa') ? susunWaReport(baris) : susunEmailReport(baris);
+    var ta = document.getElementById('emailTeks');
+    ta.value = h.teks;
+    ta.classList.toggle('mode-wa', emailMode === 'wa');
+    document.getElementById('emailSub').textContent =
+      h.order + ' order \u00b7 ' + h.belum + ' belum terbentuk SO/TO/TI \u00b7 ' +
+      'disusun dari ' + baris.length + ' baris yang sedang tampil';
+    document.getElementById('emailStatus').textContent = '';
+    document.getElementById('emailStatus').className = 'email-status';
   }
 
   function bukaEmailReport(){
@@ -8030,12 +8122,7 @@
       window.alert('Tidak ada baris pada filter ini. Longgarkan filter lalu coba lagi.');
       return;
     }
-    var h = susunEmailReport(baris);
-    document.getElementById('emailTeks').value = h.teks;
-    document.getElementById('emailSub').textContent =
-      h.order + ' order \u00b7 ' + h.belum + ' belum terbentuk SO/TO/TI \u00b7 ' +
-      'disusun dari ' + baris.length + ' baris yang sedang tampil';
-    document.getElementById('emailStatus').textContent = '';
+    gambarTeksLaporan();
     document.getElementById('emailOverlay').classList.add('open');
   }
 
@@ -8064,7 +8151,8 @@
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'email report order jubelio ' + tanggalHariIni() + '.txt';
+    a.download = (emailMode === 'wa' ? 'wa report order jubelio ' : 'email report order jubelio ') +
+                 tanggalHariIni() + '.txt';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -11991,6 +12079,23 @@
       ovEmail.addEventListener('click', function(e){
         if(e.target === this) ovEmail.classList.remove('open');
       });
+      var kotakMode = document.getElementById('emailMode');
+      if(kotakMode){
+        Array.prototype.forEach.call(kotakMode.querySelectorAll('button'), function(b){
+          b.addEventListener('click', function(){
+            var val = b.getAttribute('data-val');
+            if(emailMode === val) return;
+            emailMode = val;
+            Array.prototype.forEach.call(kotakMode.querySelectorAll('button'), function(x){
+              x.classList.toggle('on', x === b);
+            });
+            // Digambar ulang, jadi suntingan pada mode sebelumnya hilang —
+            // itu memang yang diharapkan: dua mode adalah dua naskah berbeda.
+            gambarTeksLaporan();
+          });
+        });
+      }
+
       document.getElementById('emailSalin').addEventListener('click', salinEmailReport);
       document.getElementById('emailUnduh').addEventListener('click', unduhEmailReport);
     }
