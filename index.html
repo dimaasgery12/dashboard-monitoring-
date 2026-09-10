@@ -8074,6 +8074,32 @@
     recordActivity('Unduh Email Report', 'Berkas teks laporan harian diunduh.');
   }
 
+  // Menyusun bagian nama toko untuk nama berkas, dibaca dari data yang
+  // SEDANG TAMPIL — bukan dari pilihan filter. Bedanya penting: pencarian
+  // teks atau batas tanggal juga bisa menyisakan satu toko saja tanpa
+  // menyentuh filter Lokasi.
+  function namaTokoUntukBerkas(baris){
+    var set = {};
+    baris.forEach(function(r){
+      var l = trimKey(r['Lokasi']);
+      if(l) set[l] = true;
+    });
+    var lok = Object.keys(set);
+    if(!lok.length) return '';
+    if(lok.length === 1) return lok[0];
+    if(lok.length === 2) return lok.join(' & ');
+    return lok.length + ' TOKO';
+  }
+
+  // Windows menolak \ / : * ? " < > | pada nama berkas, dan nama toko bisa
+  // memuat tanda semacam itu. Dibersihkan supaya unduhannya tidak gagal.
+  function amankanNamaBerkas(t){
+    return String(t || '')
+      .replace(/[\\/:*?"<>|]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function unduhReportToko(){
     // Mengikuti persis apa yang sedang tampil di tabel Monitoring Jubelio:
     // filter, pencarian, dan batas periode semuanya berlaku.
@@ -8094,7 +8120,9 @@
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
-        a.download = 'REPORT HARIAN JUBELIO TOKO ' + tanggalHariIni() + '.xlsx';
+        var toko = namaTokoUntukBerkas(baris);
+        a.download = amankanNamaBerkas('REPORT HARIAN JUBELIO' +
+          (toko ? ' - ' + toko : '') + ' ' + tanggalHariIni()) + '.xlsx';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
