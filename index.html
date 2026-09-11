@@ -7990,6 +7990,12 @@
       sudah: sudah, belum: belum, persen: persen,
       periode: periode, isoHariIni: isoHariIni,
       lokasiRingkas: ringkasPeta(lokHitung, 'order'),
+      // Daftar lokasi mentah beserta jumlahnya, diurutkan dari terbanyak.
+      // Versi WhatsApp menatanya sendiri per baris; satu baris panjang
+      // berisi tujuh nama toko mustahil dibaca di layar HP.
+      lokasiDaftar: Object.keys(lokHitung).sort(function(a, b){
+        return lokHitung[b] - lokHitung[a] || a.localeCompare(b, 'id');
+      }).map(function(k){ return {nama: k, jumlah: lokHitung[k]}; }),
       statusRingkas: (Object.keys(stHitung).length === 1
         ? 'seluruhnya ' + Object.keys(stHitung)[0]
         : ringkasPeta(stHitung, 'order')),
@@ -8007,7 +8013,7 @@
     var t = [];
     t.push('Subject: [Laporan Harian] Order Online/Jubelio \u2014 Status SO/TO/TI per ' + fmtTglPanjang(isoHariIni));
     t.push('');
-    t.push('Selamat pagi Bapak/Ibu,');
+    t.push('Dear All,');
     t.push('');
     t.push('Berikut laporan harian order online (Jubelio) beserta status pembentukan ' +
            'dokumen SO / TO / TI untuk periode ' + periode + '.');
@@ -8037,6 +8043,9 @@
       t.push('Apabila dalam 2x24 jam sejak order masuk proses otomatis masih belum berjalan, ' +
              'akan kami sampaikan email lanjutan berisi instruksi pembuatan SO/TO/TI secara manual. ' +
              'Untuk saat ini belum diperlukan tindakan dari tim toko.');
+      t.push('');
+      t.push('Proses pembuatan SO otomatis belum berjalan. Namun masih belum perlu ' +
+             'tindakan dari tim toko.');
     } else {
       // Kalimat penutup ikut berubah kalau semuanya sudah beres \u2014 kalau
       // tidak, emailnya akan menyebut "belum berjalan" padahal sudah selesai.
@@ -8064,6 +8073,7 @@
   // dan salam formal dibuang.
   var emailMode = 'email';
   var BATAS_DAFTAR_WA = 10;
+  var BATAS_TOKO_WA = 8;
 
   function susunWaReport(baris){
     var h = ringkasPerPesanan(baris);
@@ -8074,17 +8084,50 @@
     var t = [];
     // *tebal* adalah penanda bold di WhatsApp \u2014 bukan hiasan, tapi supaya
     // angka pentingnya menonjol saat dibaca cepat.
-    t.push('*LAPORAN HARIAN ORDER JUBELIO*');
-    t.push(tgl + (h.lokasiRingkas ? ' \u00b7 ' + h.lokasiRingkas : ''));
+    // Judul harus langsung memberitahu ini pesan tentang APA. Sebelumnya
+    // cuma "laporan harian order" — penerima di grup WA tidak tahu bahwa
+    // isinya status dokumen SO/TO/TI, dan pesannya mudah terlewat.
+    t.push('*LAPORAN HARIAN ORDER ONLINE (JUBELIO)*');
+    t.push('*Status Pembuatan SO / TO / TI*');
+    t.push(tgl);
+    t.push('');
+    t.push('Berikut laporan penjualan online hari ini, beserta status pembentukan ' +
+           'dokumen SO / TO / TI \u2014 mana yang sudah terbentuk dan mana yang belum.');
     t.push('');
     t.push('Order: *' + h.total + '* \u00b7 Qty: *' + h.qty + ' pcs*');
     t.push('Nilai: *' + rp(h.nilai) + '*');
     t.push('Status: ' + h.statusRingkas);
     t.push('');
 
+    // Toko ditata sendiri, tidak dijejer di satu baris. Satu toko cukup
+    // ditulis sebaris; kalau lebih, tiap toko dapat barisnya sendiri dengan
+    // jumlah ordernya — di layar HP itu bedanya besar.
+    var lok = h.lokasiDaftar || [];
+    if(lok.length === 1){
+      t.push('*Toko:* ' + lok[0].nama);
+      t.push('');
+    } else if(lok.length > 1){
+      t.push('*Toko (' + lok.length + '):*');
+      lok.slice(0, BATAS_TOKO_WA).forEach(function(l){
+        t.push('\u2022 ' + l.nama + ' \u2014 ' + l.jumlah + ' order');
+      });
+      if(lok.length > BATAS_TOKO_WA){
+        t.push('\u2022 ...dan ' + (lok.length - BATAS_TOKO_WA) + ' toko lainnya');
+      }
+      t.push('');
+    }
+
+    // Kedua sisi selalu disebut. Sebelumnya hanya yang belum terbentuk yang
+    // ditulis, sehingga penerima tidak tahu ada berapa yang sudah beres —
+    // dan laporannya terbaca seolah semuanya bermasalah.
+    t.push('*STATUS SO / TO / TI*');
+    t.push('\u2705 Sudah terbentuk: *' + h.sudah + ' order*');
+    t.push('\u274c Belum terbentuk: *' + h.belum.length + ' order*' +
+           (h.total ? ' (' + h.persen + '%)' : ''));
+    t.push('');
+
     if(h.belum.length){
-      t.push('*Belum terbentuk SO/TO/TI: ' + h.belum.length + ' dari ' + h.total +
-             ' (' + h.persen + '%)*');
+      t.push('*Rincian yang belum terbentuk:*');
       h.belum.slice(0, BATAS_DAFTAR_WA).forEach(function(p, i){
         t.push((i + 1) + '. ' + p.no);
       });
@@ -8094,14 +8137,17 @@
         t.push('...dan ' + (h.belum.length - BATAS_DAFTAR_WA) + ' order lainnya');
       }
       t.push('');
-      t.push('Proses otomatis belum berjalan. Belum perlu tindakan dari tim toko.');
+      t.push('Proses pembuatan SO otomatis belum berjalan. Namun masih belum perlu ' +
+             'tindakan dari tim toko.');
     } else {
-      t.push('*Semua order sudah terbentuk SO/TO/TI* \u2705');
-      t.push('Tidak ada yang perlu ditindaklanjuti.');
+      t.push('Seluruh order sudah terbentuk dokumennya. Tidak ada yang perlu ditindaklanjuti.');
     }
 
     t.push('');
-    t.push('\u2014 ' + (window.currentUsername || 'E-Commerce') + ', E-Commerce');
+    // Penutup WhatsApp sengaja tanpa nama pengirim: di WA identitas pengirim
+    // sudah terlihat dari nomornya sendiri, jadi mencantumkannya lagi cuma
+    // menambah baris tanpa guna.
+    t.push('Terimakasih \uD83D\uDE4F');
 
     return {teks: t.join('\n'), order: h.total, belum: h.belum.length};
   }
@@ -8114,7 +8160,12 @@
   // kode. Kalau Zimbra-mu ternyata mendukung parameter, tinggal masukkan
   // polanya lewat tombol \u2699 \u2014 tanpa perlu saya ubah kodenya.
   var KUNCI_ZIMBRA = 'zimbraComposeUrl';
-  var ZIMBRA_BAWAAN = 'https://webmail.bercaretail.com';
+  // Terbukti dari pemakaian nyata: Zimbra kalian MENERIMA parameter subject
+  // (kolom subjeknya langsung terisi), tapi TIDAK mengisi body. Jadi polanya
+  // dipertahankan agar subjeknya otomatis, sementara isinya tetap disalin ke
+  // clipboard sebagai jaring pengaman — kalau ternyata body ikut terisi,
+  // salinan itu cuma tidak terpakai; tidak ada ruginya.
+  var ZIMBRA_BAWAAN = 'https://webmail.bercaretail.com/?view=compose&subject={subject}&body={body}';
 
   function urlZimbra(){
     try{ return localStorage.getItem(KUNCI_ZIMBRA) || ZIMBRA_BAWAAN; }
@@ -8129,7 +8180,8 @@
       'lalu salin alamat yang muncul di bilah alamat browser.\n\n' +
       'Kalau Zimbra-mu mendukung isi lewat URL, boleh pakai penanda:\n' +
       '  {subject}  dan  {body}\n\n' +
-      'Contoh: https://webmail.bercaretail.com/?view=compose&subject={subject}&body={body}',
+      'Contoh: https://webmail.bercaretail.com/?view=compose&subject={subject}&body={body}\n\n' +
+      'Kosongkan lalu OK untuk kembali ke pengaturan bawaan.',
       kini);
     if(baru === null) return;
     baru = baru.trim();
@@ -8187,10 +8239,30 @@
       var url = pola
         .replace('{subject}', encodeURIComponent(p.subjek))
         .replace('{body}', encodeURIComponent(p.isi));
-      window.open(url, '_blank');
-      st.textContent = '\u2713 Zimbra dibuka dengan isi terisi';
-      st.className = 'email-status ok';
-      recordActivity('Buka Email Report', 'Zimbra dibuka lewat pola URL.');
+
+      // URL yang terlalu panjang bisa dipotong browser atau server tanpa
+      // peringatan. Kalau kepanjangan, body-nya tidak dititipkan lewat URL
+      // sama sekali — lebih baik kolomnya kosong lalu ditempel, daripada
+      // terisi setengah tanpa ada yang sadar.
+      if(url.length > 1800){
+        url = pola
+          .replace('{subject}', encodeURIComponent(p.subjek))
+          .replace('{body}', '');
+      }
+
+      // Isi SELALU disalin lebih dulu. Zimbra kalian tidak mengisi body dari
+      // URL, jadi tanpa ini kamu harus kembali ke sini cuma untuk menyalin.
+      salinKeClipboard(p.isi).then(function(){
+        window.open(url, '_blank');
+        st.innerHTML = '\u2713 Zimbra dibuka \u2014 <b>subjek terisi otomatis</b>. ' +
+                       'Isi email sudah tersalin: klik badan email lalu Ctrl+V.';
+        st.className = 'email-status ok';
+      })['catch'](function(){
+        window.open(url, '_blank');
+        st.textContent = '\u2713 Zimbra dibuka \u2014 subjek terisi. Isi gagal disalin, pakai tombol Salin ke Clipboard.';
+        st.className = 'email-status';
+      });
+      recordActivity('Buka Email Report', 'Zimbra dibuka lewat pola URL, isi disalin.');
       return;
     }
 
