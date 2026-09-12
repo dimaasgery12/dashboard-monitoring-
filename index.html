@@ -2893,7 +2893,7 @@
   <div class="chart-modal" style="max-width:820px;">
     <div class="chart-modal-head">
       <div>
-        <h3>Email Report</h3>
+        <h3>Kirim Report</h3>
         <div class="sub" id="emailSub">Disusun dari data yang sedang tampil di tabel Monitoring</div>
       </div>
       <button class="chart-modal-close" id="emailClose" aria-label="Tutup">✕</button>
@@ -2903,6 +2903,7 @@
         <div class="an-toggle" id="emailMode">
           <button type="button" data-val="email" class="on">✉ Email</button>
           <button type="button" data-val="wa">💬 WhatsApp</button>
+          <button type="button" data-val="retur">↩ Pemberitahuan Return</button>
         </div>
         <button type="button" class="btn btn-primary" id="emailBuka">📧 Buka di Zimbra</button>
         <button type="button" class="btn btn-ghost" id="emailSalinSubjek">📋 Subjek</button>
@@ -3179,7 +3180,7 @@
       <div class="spacer"></div>
       <button class="btn btn-ghost" id="resetBtn">Reset filter</button>
       <button class="btn btn-primary" id="downloadBtn">⬇ Unduh Excel</button>
-      <button class="btn btn-primary" id="emailReportBtn" data-role-hide="admin,viewer,toko" title="Susun teks email laporan harian dari data yang sedang tampil">✉ Email Report</button>
+      <button class="btn btn-primary" id="emailReportBtn" data-role-hide="admin,viewer,toko" title="Susun teks laporan dari data yang sedang tampil">✉ Kirim Report</button>
       <button class="btn btn-primary" id="reportTokoBtn" data-role-hide="admin,viewer,toko" title="Unduh report harian per toko, dikelompokkan per lokasi dengan penanda SO/TI/TO belum lengkap">🏬 Report Harian Toko</button>
       <button class="btn btn-primary" id="downloadSalesBtn" data-role-hide="admin,viewer,toko" title="Unduh data penjualan sesuai filter tabel, memakai template Data Sales Harian">📅 Unduh Data Sales</button>
     </div>
@@ -8144,6 +8145,11 @@
     }
 
     t.push('');
+    // Penunjuk ke lampiran. Ditaruh SEBELUM salam penutup supaya tidak
+    // terbaca sebagai catatan tambahan setelah pesan selesai — orang
+    // sering berhenti membaca begitu melihat kata terima kasih.
+    t.push('Rincian lengkap per order dapat dilihat pada berkas laporan terlampir.');
+    t.push('');
     // Penutup WhatsApp sengaja tanpa nama pengirim: di WA identitas pengirim
     // sudah terlihat dari nomornya sendiri, jadi mencantumkannya lagi cuma
     // menambah baris tanpa guna.
@@ -8152,6 +8158,93 @@
     return {teks: t.join('\n'), order: h.total, belum: h.belum.length};
   }
 
+
+
+  // ---------- pemberitahuan return ----------
+  // Naskah terpisah untuk pesanan berstatus RETURNED. Isinya bukan ringkasan
+  // angka seperti dua mode lain, melainkan INSTRUKSI kerja untuk tim toko \u2014
+  // barang apa yang akan datang, dan apa yang harus mereka lakukan.
+  function susunReturReport(baris) {
+    var retur = baris.filter(function (r) {
+      return String(r['Status'] || '').trim().toUpperCase() === 'RETURNED';
+    });
+
+    if (!retur.length) {
+      return {
+        teks: 'Tidak ada pesanan berstatus RETURNED pada data yang sedang tampil.\n\n' +
+              'Longgarkan filter di tabel Monitoring, atau pastikan status RETURNED ' +
+              'memang ada pada periode yang dipilih.',
+        order: 0, belum: 0, kosong: true
+      };
+    }
+
+    // Diurutkan per lokasi lalu tanggal, supaya paket yang menuju toko yang
+    // sama berdekatan dan mudah dibaca oleh tim tokonya.
+    retur.sort(function (a, b) {
+      var la = trimKey(a['Lokasi']), lb = trimKey(b['Lokasi']);
+      if (la !== lb) return la.localeCompare(lb, 'id');
+      return String(a['Tanggal']).localeCompare(String(b['Tanggal']));
+    });
+
+    var rp = function (n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); };
+    var tglPendek = function (t) {
+      var iso = String(t || '').slice(0, 10).split('-');
+      if (iso.length < 3) return String(t || '-');
+      var b = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+      return iso[2] + ' ' + b[parseInt(iso[1], 10) - 1] + ' ' + iso[0];
+    };
+
+    var t = [];
+    t.push('Subject: [Pemberitahuan] Pesanan Retur \u2014 Mohon Proses Sales Return (SR Infinity)');
+    t.push('');
+    t.push('Halo Tim Toko,');
+    t.push('');
+    t.push('Kami informasikan bahwa ada beberapa pesanan e-commerce yang statusnya sudah ' +
+           'RETURNED, artinya barang dikembalikan oleh customer dan akan/sudah dikirim ' +
+           'balik ke toko masing-masing.');
+    t.push('');
+    t.push('Berikut detailnya:');
+    t.push('');
+
+    retur.forEach(function (r, i) {
+      var lok = trimKey(r['Lokasi']) || '(tanpa lokasi)';
+      var site = trimKey(r['Site']);
+      // Nomor dokumen digabung jadi satu baris referensi. Kalau salah satunya
+      // belum ada, ditulis apa adanya \u2014 tim toko perlu tahu kalau
+      // referensinya memang belum lengkap, bukan disembunyikan.
+      var ref = [trimKey(r['No SO (LPH)']), trimKey(r['No TI (TII)']), trimKey(r['No TO (TII)'])]
+        .map(function (x) { return x || '(belum ada)'; }).join(' / ');
+
+      t.push((i + 1) + ') ' + lok + (site ? ' (Site ' + site + ')' : ''));
+      t.push('   - SKU: ' + trimKey(r['SKU']) + ' \u2013 ' + trimKey(r['Nama Barang']));
+      t.push('   - No. Pesanan: ' + trimKey(r['No Pesanan']) +
+             ' | Invoice: ' + (trimKey(r['No Invoice']) || '(tanpa invoice)'));
+      t.push('   - Tanggal: ' + tglPendek(r['Tanggal']) +
+             ' | Qty: ' + (Number(r['QTY']) || 0) +
+             ' | Nilai: ' + rp(r['amount']));
+      t.push('   - Referensi: ' + ref);
+      t.push('');
+    });
+
+    t.push('Mohon bantuannya untuk langkah berikut:');
+    t.push('');
+    t.push('1. Cek fisik barang saat paket retur diterima \u2014 pastikan SKU, size, dan qty ' +
+           'sesuai dengan detail di atas.');
+    t.push('2. Kabari kami (reply email ini atau info di grup) bahwa barang sudah diterima, ' +
+           'lengkap dengan tanggal terima dan kondisi barang.');
+    t.push('3. Buat Sales Return di Infinity (SR INFINITY) dengan referensi No. Pesanan / ' +
+           'Invoice di atas, lalu kirimkan No. SR-nya ke kami.');
+    t.push('');
+    t.push('Mohon prosesnya maksimal 1x24 jam setelah barang diterima ya, supaya stok di ' +
+           'sistem cepat kembali normal dan tidak selisih saat rekonsiliasi. Kalau ada barang ' +
+           'yang belum sampai atau kondisinya tidak sesuai, langsung info saja biar kami bantu telusuri.');
+    t.push('');
+    t.push('Terima kasih banyak atas bantuannya.');
+    t.push(window.currentUsername || 'E-Commerce');
+    t.push('E-Commerce');
+
+    return {teks: t.join('\n'), order: retur.length, belum: 0};
+  }
 
   // ---------- alamat Zimbra ----------
   // Zimbra antarmuka BARU memakai rute # dan tidak menerima subjek/isi lewat
@@ -8302,7 +8395,9 @@
 
   function gambarTeksLaporan(){
     var baris = state.filtered || [];
-    var h = (emailMode === 'wa') ? susunWaReport(baris) : susunEmailReport(baris);
+    var h = (emailMode === 'wa') ? susunWaReport(baris)
+          : (emailMode === 'retur') ? susunReturReport(baris)
+          : susunEmailReport(baris);
     var ta = document.getElementById('emailTeks');
     ta.value = h.teks;
     ta.classList.toggle('mode-wa', emailMode === 'wa');
@@ -8312,9 +8407,12 @@
         ? '\uD83D\uDCAC Buka di WhatsApp'
         : '\uD83D\uDCE7 Buka di Zimbra';
     }
-    document.getElementById('emailSub').textContent =
-      h.order + ' order \u00b7 ' + h.belum + ' belum terbentuk SO/TO/TI \u00b7 ' +
-      'disusun dari ' + baris.length + ' baris yang sedang tampil';
+    document.getElementById('emailSub').textContent = (emailMode === 'retur')
+      ? (h.order
+          ? h.order + ' baris berstatus RETURNED \u00b7 disusun dari ' + baris.length + ' baris yang sedang tampil'
+          : 'Tidak ada baris berstatus RETURNED pada filter ini')
+      : (h.order + ' order \u00b7 ' + h.belum + ' belum terbentuk SO/TO/TI \u00b7 ' +
+         'disusun dari ' + baris.length + ' baris yang sedang tampil');
     document.getElementById('emailStatus').textContent = '';
     document.getElementById('emailStatus').className = 'email-status';
   }
@@ -8354,8 +8452,9 @@
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = (emailMode === 'wa' ? 'wa report order jubelio ' : 'email report order jubelio ') +
-                 tanggalHariIni() + '.txt';
+    a.download = (emailMode === 'wa' ? 'wa report order jubelio '
+                : emailMode === 'retur' ? 'pemberitahuan return '
+                : 'email report order jubelio ') + tanggalHariIni() + '.txt';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
