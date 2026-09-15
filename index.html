@@ -4654,6 +4654,15 @@
           });
       })['catch'](function(err){
         console.warn('Gagal memangkas riwayat aktivitas:', err && err.message);
+        // Kegagalan izin di sini pernah tidak terlihat sama sekali, sehingga
+        // riwayat terus tumbuh tanpa ada yang tahu. Sekarang diberitahukan
+        // sekali saja — cukup untuk menyadarkan, tanpa mengganggu tiap unggah.
+        var p = (err && err.message || '').toLowerCase();
+        if(p.indexOf('permission') !== -1 || p.indexOf('insufficient') !== -1){
+          logMsg('warn', '\u26a0', 'Pemangkasan Riwayat Update Data ditolak Firestore. ' +
+            'Koleksi <b>activityLog</b> akan terus bertambah \u2014 izin hapus untuk ' +
+            'Owner &amp; Super Admin ada di <b>firestore.rules</b> versi terbaru.');
+        }
       });
   }
 
@@ -4675,9 +4684,21 @@
         window.lastActivityError = null;
         pangkasRiwayat();
       })['catch'](function(err){
+        // "already-exists" BUKAN kegagalan. add() membuat ID di sisi klien,
+        // lalu mengirimnya ke server. Kalau jaringan tersendat dan SDK
+        // mengirim ulang, percobaan kedua menemukan dokumennya sudah ada —
+        // padahal yang pertama SUDAH berhasil tercatat. Menampilkan
+        // peringatan untuk ini justru menyesatkan: orang mengira catatannya
+        // hilang dan mengulang pekerjaannya.
+        var kode = (err && (err.code || err.name) || '').toString().toLowerCase();
+        var pesan = (err && err.message || '').toLowerCase();
+        if(kode.indexOf('already-exists') !== -1 || pesan.indexOf('already exists') !== -1){
+          window.lastActivityError = null;
+          return;
+        }
         window.lastActivityError = err;
         console.warn('Gagal mencatat aktivitas:', err && err.message);
-        // Jangan diam-diam gagal — beri tahu di panel log layar
+        // Kegagalan yang sebenarnya tetap diberitahukan, jangan diam-diam.
         logMsg('warn', '⚠', 'Aktivitas ini <b>tidak tercatat</b> di Riwayat Update Data. ' + activityRulesHint(err));
       });
     }catch(e){
